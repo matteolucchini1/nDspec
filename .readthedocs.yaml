@@ -30,3 +30,11 @@ sphinx:
 # to build your documentation
 # See https://docs.readthedocs.io/en/stable/guides/reproducible-builds.html
 #this is still WiP as is the rest of the documentation
+python:
+  install:
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs
+
+#    - requirements: docs/requirements.txt
