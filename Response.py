@@ -1,29 +1,11 @@
 import numpy as np
 import copy
-from random import gauss
 from astropy.io import fits
-from timeit import Timer #not needed by the class
-
-import pyfftw #not needed by he class
-import multiprocessing  #not needed by the class
-import scipy.signal #not needed by the class
-import scipy.fft #not needed by the class
 #note: enable an option to switch between jax and numpy as the user wants
 import jax.numpy as jnp
 
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pl
-import matplotlib.ticker as plticker
-import matplotlib.gridspec as gridspec
-
-#not sure what is needed here
-import matplotlib.patches as mpatch
-from matplotlib import cm
-from matplotlib.colors import LogNorm
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from matplotlib.patches import Polygon
-import matplotlib.ticker as plticker 
-from matplotlib.ticker import MultipleLocator, FormatStrFormatter, FuncFormatter
 from matplotlib import rc, rcParams
 rc('text',usetex=True)
 rc('font',**{'family':'serif','serif':['Computer Modern']})
@@ -277,7 +259,7 @@ class ResponseMatrix(object):
         return return_lo,return_hi
 
     #tbd: add flag to change between channels and bounds
-    def plot_response(self,plot_type):
+    def plot_response(self,plot_type="channel"):
         #tbd: add distinction between RMF/Response/etc, add ability to change between
         #channel and energy for x axis
         fig = plt.figure(figsize=(9.,7.5))
@@ -300,6 +282,7 @@ class ResponseMatrix(object):
         return
         
     def plot_arf(self):
+        #tbd: only allow this to happen if specresp is defined
         energy_array = (self.energ_hi+self.energ_lo)/2.
         fig = plt.figure(figsize=(9.,7.5))
         plt.plot(energy_array,self.specresp,linewidth=2.5,color=colorscale[3])
