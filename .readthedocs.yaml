@@ -35,11 +35,6 @@ python:
     - method: pip
       path: .
       extra_requirements:
-          - python==3.5
-          - sphinx>=1.4
-          - pandoc
-          - nbconvert
-          - ipykernel
-          - nbsphinx
+        - docs/requirements.txt
 
-#    - requirements: docs/requirements.txt
+ #   - requirements: docs/requirements.txt
