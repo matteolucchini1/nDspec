@@ -38,7 +38,7 @@ setup(
     #packages=find_packages(include=['nextspec', 'cookiecuttertest.*']),
     #test_suite='tests',
     #tests_require=test_requirements,
-    url='https://github.com/matteolucchini1/cookiecuttertest',
+    url='https://github.com/matteolucchini1/neXTsPec_prototype',
     version='0.1.0',
     zip_safe=False,
 )

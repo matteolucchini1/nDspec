@@ -2,13 +2,16 @@
 NEXTSPEC PROTOTYPING
 ========
 
+|Docs|
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 This is the intial repository for the neXTsPec Python-based X-ray astronomy modeling software. Currently, the software allows users to correctly account for the effects of X-ray instrument responses in two-dimensional models - formally these would either be spectral-timing or spectral-polarimetry models, although the second dimension beyond photon energy does not matter. Ultimately, the code will be able to convert these convolved models into typical data products (such as lag spectra or modulation curves), support using and combining models in the Xspec library and/or custom ones, as well as interfacing with existing minimization libraries for fitting. 
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Documentation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The documentation is currently WiP. You can find notebooks highlighting the features of each class in the /notebooks/ folder.
+The documentation is `actively being worked on <https://nextspec-prototype.readthedocs.io/en/latest/`_. You can also find notebooks discussing the features of each class in the /notebooks/ folder.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Installation and testing
