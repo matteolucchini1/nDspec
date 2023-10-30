@@ -30,3 +30,6 @@ License
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 All content © 2023 The Authors. The code is distributed under the MIT license; see `LICENSE <LICENSE>`_ for details.
+
+.. |Docs| image:: https://img.shields.io/badge/docs-latest-brightgreen.svg?style=flat
+   :target: https://nextspec-prototype.readthedocs.io/en/latest/
