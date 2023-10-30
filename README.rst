@@ -11,7 +11,7 @@ This is the intial repository for the neXTsPec Python-based X-ray astronomy mode
 Documentation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The documentation is `actively being worked on <https://nextspec-prototype.readthedocs.io/en/latest/>`_. You can also find notebooks discussing the features of each class in the /notebooks/ folder.
+The documentation is `actively being worked on <https://nextspec-prototype.readthedocs.io/en/latest/>` _. You can also find notebooks discussing the features of each class in the /notebooks/ folder.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Installation and testing
