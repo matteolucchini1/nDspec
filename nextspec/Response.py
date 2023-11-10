@@ -54,11 +54,16 @@ class ResponseMatrix(object):
         The length of the energ_lo/energ_hi arrays
         
     resp_matrix: numpy.array(float x float)
-        The instrument response in matrix form, with size (numenerg times numchan)
+        The instrument response in matrix form, with size (numenerg times numchan). 
+        Only contains the redistribution matrix if no arf is loaded yet
+
+    specresp: numpy.array(float)
+        The instrument effective area as a function of energy as contained in the arf
+        file
         
     has_arf: bool
         A flag to check whether only a rmf file has been loaded, or a full rmf+arf 
-        response        
+        response. This typically depends from mission to mission.         
     
     Methods
     ----------
@@ -71,7 +76,7 @@ class ResponseMatrix(object):
         Loads either an rmf file, or a full response file, and sets the class
         attributes as appropriate
         
-    _read_matrx(numpy.array,numpy.array,numpy.array,numpy.arry):
+    _read_matrix(numpy.array,numpy.array,numpy.array,numpy.arry):
         Converts the information in the n_grp, f_chan, n_chan and matrix columns
         of a response file into a (numenerg times numchan) matrix
         
@@ -104,7 +109,11 @@ class ResponseMatrix(object):
         Multiplies the resp_matrix attribute by a model matrix, with units of energy in
         the y axis and any other quantity in the x axis. Returns an "instrument space"
         matrix with units of channels (re-binned or not) in the y axis, and the initial
-        quantity in the x axis
+        quantity in the x axis. The model units in the z axis can either be in specific 
+        photon flux (dN/dE, or photons per unit time, per unit energy), or in the default
+        Xspec format of specific photon flux normalized to each bin width - dN/dE*bin_width.
+        Users can specify which with the ``norm'' parameter - the default norm="rate" assumes
+        dN/dE units, norm="xspec" assumes dN/dE * dE units.       
     """ 
     
     def __init__(self, filepath):
@@ -281,7 +290,7 @@ class ResponseMatrix(object):
         plt.show()
         return
         
-    def plot_arf(self):
+    def plot_arf(self,plot_scale="log"):
         #tbd: only allow this to happen if specresp is defined
         energy_array = (self.energ_hi+self.energ_lo)/2.
         fig = plt.figure(figsize=(9.,7.5))
@@ -289,7 +298,10 @@ class ResponseMatrix(object):
         plt.xlabel("Energy (keV)")
         plt.ylabel("Effective area")
         plt.yscale("log",base=10)
-        plt.xscale("log",base=10)
+        if plot_scale == "log":
+            plt.xscale("log",base=10)
+        elif plot_scale != "lin":
+            raise ValueError("Please specify either linear (lin) or logarithmic (log) x scale") 
         plt.show()
         return
         
@@ -298,20 +310,22 @@ class ResponseMatrix(object):
         #maybe call automatically if stuff fails
         diag_resp = np.diag(np.ones(num))
         return diag_resp            
-
-    def convolve_response(self,model_input):
+       
+    def convolve_response(self,model_input,norm="rate"):
         if np.shape(self.resp_matrix)[0] != np.shape(model_input)[0]:
-            raise TypeError("Model energy grid has a different size from response")
-        matrix = np.transpose(self.resp_matrix)
-        return np.matmul(matrix,model_input)
+            raise TypeError("Model energy grid has a different size from response")    
+        if norm == "rate":
+            bin_widths = self.energ_hi-self.energ_lo
+            renorm_model = np.multiply(np.transpose(model_input),bin_widths)
+            conv_model = np.matmul(renorm_model,self.resp_matrix)
+        elif norm == "xspec":
+            conv_model = np.matmul(model_input,self.resp_matrix)
+        else:
+            raise ValueError("Please specify units of either count rate or count rate normalized to bin width")
+        return np.transpose(conv_model)
         
     def unfold_response(self):
         print("TBD once the data side is complete")
-    
-    #def _initialize_empty(self):
-        #set everything to empty if the input is wrong
-        #or we want a diagonal matrix
-        #print("placeholder")
         
 def rebin_array(array_start,array_end,array):
     return_array = np.zeros(len(array_end[0]))
@@ -323,7 +337,7 @@ def rebin_array(array_start,array_end,array):
         #loop over indexes of the incoming bins and do a bin-width weighted average
         #tbd: write clearer warning in case of index_lo = index_hi
         if index_lo == index_hi:
-            return IndexError("Outgoing bin has just one incoming bin")
+            return IndexError("Outgoing bin "+str(i)+" has just one incoming bin, check energy grids")
         for k in range(index_lo,index_hi):            
             lower = np.max((array_start[0][k],array_end[0][i]))
             upper = np.min((array_start[1][k],array_end[1][i]))
