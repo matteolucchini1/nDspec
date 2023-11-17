@@ -267,10 +267,20 @@ class ResponseMatrix(object):
             return_hi[i] = index_hi
         return return_lo,return_hi
 
-    #tbd: add flag to change between channels and bounds
+    def convolve_response(self,model_input,norm="rate"):
+        if np.shape(self.resp_matrix)[0] != np.shape(model_input)[0]:
+            raise TypeError("Model energy grid has a different size from response")    
+        if norm == "rate":
+            bin_widths = self.energ_hi-self.energ_lo
+            renorm_model = np.multiply(np.transpose(model_input),bin_widths)
+            conv_model = np.matmul(renorm_model,self.resp_matrix)
+        elif norm == "xspec":
+            conv_model = np.matmul(model_input,self.resp_matrix)
+        else:
+            raise ValueError("Please specify units of either count rate or count rate normalized to bin width")
+        return np.transpose(conv_model)
+
     def plot_response(self,plot_type="channel"):
-        #tbd: add distinction between RMF/Response/etc, add ability to change between
-        #channel and energy for x axis
         fig = plt.figure(figsize=(9.,7.5))
         
         if plot_type == "channel":
@@ -301,7 +311,7 @@ class ResponseMatrix(object):
         if plot_scale == "log":
             plt.xscale("log",base=10)
         elif plot_scale != "lin":
-            raise ValueError("Please specify either linear (lin) or logarithmic (log) x scale") 
+            raise TypeError("Please specify either linear (lin) or logarithmic (log) x scale") 
         plt.show()
         return
         
@@ -310,20 +320,7 @@ class ResponseMatrix(object):
         #maybe call automatically if stuff fails
         diag_resp = np.diag(np.ones(num))
         return diag_resp            
-       
-    def convolve_response(self,model_input,norm="rate"):
-        if np.shape(self.resp_matrix)[0] != np.shape(model_input)[0]:
-            raise TypeError("Model energy grid has a different size from response")    
-        if norm == "rate":
-            bin_widths = self.energ_hi-self.energ_lo
-            renorm_model = np.multiply(np.transpose(model_input),bin_widths)
-            conv_model = np.matmul(renorm_model,self.resp_matrix)
-        elif norm == "xspec":
-            conv_model = np.matmul(model_input,self.resp_matrix)
-        else:
-            raise ValueError("Please specify units of either count rate or count rate normalized to bin width")
-        return np.transpose(conv_model)
-        
+              
     def unfold_response(self):
         print("TBD once the data side is complete")
         
@@ -337,7 +334,7 @@ def rebin_array(array_start,array_end,array):
         #loop over indexes of the incoming bins and do a bin-width weighted average
         #tbd: write clearer warning in case of index_lo = index_hi
         if index_lo == index_hi:
-            return IndexError("Outgoing bin "+str(i)+" has just one incoming bin, check energy grids")
+            raise IndexError("Outgoing bin "+str(i)+" has just one incoming bin, check energy grids")
         for k in range(index_lo,index_hi):            
             lower = np.max((array_start[0][k],array_end[0][i]))
             upper = np.min((array_start[1][k],array_end[1][i]))

@@ -1,4 +1,6 @@
 __pycache__/
+nextspec/__pycache__
+nextspec/tests/__pycache__
 
 notebooks/api
 notebooks/_build
