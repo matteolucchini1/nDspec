@@ -16,7 +16,7 @@ The documentation is `actively being worked on <https://nextspec-prototype.readt
 Installation and testing
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-The early version of the software can only be installed from the repository. Unit tests make use of py.test <https://pytest.org>`_, and implementation of tox is pending.
+The early version of the software can only be installed from the repository. Unit tests make use of `py.test <https://pytest.org>`_, and implementation of tox is pending.
 
 ~~~~~~
 Citing
