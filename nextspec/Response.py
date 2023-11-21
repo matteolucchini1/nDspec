@@ -129,6 +129,7 @@ class ResponseMatrix(object):
         self.bounds = response["EBOUNDS"]
         #figure out the right table to use, and decide 
         #whether we are also loading the arf or not 
+        #redo this check some matrices are weird
         if "MATRIX" in extnames:
             h = response["MATRIX"]
             self.has_arf = False
@@ -179,20 +180,20 @@ class ResponseMatrix(object):
             #loop over the number of channels in each channel set of consecutive bins with
             #no empty values
             for k in range(n_grp[j]):
-                #In this case, the length of j-th row of the "Matrix" array is n_chan[j]+f_chan[j]
-                #corresponding to channel indexes f_chan[j]+1 to n_chan[j]+f_chan[j]
-                #so we set those values in coordinates j,l in the matrix array resp_matrix:
-                if (n_grp[j]==1):   
-                    for l in range(f_chan[j]+1,n_chan[j]+f_chan[j]):
-                        i = i + 1
-                        resp_matrix[j][l] = resp_matrix[j][l] + matrix[j][i]   
                 #Sometimes there are more than one groups of entries per row
                 #As a result, we loop over the groups and assign the matrix values 
-                #in the appropariate channel range as above:
-                else:
+                #in the appropariate channel range as below:
+                if any(m>1 for m in n_grp):     
                     for l in range(f_chan[j][k]+1,n_chan[j][k]+f_chan[j][k]):
                         i = i + 1
                         resp_matrix[j][l] = resp_matrix[j][l] + matrix[j][i]
+                #In this case, the length of j-th row of the "Matrix" array is n_chan[j]+f_chan[j]
+                #corresponding to channel indexes f_chan[j]+1 to n_chan[j]+f_chan[j]
+                #so we set those values in coordinates j,l in the matrix array resp_matrix:
+                else:
+                    for l in range(f_chan[j]+1,n_chan[j]+f_chan[j]):
+                        i = i + 1
+                        resp_matrix[j][l] = resp_matrix[j][l] + matrix[j][i]  
         return resp_matrix
     
     #tbd: add option to load arf from the normal initialization 
