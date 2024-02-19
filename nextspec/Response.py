@@ -1,7 +1,6 @@
 import numpy as np
 import copy
 from astropy.io import fits
-#note: enable an option to switch between jax and numpy as the user wants
 import jax.numpy as jnp
 
 import matplotlib.pyplot as plt
@@ -13,9 +12,6 @@ fi = 22
 plt.rcParams.update({'font.size': fi-5})
 
 colorscale = pl.cm.PuRd(np.linspace(0.,1.,5))
-
-#note: the 2d plots are a little messed up because the bin edges aren't quite right,
-#but the 3d should be fine
 
 class ResponseMatrix(object):
     """This class has methods for:
@@ -34,15 +30,15 @@ class ResponseMatrix(object):
     
     Attributes
     ----------
-    channels: numpy.array(int)
+    chans: numpy.array(int)
         An array of integers representing each channel in the response. After rebinning 
         on a new grid, the number of channels is the number of bins in the new grid.
         
-    numchan: int
-        The legth of the channels array
+    n_chans: int
+        The legth of the chans array
     
     emin, emax: numpy.array(float)
-        The arrays with the minimum/maximum energies in each channel in the channels 
+        The arrays with the minimum/maximum energies in each channel in the chans 
         array. After rebinning on a new grid, it contains the minimum and maximum 
         energies of each bin in the new grid.
         
@@ -50,11 +46,11 @@ class ResponseMatrix(object):
         The arrays with the minimum/maximum energies bins that sample the instrument
         rmf/arf
         
-    numenerg: int
+    n_energs: int
         The length of the energ_lo/energ_hi arrays
         
     resp_matrix: numpy.array(float x float)
-        The instrument response in matrix form, with size (numenerg times numchan). 
+        The instrument response in matrix form, with size (n_energs times n_chans). 
         Only contains the redistribution matrix if no arf is loaded yet
 
     specresp: numpy.array(float)
@@ -78,7 +74,7 @@ class ResponseMatrix(object):
         
     _read_matrix(numpy.array,numpy.array,numpy.array,numpy.arry):
         Converts the information in the n_grp, f_chan, n_chan and matrix columns
-        of a response file into a (numenerg times numchan) matrix
+        of a response file into a (n_energs times n_chans) matrix
         
     load_arf(str):
         Loads effective area from an OGIP-compliants arf  FITSfile and applies it 
@@ -89,7 +85,7 @@ class ResponseMatrix(object):
         user-provided arrays that contain the lower and upper energy bounds of the 
         new grid. The new grid needs to be more coarse than the initial one.
         
-    bounds_to_channels(numpy.array,numpy.array):
+    bounds_to_chans(numpy.array,numpy.array):
         Maps two energy arrays containing lower and upper bins of a new energy grid
         to the channels loaded in the class, and returns the indexes of each bin
         in the current grid. Required by the rebin_response method.
@@ -149,12 +145,12 @@ class ResponseMatrix(object):
         
         self.emin = np.array(channel_info.field("E_MIN"))
         self.emax = np.array(channel_info.field("E_MAX"))
-        self.channels = np.array(channel_info.field("CHANNEL"))
-        self.numchan = len(self.channels)        
+        self.chans = np.array(channel_info.field("CHANNEL"))
+        self.n_chans = len(self.chans)        
 
         self.energ_lo = np.array(data.field("ENERG_LO"))
         self.energ_hi = np.array(data.field("ENERG_HI"))
-        self.numenerg = len(self.energ_lo)
+        self.n_energs = len(self.energ_lo)
         
         #store the rest of the information we need to convert the response 
         #to matrix format into arrays
@@ -163,7 +159,7 @@ class ResponseMatrix(object):
         n_chan = np.array(data.field("N_CHAN"))
         matrix = np.array(data.field("MATRIX"))
         
-        self.resp_matrix = self._read_matrix(n_grp,f_chan,n_chan,matrix)
+        self.resp_matrix = self._read_matrix(n_grp,f_chan,n_chan,matrix)        
         return
         
     def _read_matrix(self,n_grp,f_chan,n_chan,matrix):
@@ -173,9 +169,9 @@ class ResponseMatrix(object):
         #(number of successive energy bins with no empty values n_grp) x
         #(number of bins that are not empty n_chan) x energy
         #we are trying to convert this to a matrix with format channel x energy
-        resp_matrix = np.zeros((self.numenerg,self.numchan))
+        resp_matrix = np.zeros((self.n_energs,self.n_chans),dtype=np.float32)
         #loop over the detector energies over which the rmf is binned 
-        for j in range(self.numenerg):
+        for j in range(self.n_energs):
             i = 0
             #loop over the number of channels in each channel set of consecutive bins with
             #no empty values
@@ -190,10 +186,13 @@ class ResponseMatrix(object):
                 #In this case, the length of j-th row of the "Matrix" array is n_chan[j]+f_chan[j]
                 #corresponding to channel indexes f_chan[j]+1 to n_chan[j]+f_chan[j]
                 #so we set those values in coordinates j,l in the matrix array resp_matrix:
+                #the int() is exclusively because the XRISM response otherwise refuses to load
+                #for reasons I do not understand
                 else:
-                    for l in range(f_chan[j]+1,n_chan[j]+f_chan[j]):
+                    for l in range(int(f_chan[j])+1,int(n_chan[j])+int(f_chan[j])):
                         i = i + 1
-                        resp_matrix[j][l] = resp_matrix[j][l] + matrix[j][i]  
+                        resp_matrix[j][l] = resp_matrix[j][l] + matrix[j][i]          
+        
         return resp_matrix
     
     #tbd: add option to load arf from the normal initialization 
@@ -205,72 +204,81 @@ class ResponseMatrix(object):
         h = response["SPECRESP"]
         data = h.data
         hdr = h.header
+        
         if hdr["HDUCLASS"] != "OGIP":
             raise TypeError("File is not OGIP compliant")   
+        
         response.close()
         arf_emin = np.array(data.field("ENERG_LO"))
         arf_emax = np.array(data.field("ENERG_HI"))        
+        
         if np.allclose(arf_emin,self.energ_lo) == False or np.allclose(arf_emax,self.energ_hi) == False:
             raise ValueError("Energy grids in rmf and arf do not match")
         
         self.specresp = np.array(data.field("SPECRESP"))
+        
         if "EXPOSURE" in list(hdr.keys()):
             self.exposure = hdr["EXPOSURE"]
         else:
             self.exposure = 1.0
         
-        full_resp = np.zeros((self.numenerg,self.numchan))
-        for k in range(self.numchan):
-            for j in range(self.numenerg):
+        full_resp = np.zeros((self.n_energs,self.n_chans))
+        
+        for k in range(self.n_chans):
+            for j in range(self.n_energs):
                 self.resp_matrix[j][k] = self.resp_matrix[j][k]*self.specresp[j]*self.exposure
+        
         print("Arf loaded")
         return 
     
-
     #tbd: in the tutorial add an example of tryign to rebin in energy rather than channel
     #and show that it is dangerous
     def rebin_response(self,new_bounds_lo,new_bounds_hi):
         if new_bounds_lo[0] < self.emin[0]:
             raise ValueError("New channel grid below lower limit of existing one")
-        if  new_bounds_hi[len(new_bounds_hi)-1] > self.emax[self.numchan-1]:
+        if  new_bounds_hi[-1] > self.emax[-1]:
             raise ValueError("New channel grid above upper limit of existing one")
         if len(new_bounds_lo) != len(new_bounds_hi):
             raise TypeError("Lower and upper bounds of new channel grid have different size")
-        if len(new_bounds_lo) > self.numchan:
+        if len(new_bounds_lo) > self.n_chans:
             raise TypeError("You can not rebin to a finer channel grid")
         
-        new_channels_lo,new_channels_hi = self.bounds_to_channels(new_bounds_lo,new_bounds_hi)
-        rebinned_response = np.zeros((self.numenerg,len(new_channels_lo)))
-        for j in range(self.numenerg):
-            rebinned_response[j,:] = rebin_array((self.channels[0:self.numchan-1],
-                                                  self.channels[1:self.numchan]),
-                                                 (new_channels_lo,
-                                                  new_channels_hi),
+        new_chans_lo,new_chans_hi = self.bounds_to_chans(new_bounds_lo,new_bounds_hi)
+        rebinned_response = np.zeros((self.n_energs,len(new_chans_lo)))
+        
+        for j in range(self.n_energs):
+            rebinned_response[j,:] = rebin_array((self.chans[0:self.n_chans-1],
+                                                  self.chans[1:self.n_chans]),
+                                                 (new_chans_lo,
+                                                  new_chans_hi),
                                                  self.resp_matrix[j,:])
         
         bin_resp = copy.copy(self)
         bin_resp.emin = new_bounds_lo
         bin_resp.emax = new_bounds_hi
-        bin_resp.numchan = len(new_bounds_lo)
-        bin_resp.channels = np.linspace(0,bin_resp.numchan-1,bin_resp.numchan)
+        bin_resp.n_chans = len(new_bounds_lo)
+        bin_resp.chans = np.linspace(0,bin_resp.n_chans-1,bin_resp.n_chans)
         bin_resp.resp_matrix = rebinned_response
 
         return bin_resp
 
-    def bounds_to_channels(self,new_lo,new_hi):
+    def bounds_to_chans(self,new_lo,new_hi):
         return_lo = np.zeros(len(new_lo))
         return_hi = np.zeros(len(new_hi))
+        
         for i in range(len(new_lo)):
             #find the channel numbers corresponding to the start/end of each bin
             index_lo = np.digitize(new_lo[i],self.emin)
             index_hi = np.digitize(new_hi[i],self.emax)
             return_lo[i] = index_lo
             return_hi[i] = index_hi
+        
         return return_lo,return_hi
 
     def convolve_response(self,model_input,norm="rate"):
         if np.shape(self.resp_matrix)[0] != np.shape(model_input)[0]:
             raise TypeError("Model energy grid has a different size from response")    
+        
         if norm == "rate":
             bin_widths = self.energ_hi-self.energ_lo
             renorm_model = np.multiply(np.transpose(model_input),bin_widths)
@@ -279,13 +287,14 @@ class ResponseMatrix(object):
             conv_model = np.matmul(model_input,self.resp_matrix)
         else:
             raise ValueError("Please specify units of either count rate or count rate normalized to bin width")
+        
         return np.transpose(conv_model)
 
     def plot_response(self,plot_type="channel"):
         fig = plt.figure(figsize=(9.,7.5))
         
         if plot_type == "channel":
-            x_axis = self.channels
+            x_axis = self.chans
             plt.xlabel("Channel")
         elif plot_type == "energy":
             x_axis = (self.emax+self.emin)/2.
@@ -309,10 +318,12 @@ class ResponseMatrix(object):
         plt.xlabel("Energy (keV)")
         plt.ylabel("Effective area")
         plt.yscale("log",base=10)
+        
         if plot_scale == "log":
             plt.xscale("log",base=10)
         elif plot_scale != "lin":
             raise TypeError("Please specify either linear (lin) or logarithmic (log) x scale") 
+        
         plt.show()
         return
         
@@ -334,12 +345,15 @@ def rebin_array(array_start,array_end,array):
         #first: calculate the contribution excluding the bin edges
         #loop over indexes of the incoming bins and do a bin-width weighted average
         #tbd: write clearer warning in case of index_lo = index_hi
+       
         if index_lo == index_hi:
             raise IndexError("Outgoing bin "+str(i)+" has just one incoming bin, check energy grids")
+       
         for k in range(index_lo,index_hi):            
             lower = np.max((array_start[0][k],array_end[0][i]))
             upper = np.min((array_start[1][k],array_end[1][i]))
             return_array[i] = return_array[i] + array[k]*(upper-lower)
+       
         #second: include the contribution from the bin edges in order to renormalize correctly
         lower = array_end[0][i]
         upper = array_start[0][index_lo]
@@ -348,4 +362,5 @@ def rebin_array(array_start,array_end,array):
         upper = array_end[1][i]     
         return_array[i] = return_array[i] + array[index_hi+1]*(upper-lower)                       
         return_array[i] = return_array[i]/(array_end[1][i]-array_end[0][i])
+    
     return return_array
