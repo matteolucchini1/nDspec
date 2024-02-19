@@ -27,30 +27,29 @@ class nDspecOperator(object):
         
         Parameters:
         ----------
-        array: np.array 
+        array: np.array(float) 
             The input array to be interpolated
             
-        old_grid: np.array
+        old_grid: np.array(float)
             The grid of e.g. Fourier frequency, energy etc. over which "array"
             is defined.
             
-        new_grid: np.array 
+        new_grid: np.array (float)
             The new grid over which "array" is to be interpolated. Its extremes
             need to be contained within old_grid; for safety this method does
             NOT perform extrapolation beyond the existing bounds. 
         
         Other parameters:
         ----------
-        grid_told: float
+        grid_told: float, default 1e-4
             Sets the precision to which  the boundaries of "new_grid" are set
             to be contained contained within "old_grid" to some small precision.
             This is a cautionary step to avoid some numerical issues which can 
-            show up when using scipy interp1d.
-        
+            show up when using scipy interp1d.        
         
         Returns
         ---------- 
-        interp_array: np.array 
+        interp_array: np.array(float) 
             The values of the input "array", interpolated over the updated grid 
             "new_grid".
         """
@@ -81,11 +80,11 @@ class nDspecOperator(object):
         
         Parameters:
         ----------
-        signal: np.array
+        signal: np.array(float,float)
             The (two-dimensional) input to be integrated over one of the two
             axis.
             
-        array: np.array
+        array: np.array(float)
             The one-dimensional array over which to perform the integration.
         
         array_min, array_max: float
@@ -103,8 +102,8 @@ class nDspecOperator(object):
         ----------     
         integral: float 
             The result of the integral.
-        """
-    
+        """    
+        
         arr_range = np.where(np.logical_and(array>arr_min,array<arr_max))
         
         if (axis == 0):
@@ -120,11 +119,13 @@ class nDspecOperator(object):
         """
         One of five similar methods to compute quantities relevant to grid 
         arrays (such as bin widths or center points).
+        
         This method takes two arrays containing the lower and upper bounds of 
         the grid, and returns a combined array which starts from the first lower
         bound in the grid, and ends at the last upper bound in the same grid. 
         Only grids with contigous bins with no gaps (as is typical of e.g. X-ray
         spectral data) are supported. 
+        
         As an example, assume we are given a grid of three energy bins, defined
         between 1 and 3, 3 and 7, and 7 and 13 keV. Then:
         The "grid_lower_bounds" array is [1,3,7];
@@ -133,21 +134,21 @@ class nDspecOperator(object):
         
         Parameters:
         ----------
-        grid_lower_bounds: np.array 
+        grid_lower_bounds: np.array (float)
             A one-dimensional array of length n, containing the lower bounds of
             the grid. 
             
-        grid_upper_bounds: np.array
+        grid_upper_bounds: np.array(float)
             A one-dimensional array of length n, containing the upper bounds of 
             the grd. 
         
         Returns:
         ----------
-        grid_range: np.array 
+        grid_range: np.array(float)
             A one-dimensional array of length n+1, containing the full extent 
             of the grid.   
-        """
-    
+        """    
+        
         grid_range = grid_lower_bounds.append(grid_upper_bounds[-1]) 
         
         return grid_range
@@ -156,9 +157,11 @@ class nDspecOperator(object):
         """
         One of five similar methods to compute quantities relevant to grid 
         arrays (such as bin widths or center points).
+        
         This method takes two arrays containing the lower and upper bounds of 
         the grid, and returns a combined array which contains the width of each 
         bin in the grid.
+        
         As an example, assume we are given a grid of three energy bins, defined
         between 1 and 3, 3 and 7, and 7 and 13 keV. Then:
         The "grid_lower_bounds" array is [1,3,7];
@@ -168,21 +171,21 @@ class nDspecOperator(object):
         
         Parameters:
         ----------
-        grid_lower_bounds: np.array 
+        grid_lower_bounds: np.array(float) 
             A one-dimensional array of length n, containing the lower bounds of
             the grid. 
             
-        grid_upper_bounds: np.array
+        grid_upper_bounds: np.array(float)
             A one-dimensional array of length n, containing the upper bounds of 
             the grd.         
         
         Returns:        
         ----------
-        grid_widths: np.array 
+        grid_widths: np.array(float) 
             A one-dimensional array of length n, containing the witdh of each 
             bin in the grid.
-        """
-    
+        """    
+        
         #For convenience, the bin widths are computed starting from the midpoint 
         #of the grid itself, computed through a different class method 
         grid_widths = np.diff(self._grid_bounds_to_midpoint(grid_lower_bounds,
@@ -194,9 +197,11 @@ class nDspecOperator(object):
         """
         One of five similar methods to compute quantities relevant to grid 
         arrays (such as bin widths or center points).
+        
         This method takes two arrays containing the lower and upper bounds of 
         the grid, and returns a combined array which contains the mid point of 
         each bin in the grid (defined as the arithemetic average).
+        
         As an example, assume we are given a grid of three energy bins, defined
         between 1 and 3, 3 and 7, and 7 and 13 keV. Then:
         The "grid_lower_bounds" array is [1,3,7];
@@ -206,20 +211,20 @@ class nDspecOperator(object):
         
         Parameters:
         ----------
-        grid_lower_bounds: np.array 
+        grid_lower_bounds: np.array(float) 
             A one-dimensional array of length n, containing the lower bounds of
             the grid. 
             
-        grid_upper_bounds: np.array
+        grid_upper_bounds: np.array(float)
             A one-dimensional array of length n, containing the upper bounds of 
             the grd.    
                     
         Returns:        
         ----------
-        grid_midpoint: np.array         
+        grid_midpoint: np.array(float)         
             A one-dimensional array of length n, containing the mid point 
             (defined as the geometric average) of each bin in the grid.        
-        """
+        """        
         
         grid_midpoint = 0.5*(grid_lower_bounds+grid_upper_bounds)
         
@@ -229,10 +234,12 @@ class nDspecOperator(object):
         """
         One of five similar methods to compute quantities relevant to grid 
         arrays (such as bin widths or center points).
+        
         This method takes a) one array, containing the arithemtic mean point of 
         each point in the grid and b) the lowest bound of the first point in the
         grid, and returns an array which contains the width of each bin in the 
         grid.
+        
         As an example, assume we are given a grid of three energy bins, defined
         between 1 and 3, 3 and 7, and 7 and 13 keV. Then:
         The "grid_midpoint" array is [(3+1)/2,(7+3)/2,(13+7)/2] = [2,5,10];
@@ -242,7 +249,7 @@ class nDspecOperator(object):
         
         Parameters:
         ----------
-        grid_midpoint: np.array         
+        grid_midpoint: np.array(float)         
             A one-dimensional array of length n, containing the mid point 
             (defined as the geometric average) of each bin in the grid. 
     
@@ -250,7 +257,7 @@ class nDspecOperator(object):
             The lowest bound of the first bin in the grid.
         
         Returns:
-        grid_widths: np.array 
+        grid_widths: np.array(float)
             A one-dimensional array of length n, containing the witdh of each 
             bin in the grid.        
         ----------
@@ -274,10 +281,12 @@ class nDspecOperator(object):
         """
         One of five similar methods to compute quantities relevant to grid 
         arrays (such as bin widths or center points).
+        
         This method takes a) one array, containing the arithemtic mean point of 
         each point in the grid and b) the lowest bound of the first point in the
         grid, and returns two arrays which contain the lower and upper bounds of 
         each bin in the grid. 
+        
         As an example, assume we are given a grid of three energy bins, defined
         between 1 and 3, 3 and 7, and 7 and 13 keV. Then:
         The "grid_midpoint" array is [(3+1)/2,(7+3)/2,(13+7)/2] = [2,5,10];
@@ -287,7 +296,7 @@ class nDspecOperator(object):
         
         Parameters:
         ----------
-        grid_midpoint: np.array         
+        grid_midpoint: np.array(float)         
             A one-dimensional array of length n, containing the mid point 
             (defined as the geometric average) of each bin in the grid. 
     
@@ -295,11 +304,11 @@ class nDspecOperator(object):
             The lowest bound of the first bin in the grid.
                     
         Returns:
-         grid_lower_bounds: np.array 
+         grid_lower_bounds: np.array(float) 
             A one-dimensional array of length n, containing the lower bounds of
             the grid. 
             
-        grid_upper_bounds: np.array
+        grid_upper_bounds: np.array(float)
             A one-dimensional array of length n, containing the upper bounds of 
             the grd.        
         ----------
@@ -323,4 +332,44 @@ class nDspecOperator(object):
         
         return grid_lower_bounds, grid_upper_bounds     
  
-#tbd: widths to midpoint, widths to bounds               
+#tbd: widths to midpoint, widths to bounds     
+    def _bounds_to_chans(self,new_lo,new_hi):
+        """
+        This method receives a range of lower and upper bounds of an energy or
+        channel grid, and returns the appropriate array indexes in which these 
+        bounds are contained.  
+        
+        Parameters:
+        ----------  
+        new_lo: np.array(float)
+            An array of arbitrary size, containing the lower bounds of the new 
+            grid 
+            
+        new_hi: np.array(float)
+            An array of arbitrary size, containing the lower bounds of the new 
+            grid                     
+        
+        Returns
+        ---------- 
+        return_lo: np.array(float)
+            An array of size len(new_low), containing the indexes of the first 
+            bin in the original grid that is contained in each bin in the input 
+            grid
+
+        return_hi: np.array(float)
+            An array of size len(new_hi), containing the indexes of the last 
+            bin in the original grid that is contained in each bin in the input 
+            grid
+        """
+    
+        return_lo = np.zeros(len(new_lo))
+        return_hi = np.zeros(len(new_hi))
+        
+        for i in range(len(new_lo)):
+            #find the channel numbers corresponding to the start/end of each bin
+            index_lo = np.digitize(new_lo[i],self.emin)
+            index_hi = np.digitize(new_hi[i],self.emax)
+            return_lo[i] = index_lo
+            return_hi[i] = index_hi
+        
+        return return_lo,return_hi          

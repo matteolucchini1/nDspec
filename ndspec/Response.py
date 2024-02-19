@@ -13,54 +13,72 @@ plt.rcParams.update({'font.size': fi-5})
 
 colorscale = pl.cm.PuRd(np.linspace(0.,1.,5))
 
-class ResponseMatrix(object):
-    """This class has methods for:
-    1) Load either a response matrix either from an OGIP-compliant .rsp FITS,
-    or from an rmf and an arf file
-    2) Convert the OGIP format into a matrix for the response
-    3) Re-bin a given response to speed up convolving it with a model
-    4) Multiply the response matrix with a model (in the form of another matrix)
-    5) Plot the response, rmf or arf
-    6) Create a diagonal matrix (e.g. for use with non X-ray instruments)
+from Operator import nDspecOperator
+
+class ResponseMatrix(nDspecOperator):
+    """
+    This class handles folding an energy-dependent, multi-dimensional product,
+    through a given X-ray instrument response matrix, including the effects of
+    both the redistribution matrix and the effective area. 
+
+    Currently the X-ray observatories explicitely supported are NICER, NuSTAR 
+    and RXTE. Swift/XRT/XMM/Chandra/Insight-HXMT/Astrosat should be compatible 
+    but have not yet been tested. Support for these missions is pending. 
     
-    Parameters
-    ----------
-    rmf_filepath: str
-        The path to the response file to load 
+    XRISM and Athena are NOT compatible with this code due to a) the large size 
+    of their responses and b) the unusual format of the contents of the 
+    responses when read with Astropy. Fixes for both of these issues are 
+    pending.     
     
+    Parameters 
+    ----------  
+    resp_path: string 
+        The path to the response file (either .rmf or .rsp) to load.
+    
+    Other parameters:
+    ----------  
+    arf_path: string 
+        Optional path to an effective area file (.arf) to load along with the 
+        redistribution matrix.  Note that some mission tools produce .rmf files 
+        which also contain the telescope effective area, in which case loading 
+        the arf is not necessary. 
+        
     Attributes
     ----------
     chans: numpy.array(int)
-        An array of integers representing each channel in the response. After rebinning 
-        on a new grid, the number of channels is the number of bins in the new grid.
+        An array of integers of size (n_chans) representing each channel in the 
+        response.
         
     n_chans: int
-        The legth of the chans array
+        The length of the chans array.
     
     emin, emax: numpy.array(float)
-        The arrays with the minimum/maximum energies in each channel in the chans 
-        array. After rebinning on a new grid, it contains the minimum and maximum 
-        energies of each bin in the new grid.
+        The arrays with the minimum/maximum energies in each channel in the  
+        chans array. After rebinning on a new grid, it contains the minimum and  
+        maximum energies of each bin in the new grid.
         
     energ_lo, energ_hi: numpy.array(float)
-        The arrays with the minimum/maximum energies bins that sample the instrument
-        rmf/arf
+        The arrays with the minimum/maximum energies bins that sample the 
+        instrument rmf/arf.
         
     n_energs: int
-        The length of the energ_lo/energ_hi arrays
+        The length of the energ_lo/energ_hi arrays.
         
     resp_matrix: numpy.array(float x float)
-        The instrument response in matrix form, with size (n_energs times n_chans). 
-        Only contains the redistribution matrix if no arf is loaded yet
+        The instrument response in matrix form, with size (n_energs x n_chans). 
+        Only contains the redistribution matrix if no arf is loaded yet.
 
     specresp: numpy.array(float)
-        The instrument effective area as a function of energy as contained in the arf
-        file
+        The instrument effective area as a function of energy as contained in 
+        the arf file.
         
     has_arf: bool
-        A flag to check whether only a rmf file has been loaded, or a full rmf+arf 
-        response. This typically depends from mission to mission.         
-    
+        A flag to check whether only a rmf file has been loaded, or a full 
+        rmf+arf response. This varies between observatories.           
+    """
+
+
+    """    
     Methods
     ----------
     
@@ -68,13 +86,9 @@ class ResponseMatrix(object):
         Initializes the class from a path to an appropriate FITS file by calling
         _load_rmf()
         
-    _load_rmf(str):
-        Loads either an rmf file, or a full response file, and sets the class
-        attributes as appropriate
         
     _read_matrix(numpy.array,numpy.array,numpy.array,numpy.arry):
-        Converts the information in the n_grp, f_chan, n_chan and matrix columns
-        of a response file into a (n_energs times n_chans) matrix
+
         
     load_arf(str):
         Loads effective area from an OGIP-compliants arf  FITSfile and applies it 
@@ -112,12 +126,25 @@ class ResponseMatrix(object):
         dN/dE units, norm="xspec" assumes dN/dE * dE units.       
     """ 
     
-    def __init__(self, filepath):
-        self._load_rmf(filepath)
+    def __init__(self, resp_path, arf_path=None):
+        self.load_rmf(resp_path)
+        if (arf_path is not None):
+            self.load_arf(arf_path)
         #add check to also load the arf if provided
         pass
     
-    def _load_rmf(self,filepath):
+    def load_rmf(self,filepath):
+        """
+        This method loads either a rmf or rsp file (containing the 
+        redistribution matrix or full response, respectively), and sets the  
+        class attributes from it using astropy.
+        
+        Parameters:
+        ----------             
+        filepath: string 
+            The path to the .rmf or .rsp file to be loaded.
+        """
+        
         self.rmfpath = filepath 
         response = fits.open(filepath)
         # get all the extension names
@@ -163,9 +190,39 @@ class ResponseMatrix(object):
         return
         
     def _read_matrix(self,n_grp,f_chan,n_chan,matrix):
+        """
+        This method converts the information in the n_grp, f_chan, n_chan and 
+        matrix columns of a response file into a (n_energs x n_chans) matrix.
+        
+        Parameters:
+        ---------- 
+        n_grp: np.array(int)
+            The number of sets of non-zero elements stored in the matrix. 
+        
+        f_chan: np.array(int)
+            The first channel in each set of non-zero elements stored in the 
+            matrix. 
+        
+        n_chan: np.array(int)
+            The number of channels after f_chan that are stored in each set 
+            labelled from n_grp.
+        
+        matrix: np.array(float) 
+            The non-zero values of the instrument response stored in each set 
+            marked by n_grp, starting at channel f_chan and ending at channel 
+            f_chan+n_chan.          
+        
+        Returns
+        ---------- 
+        resp_matrix: np.array(float,float)
+            The instrument response matrix, loaded in an array of dimensions
+            (n_energs x n_chans). The elements that are not present in the 
+            response file are hard-coded to 0.
+        """
+        
         #start with an empty matrix - we need to figure out 
-        #which elements from the FITS file are not zero. These are the only values
-        #reported in the FITS file, where the matrix has format 
+        #which elements from the FITS file are not zero. These are the only 
+        #values reported in the FITS file, where the matrix has format 
         #(number of successive energy bins with no empty values n_grp) x
         #(number of bins that are not empty n_chan) x energy
         #we are trying to convert this to a matrix with format channel x energy
@@ -173,30 +230,45 @@ class ResponseMatrix(object):
         #loop over the detector energies over which the rmf is binned 
         for j in range(self.n_energs):
             i = 0
-            #loop over the number of channels in each channel set of consecutive bins with
-            #no empty values
+            #loop over the number of channels in each channel set of consecutive
+            #bins with no empty values
             for k in range(n_grp[j]):
                 #Sometimes there are more than one groups of entries per row
-                #As a result, we loop over the groups and assign the matrix values 
-                #in the appropariate channel range as below:
+                #As a result, we loop over the groups and assign the matrix  
+                #values in the appropariate channel range as below:
                 if any(m>1 for m in n_grp):     
                     for l in range(f_chan[j][k]+1,n_chan[j][k]+f_chan[j][k]):
                         i = i + 1
                         resp_matrix[j][l] = resp_matrix[j][l] + matrix[j][i]
-                #In this case, the length of j-th row of the "Matrix" array is n_chan[j]+f_chan[j]
-                #corresponding to channel indexes f_chan[j]+1 to n_chan[j]+f_chan[j]
-                #so we set those values in coordinates j,l in the matrix array resp_matrix:
-                #the int() is exclusively because the XRISM response otherwise refuses to load
-                #for reasons I do not understand
+                #In this case, the length of j-th row of the "Matrix" array is 
+                #n_chan[j]+f_chan[j] corresponding to channel indexes 
+                #f_chan[j]+1 to n_chan[j]+f_chan[j]. We set those values in 
+                #coordinates j,l in the matrix array resp_matrix: the int() is
+                #because some responses can be turned into strings, resulting 
+                #in a TypeError that has no reason to occur. 
                 else:
-                    for l in range(int(f_chan[j])+1,int(n_chan[j])+int(f_chan[j])):
+                    for l in range(int(f_chan[j])+1,
+                                   int(n_chan[j])+int(f_chan[j])):
                         i = i + 1
                         resp_matrix[j][l] = resp_matrix[j][l] + matrix[j][i]          
         
         return resp_matrix
     
-    #tbd: add option to load arf from the normal initialization 
     def load_arf(self,filepath):       
+        """
+        This method reads an effective area .arf file, and applies it to a
+        redistribution matrix previously loaded with the load_rmf method. The
+        arf-corrected matrix over-writes the class attribute resp_matrix.
+        
+        Additionally, the array of effective area vs energy is stored in the 
+        specresp class attribute.
+        
+        Parameters:
+        ----------     
+        filepath: string 
+            The path to the .arf file to be loaded.
+        """
+    
         self.arfpath = filepath
         self.has_arf = True
         response = fits.open(filepath)
@@ -212,7 +284,8 @@ class ResponseMatrix(object):
         arf_emin = np.array(data.field("ENERG_LO"))
         arf_emax = np.array(data.field("ENERG_HI"))        
         
-        if np.allclose(arf_emin,self.energ_lo) == False or np.allclose(arf_emax,self.energ_hi) == False:
+        if np.allclose(arf_emin,self.energ_lo) == False or 
+           np.allclose(arf_emax,self.energ_hi) == False:
             raise ValueError("Energy grids in rmf and arf do not match")
         
         self.specresp = np.array(data.field("SPECRESP"))
@@ -222,18 +295,37 @@ class ResponseMatrix(object):
         else:
             self.exposure = 1.0
         
-        full_resp = np.zeros((self.n_energs,self.n_chans))
-        
         for k in range(self.n_chans):
             for j in range(self.n_energs):
-                self.resp_matrix[j][k] = self.resp_matrix[j][k]*self.specresp[j]*self.exposure
+                self.resp_matrix[j][k] = self.resp_matrix[j][k]*
+                                         self.specresp[j]*self.exposure
         
         print("Arf loaded")
         return 
     
-    #tbd: in the tutorial add an example of tryign to rebin in energy rather than channel
+    #tbd: in the tutorial add an example of trying to rebin in energy rather than channel
     #and show that it is dangerous
     def rebin_response(self,new_bounds_lo,new_bounds_hi):
+        """
+        This method rebins the response matrix resp_matrix to an arbitrary, 
+        continuous grid of channels, and updates the emin, emax and n_chans  
+        attributes appropriately. 
+        
+        Parameters:
+        ----------    
+        new_bounds_lo: np.array(float)
+            An array of energies with the lower bound of each enegy bin. 
+            
+        new_bounds_hi: np.array(float)  
+            An array of energies with the upper bound of each enegy bin.     
+        
+        Returns
+        ---------- 
+        bin_resp: ResponseMatrix
+            A ResponseMatrix object containing the same response loaded in the 
+            self object, but rebinned over the channel axis to the input grid.
+        """
+    
         if new_bounds_lo[0] < self.emin[0]:
             raise ValueError("New channel grid below lower limit of existing one")
         if  new_bounds_hi[-1] > self.emax[-1]:
@@ -243,7 +335,8 @@ class ResponseMatrix(object):
         if len(new_bounds_lo) > self.n_chans:
             raise TypeError("You can not rebin to a finer channel grid")
         
-        new_chans_lo,new_chans_hi = self.bounds_to_chans(new_bounds_lo,new_bounds_hi)
+        new_chans_lo,new_chans_hi = self._bounds_to_chans(new_bounds_lo,
+                                                          new_bounds_hi)
         rebinned_response = np.zeros((self.n_energs,len(new_chans_lo)))
         
         for j in range(self.n_energs):
@@ -262,20 +355,36 @@ class ResponseMatrix(object):
 
         return bin_resp
 
-    def bounds_to_chans(self,new_lo,new_hi):
-        return_lo = np.zeros(len(new_lo))
-        return_hi = np.zeros(len(new_hi))
-        
-        for i in range(len(new_lo)):
-            #find the channel numbers corresponding to the start/end of each bin
-            index_lo = np.digitize(new_lo[i],self.emin)
-            index_hi = np.digitize(new_hi[i],self.emax)
-            return_lo[i] = index_lo
-            return_hi[i] = index_hi
-        
-        return return_lo,return_hi
-
     def convolve_response(self,model_input,norm="rate"):
+        """
+        This method applies the response matrix loaded in the class to a user
+        defined mode. Two model normalizations are supported: either "rate"
+        normalization, which assumes the input is in units of count rate, or 
+        "xspec" normalization, which assumes the model is in units of count rate
+        times energy bin width. 
+        
+        Parameters:
+        ----------      
+        model_input: np.array(float,float)
+            A two-dimensional array of size (n_energs x arbirtrary length), 
+            containing the input model as a function of energy and optionally an 
+            additional quantity (Fourier frequency, time, pulse phase, etc.).
+            
+        norm: string, default="rate"
+            A string detailing the normalization of the model.  The default 
+            "rate" normalization assumes the input is in units of count rate;
+            "xspec" normalization assumes the input is in units of count rate
+            times energy bin width.       
+        
+        Returns
+        ---------- 
+        conv_model, np.array(float,float)
+            A two dimensional array of size (n_chans x arbitrary length), 
+            containing the input model as a function of energy channel and a 
+            secondary quantity identical to the input model_input (Fourier 
+            freqency, time, pulse phase, etc.).
+        """
+    
         if np.shape(self.resp_matrix)[0] != np.shape(model_input)[0]:
             raise TypeError("Model energy grid has a different size from response")    
         
@@ -287,10 +396,23 @@ class ResponseMatrix(object):
             conv_model = np.matmul(model_input,self.resp_matrix)
         else:
             raise ValueError("Please specify units of either count rate or count rate normalized to bin width")
+        conv_model = np.transpose(conv_model)
         
-        return np.transpose(conv_model)
+        return conv_model
 
     def plot_response(self,plot_type="channel"):
+        """
+        Plots the instrument response as a function of incoming energy and 
+        instrument channel. For ease of visualization, the z-axis plots 
+        the base-10 logarithm of the response matrix. 
+        
+        Parameters:
+        ----------             
+        plot_type: string, default="channel"
+            Sets the units of the X-axis to be either the channel number (by 
+            default) or the bounds of each channel (plot_type="energy").
+        """
+    
         fig = plt.figure(figsize=(9.,7.5))
         
         if plot_type == "channel":
@@ -311,6 +433,17 @@ class ResponseMatrix(object):
         return
         
     def plot_arf(self,plot_scale="log"):
+        """
+        Plots the instrument effective area, if one has been loaded, as a 
+        function of energy. 
+        
+        Parameters:
+        ----------             
+        plot_scale: string, default="log"
+            Switches between log10(arf) (plot_scale="log", the default behavior)
+            and just the arf (plot_scale="lin").  
+        """
+    
         #tbd: only allow this to happen if specresp is defined
         energy_array = (self.energ_hi+self.energ_lo)/2.
         fig = plt.figure(figsize=(9.,7.5))
@@ -328,15 +461,57 @@ class ResponseMatrix(object):
         return
         
     def diagonal_matrx(self,num):
-        #tbd: figure out a less silly way to handle this
-        #maybe call automatically if stuff fails
+        """
+        Returns a diagonal identity matrix, which by definition contains only
+        ones on the diagonal and zeroes  otherwise.
+        
+        Parameters:
+        ----------             
+        num: int
+            The dimension of the desired matrix.
+            
+        Returns: 
+        ---------- 
+        diag_resp: np.array(float,float)
+            An identity matrix of size (num x num).   
+        """
+    
         diag_resp = np.diag(np.ones(num))
         return diag_resp            
               
-    def unfold_response(self):
-        print("TBD once the data side is complete")
+    def unfold_response(self):    
+        print("TBD once the data+model side is complete")
         
 def rebin_array(array_start,array_end,array):
+    """
+    This function can be used to rebin an input array, from an arbitrarily 
+    defined initial grid array_start, to an arbitrarily defined grid array_end. 
+    The flexibility of this function comes at a large computational cost, so it
+    should only be used when strictly necessary, and never during fitting.
+    
+    Parameters:
+    ---------- 
+    array_start: np.array(float), np.array(float)
+        A two-dimensional list of arrays. The first array contains the lower 
+        bounds of the initial grid over which the input "array" is defined, the 
+        second array containst the upper bounds of the same grid.          
+
+    array_end: np.array(float), np.array(float)
+        A two-dimensional list of arrays. The first array contains the lower 
+        bounds of the final grid over which the input "array" is to be rebinned,  
+        the second array containst the upper bounds of the same grid.      
+
+    array: np.array(float)
+        An array of length identical to either element of array_start, 
+        containing the array that the user wishes to be rebinned to the new grid 
+        array_end.
+    
+    Returns
+    ----------    
+    return_array: np.float 
+        An array of length identical to either element of array_end, 
+        containing the rebinned array.
+    """
     return_array = np.zeros(len(array_end[0]))
     for i in range(len(array_end[0])):
         #find the indexes of the bins in the old arrays that will go to the new one
