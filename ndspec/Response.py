@@ -13,7 +13,7 @@ plt.rcParams.update({'font.size': fi-5})
 
 colorscale = pl.cm.PuRd(np.linspace(0.,1.,5))
 
-from Operator import nDspecOperator
+from .Operator import nDspecOperator
 
 class ResponseMatrix(nDspecOperator):
     """
@@ -75,55 +75,6 @@ class ResponseMatrix(nDspecOperator):
     has_arf: bool
         A flag to check whether only a rmf file has been loaded, or a full 
         rmf+arf response. This varies between observatories.           
-    """
-
-
-    """    
-    Methods
-    ----------
-    
-    __init__(str):
-        Initializes the class from a path to an appropriate FITS file by calling
-        _load_rmf()
-        
-        
-    _read_matrix(numpy.array,numpy.array,numpy.array,numpy.arry):
-
-        
-    load_arf(str):
-        Loads effective area from an OGIP-compliants arf  FITSfile and applies it 
-        to the resp_matrix attribute
-        
-    rebin_response(numpy.array,numpy.array):
-        Rebins the resp_matrix attribute over the "channels" axis, starting from two
-        user-provided arrays that contain the lower and upper energy bounds of the 
-        new grid. The new grid needs to be more coarse than the initial one.
-        
-    bounds_to_chans(numpy.array,numpy.array):
-        Maps two energy arrays containing lower and upper bins of a new energy grid
-        to the channels loaded in the class, and returns the indexes of each bin
-        in the current grid. Required by the rebin_response method.
-        
-    plot_response:
-        If an arf or full response file were loaded, plots the full instrument response
-        in channel vs energy space. Otherwise, plots the rmf in channel vs energy space
-    
-    plot_arf:
-        If an arf was loaded, plots the instrument effective area as a function of energy
-    
-    diagonal_matrix(int):
-        Sets the resp_matrix attribute to be a diagonal matrix of given input size, with 
-        diagonal values 1
-    
-    convolve_response(numpy.array):
-        Multiplies the resp_matrix attribute by a model matrix, with units of energy in
-        the y axis and any other quantity in the x axis. Returns an "instrument space"
-        matrix with units of channels (re-binned or not) in the y axis, and the initial
-        quantity in the x axis. The model units in the z axis can either be in specific 
-        photon flux (dN/dE, or photons per unit time, per unit energy), or in the default
-        Xspec format of specific photon flux normalized to each bin width - dN/dE*bin_width.
-        Users can specify which with the ``norm'' parameter - the default norm="rate" assumes
-        dN/dE units, norm="xspec" assumes dN/dE * dE units.       
     """ 
     
     def __init__(self, resp_path, arf_path=None):
@@ -161,8 +112,8 @@ class ResponseMatrix(nDspecOperator):
             h = response["SPECRESP MATRIX"]
             self.has_arf = True
             print("Response file includes arf")
-        #grab the relevant info from the fits file, store it in the channels_info/data/hdr objects,
-        #and then close the fits file    
+        #grab the relevant info from the fits file, store it in the 
+        #channels_info/data/hdr objects, and then close the fits file    
         channel_info = self.bounds.data
         data = h.data
         hdr = h.header
@@ -284,8 +235,8 @@ class ResponseMatrix(nDspecOperator):
         arf_emin = np.array(data.field("ENERG_LO"))
         arf_emax = np.array(data.field("ENERG_HI"))        
         
-        if np.allclose(arf_emin,self.energ_lo) == False or 
-           np.allclose(arf_emax,self.energ_hi) == False:
+        if (np.allclose(arf_emin,self.energ_lo) == False or 
+            np.allclose(arf_emax,self.energ_hi) == False):
             raise ValueError("Energy grids in rmf and arf do not match")
         
         self.specresp = np.array(data.field("SPECRESP"))
@@ -297,14 +248,14 @@ class ResponseMatrix(nDspecOperator):
         
         for k in range(self.n_chans):
             for j in range(self.n_energs):
-                self.resp_matrix[j][k] = self.resp_matrix[j][k]*
+                self.resp_matrix[j][k] = self.resp_matrix[j][k]* \
                                          self.specresp[j]*self.exposure
         
         print("Arf loaded")
         return 
     
-    #tbd: in the tutorial add an example of trying to rebin in energy rather than channel
-    #and show that it is dangerous
+    #tbd: in the tutorial add an example of trying to rebin in energy rather 
+    #than channel and show that it is dangerous
     def rebin_response(self,new_bounds_lo,new_bounds_hi):
         """
         This method rebins the response matrix resp_matrix to an arbitrary, 
@@ -514,12 +465,13 @@ def rebin_array(array_start,array_end,array):
     """
     return_array = np.zeros(len(array_end[0]))
     for i in range(len(array_end[0])):
-        #find the indexes of the bins in the old arrays that will go to the new one
+        #find the indexes of the bins in the old arrays that will go to the new 
+        #one
         index_lo = np.digitize(array_end[0][i],array_start[0],right=True)
         index_hi = np.digitize(array_end[1][i],array_start[1])
         #first: calculate the contribution excluding the bin edges
-        #loop over indexes of the incoming bins and do a bin-width weighted average
-        #tbd: write clearer warning in case of index_lo = index_hi
+        #loop over indexes of the incoming bins and do a bin-width weighted 
+        #average tbd: write clearer warning in case of index_lo = index_hi
        
         if index_lo == index_hi:
             raise IndexError("Outgoing bin "+str(i)+" has just one incoming bin, check energy grids")
@@ -529,7 +481,8 @@ def rebin_array(array_start,array_end,array):
             upper = np.min((array_start[1][k],array_end[1][i]))
             return_array[i] = return_array[i] + array[k]*(upper-lower)
        
-        #second: include the contribution from the bin edges in order to renormalize correctly
+        #second: include the contribution from the bin edges in order to 
+        #renormalize correctly
         lower = array_end[0][i]
         upper = array_start[0][index_lo]
         return_array[i] = return_array[i] + array[index_lo-1]*(upper-lower)

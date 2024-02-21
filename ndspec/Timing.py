@@ -9,6 +9,9 @@ from pyfftw.interfaces.numpy_fft import (
 
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pl
+from matplotlib import cm
+from matplotlib.colors import TwoSlopeNorm
+
 from matplotlib import rc, rcParams
 rc('text',usetex=True)
 rc('font',**{'family':'serif','serif':['Computer Modern']})
@@ -17,7 +20,7 @@ plt.rcParams.update({'font.size': fi-5})
 
 colorscale = pl.cm.PuRd(np.linspace(0.,1.,5))
 
-from Operator import nDspecOperator
+from .Operator import nDspecOperator
 
 class FourierProduct(nDspecOperator):
     """
@@ -98,11 +101,11 @@ class FourierProduct(nDspecOperator):
         self.n_times = self.times.size
         
         if np.all(np.isclose(self.time_bins, self.time_bins[0])) == False:
-            self.method('sinc')
+            self.method = 'sinc'
         elif np.isin(method,(['sinc'],['fft'])) == True:
-            self.method(method)
+            self.method = method
         else:
-            self.method('fft')
+            self.method ='fft'
         #if we're going to do fft the array is pre-determined, otherwise it 
         #should be in the arguments
         
@@ -244,12 +247,12 @@ class FourierProduct(nDspecOperator):
         deltau[1:len(self.times)] = self.time_bins
         #all the reshaping here is to ensure that decomp is the correct 
         #format - ie, a matrix of size (n_times x n_freqs)
-        decomp = np.sinc(deltau.reshape((len(deltau),1))*
-                         self.freqs.reshape((1,self.n_freqs)))*
-                         np.exp(-2*np.pi*self.freqs.reshape((1,self.n_freqs))*
+        decomp = np.sinc(deltau.reshape((len(deltau),1))* \
+                         self.freqs.reshape((1,self.n_freqs)))* \
+                         np.exp(-2*np.pi*self.freqs.reshape((1,self.n_freqs))* \
                          self.times.reshape((len(deltau),1))*1j)
-         
-         return decomp 
+        
+        return decomp 
     
     def _compute_sinc(self,input_array):
         """   
@@ -415,7 +418,7 @@ class PowerSpectrum(FourierProduct):
 
         """
         
-        fig, ((ax1)) = plt.subplots(1,1,figsize=(9.,6.))   
+        fig, ((ax1)) = plt.subplots(1,1,figsize=(6.,4.5))   
         
         if units == 'Power':
             ax1.plot(self.freqs,self.power_spec)
@@ -526,6 +529,11 @@ class CrossSpectrum(FourierProduct):
         reference band can either be computed directly from the imp_resp 
         attribute, using the set_reference_idx method, or it can be provided 
         by the user, using the set_reference_lc method. 
+        
+    correct_ref: bool 
+        A bool that sets whether the reference band used in the cross spectrum 
+        calculations is corrected by subtracting the channel of interest 
+        (correct_ref=True) or if it is kept the same (correct_ref=False).  
     
     trans_func: np.array(complex,complex) 
         An array of size (n_chans x n_freqs), containing the Fourier transform  
@@ -616,6 +624,7 @@ class CrossSpectrum(FourierProduct):
         ref_index = np.searchsorted(chans,self.chans)
         self.ref = np.reshape(np.sum(impulse_test[ref_index,:],axis=0),
                              (self.n_times))
+        self.correct_ref = True
         
         return
 
@@ -631,10 +640,11 @@ class CrossSpectrum(FourierProduct):
             lightcurve.
         """
         
-        if (len(input_lc)) != self.times.size:
+        if (len(input_lc)) != self.n_times:
             raise ValueError("Reference array is the incorrect size!")
         
         self.ref = input_lc
+        self.correct_ref = False
         
         return
     
@@ -685,7 +695,11 @@ class CrossSpectrum(FourierProduct):
         for index in range(self.n_chans):
             ci_ft = self.transform(signal[index,:])
             self.trans_func.append(ci_ft)
-            cross_prod = power_spec*np.multiply(ci_ft,np.conj(ref_ft))
+            if (self.correct_ref == False):
+                cross_prod = power_spec*np.multiply(ci_ft,np.conj(ref_ft))
+            else:
+                corr_ft = ref_ft - ci_ft
+                cross_prod = power_spec*np.multiply(ci_ft,np.conj(corr_ft))                
             self.cross.append(cross_prod)                 
 
         self.cross = np.reshape(np.array(self.cross),
@@ -1024,7 +1038,7 @@ class CrossSpectrum(FourierProduct):
             of Fourier frequency.  
         """
         
-        lag_spectrum = self.phase_frequency(int_bounds,ref_bounds)/
+        lag_spectrum = self.phase_frequency(int_bounds,ref_bounds)/ \
                        (2.*np.pi*self.freqs)
                
         return lag_spectrum
@@ -1172,7 +1186,7 @@ class CrossSpectrum(FourierProduct):
             frequency averaged cross spectrum, as a function of energy. 
         """
        
-        lag_spectrum = self.phase_energy(nu_min,nu_max)/
+        lag_spectrum = self.phase_energy(nu_min,nu_max)/ \
                        (2.*np.pi*(nu_max-nu_min))
         
         return lag_spectrum
