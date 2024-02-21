@@ -106,8 +106,8 @@ class FourierProduct(nDspecOperator):
             self.method = method
         else:
             self.method ='fft'
-        #if we're going to do fft the array is pre-determined, otherwise it 
-        #should be in the arguments
+        #if we're going to do fft the freqyency array is pre-determined, 
+        #otherwise it  should be in the arguments
         
         #add safeguard for sinc method with freq array undefined
         self.freqs = self._set_frequencies(freq_array)     
@@ -145,6 +145,11 @@ class FourierProduct(nDspecOperator):
             
         """
         
+        #if the Fourier transforms were computed with fft but we are rebinning 
+        #the power spectrum, we need to update the frequency array and its 
+        #size; otherwise, if no rebinning is done and we are just setting the 
+        #frequency grid, we get the frequency array from the time array and 
+        #the fftfreq() function in pyfftw.
         if (self.method == 'fft'):
             if rebin is True:
                 frequencies = freq_array
@@ -558,6 +563,8 @@ class CrossSpectrum(FourierProduct):
     def __init__(self,time_array,freq_array=0,energ=None,method='fft'):
         FourierProduct.__init__(self,time_array,freq_array,method)
         self.energ = energ
+        #energ=none is used to treat one-d cross spectra between only two 
+        #energy channels
         if energ is None:
             self.n_chans = 1
             self.chans = 0
@@ -598,7 +605,7 @@ class CrossSpectrum(FourierProduct):
         """
         
         self.imp_resp = signal
-        #ensure the correct irf input format for a 1d cross spectrum        
+        #reshaping ensures the correct irf input format for a 1d cross spectrum        
         if self.n_chans == 1:
             self.imp_resp = np.reshape(self.imp_resp,(1,self.n_times))
         
@@ -617,8 +624,8 @@ class CrossSpectrum(FourierProduct):
         """
         
         self.trans_func = signal
-        #ensure the correct transfer function input format for a 1d cross 
-        #spectrum        
+        #reshaping ensures  the correct transfer function input format for a 1d 
+        #cross spectrum        
         if self.n_chans == 1:
             self.trans_func = np.reshape(self.trans_func,(1,self.n_freqs))
         
@@ -629,7 +636,12 @@ class CrossSpectrum(FourierProduct):
         This method sets the reference band from a list of channel indexes 
         provided by the user. Currently, it is up to users to convert a given 
         energy range they might be interested in into these channel indexes, 
-        pending improvements to the Operator class.
+        pending improvements to the Operator class. 
+        
+        Using this method impclicitely assumes that the channel of interest 
+        band needs to be subracted from the reference band when computing the 
+        cross spectrum; this is typical if the reference band and channel of 
+        interest are taken with the same instrument.
         
         Parameters
         ----------
@@ -651,6 +663,11 @@ class CrossSpectrum(FourierProduct):
         """   
         This method sets the reference band from an array (e.g. count rate as a
         function of energy) provided by the user.
+        
+        Using this method impclicitely assumes that the channel of interest 
+        band will not be subracted from the reference band when computing the 
+        cross spectrum; this is typical if the reference band and channel of 
+        interest are taken with different instruments.
         
         Parameters
         ----------
@@ -715,17 +732,22 @@ class CrossSpectrum(FourierProduct):
                 cross_prod = power_spec*np.multiply(transfer[index,:],
                                                     np.conj(ref_ft))
             else:
-                corr_ft = ref_ft - ci_ft
+                #correct the reference by removing each channel of interest
+                #note that we can do it after the FT to save computational time 
+                #and not re-do the FT of the reference at each step of the loop
+                #because the Fourier transform is a linear operator
+                corr_ft = ref_ft - transfer[index,:]
                 cross_prod = power_spec*np.multiply(transfer[index,:],
                                                     np.conj(ref_ft))              
             self.cross.append(cross_prod)  
 
+        #reshaping ensures a consistent correct cross spectrum format between
+        #1d and 2d cases
         self.cross = np.reshape(np.array(self.cross),
                                (self.n_chans,self.n_freqs))
 
         return   
 
-    #tbd: add a setter for the transfer, and a cross_from_trans method
     #maybe throw in a wrapper like with transform 
     def cross_from_irf(self,signal=None,reference=None,power=None):
         """   
@@ -777,16 +799,22 @@ class CrossSpectrum(FourierProduct):
             if self.correct_ref is False:
                 cross_prod = power_spec*np.multiply(ci_ft,np.conj(ref_ft))
             else:
+                #correct the reference by removing each channel of interest
+                #note that we can do it after the FT to save computational time 
+                #and not re-do the FT of the reference at each step of the loop
+                #because the Fourier transform is a linear operator
                 corr_ft = ref_ft - ci_ft
                 cross_prod = power_spec*np.multiply(ci_ft,np.conj(corr_ft))                
             self.cross.append(cross_prod)                 
 
+        #reshaping ensures a consistent correct cross spectrum and transfer
+        #function format between1d and 2d cases  
         self.cross = np.reshape(np.array(self.cross),
                                (self.n_chans,self.n_freqs))
         self.trans_func = np.reshape(np.array(self.trans_func),
                                     (self.n_chans,self.n_freqs))
         
-        return
+         return
 
     def rebin_frequency(self,new_grid):
         """   

@@ -97,29 +97,26 @@ class ResponseMatrix(nDspecOperator):
         """
         
         self.rmfpath = filepath 
-        response = fits.open(filepath)
-        # get all the extension names
-        extnames = np.array([h.name for h in response])
-        self.bounds = response["EBOUNDS"]
-        #figure out the right table to use, and decide 
-        #whether we are also loading the arf or not 
-        #redo this check some matrices are weird
-        if "MATRIX" in extnames:
-            h = response["MATRIX"]
-            self.has_arf = False
-            print("Arf missing, please load it")
-        elif "SPECRESP MATRIX" in extnames:
-            h = response["SPECRESP MATRIX"]
-            self.has_arf = True
-            print("Response file includes arf")
-        #grab the relevant info from the fits file, store it in the 
-        #channels_info/data/hdr objects, and then close the fits file    
-        channel_info = self.bounds.data
-        data = h.data
-        hdr = h.header
-        if hdr["HDUCLASS"] != "OGIP":
-            raise TypeError("File is not OGIP compliant")   
-        response.close()
+        with fits.open(filepath) as response:
+            # get all the extension names
+            extnames = np.array([h.name for h in response])
+            self.bounds = response["EBOUNDS"]
+            #figure out the right table to use, and decide 
+            #whether we are also loading the arf or not 
+            #redo this check some matrices are weird
+            if "MATRIX" in extnames:
+                h = response["MATRIX"]
+                self.has_arf = False
+                print("Arf missing, please load it")
+            elif "SPECRESP MATRIX" in extnames:
+                h = response["SPECRESP MATRIX"]
+                self.has_arf = True
+                print("Response file includes arf")
+            channel_info = self.bounds.data
+            data = h.data
+            hdr = h.header
+            if hdr["HDUCLASS"] != "OGIP":
+                raise TypeError("File is not OGIP compliant")   
         
         self.emin = np.array(channel_info.field("E_MIN"))
         self.emax = np.array(channel_info.field("E_MAX"))
@@ -130,8 +127,8 @@ class ResponseMatrix(nDspecOperator):
         self.energ_hi = np.array(data.field("ENERG_HI"))
         self.n_energs = len(self.energ_lo)
         
-        #store the rest of the information we need to convert the response 
-        #to matrix format into arrays
+        #We only need this information to convert the response to matrix format
+        #so there is no need to store these as attributes 
         n_grp = np.array(data.field("N_GRP"))
         f_chan = np.array(data.field("F_CHAN"))
         n_chan = np.array(data.field("N_CHAN"))
@@ -222,21 +219,20 @@ class ResponseMatrix(nDspecOperator):
     
         self.arfpath = filepath
         self.has_arf = True
-        response = fits.open(filepath)
-        extnames = np.array([h.name for h in response])
-        h = response["SPECRESP"]
-        data = h.data
-        hdr = h.header
+        with fits.open(filepath) as response:
+            extnames = np.array([h.name for h in response])
+            h = response["SPECRESP"]
+            data = h.data
+            hdr = h.header
+            
+            if hdr["HDUCLASS"] != "OGIP":
+                raise TypeError("File is not OGIP compliant")   
         
-        if hdr["HDUCLASS"] != "OGIP":
-            raise TypeError("File is not OGIP compliant")   
-        
-        response.close()
         arf_emin = np.array(data.field("ENERG_LO"))
         arf_emax = np.array(data.field("ENERG_HI"))        
         
-        if (np.allclose(arf_emin,self.energ_lo) == False or 
-            np.allclose(arf_emax,self.energ_hi) == False):
+        if (np.allclose(arf_emin,self.energ_lo) is False or 
+            np.allclose(arf_emax,self.energ_hi) is False):
             raise ValueError("Energy grids in rmf and arf do not match")
         
         self.specresp = np.array(data.field("SPECRESP"))
@@ -433,6 +429,7 @@ class ResponseMatrix(nDspecOperator):
     def unfold_response(self):    
         print("TBD once the data+model side is complete")
         
+
 def rebin_array(array_start,array_end,array):
     """
     This function can be used to rebin an input array, from an arbitrarily 
