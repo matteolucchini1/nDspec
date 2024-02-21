@@ -100,9 +100,9 @@ class FourierProduct(nDspecOperator):
         self.time_bins = np.diff(self.times)
         self.n_times = self.times.size
         
-        if np.all(np.isclose(self.time_bins, self.time_bins[0])) == False:
+        if np.all(np.isclose(self.time_bins, self.time_bins[0])) is False:
             self.method = 'sinc'
-        elif np.isin(method,(['sinc'],['fft'])) == True:
+        elif np.isin(method,(['sinc'],['fft'])) is True:
             self.method = method
         else:
             self.method ='fft'
@@ -146,7 +146,7 @@ class FourierProduct(nDspecOperator):
         """
         
         if (self.method == 'fft'):
-            if (rebin == True):
+            if rebin is True:
                 frequencies = freq_array
             else:
                 fgt0 = self._positive_fft_bins()
@@ -588,7 +588,7 @@ class CrossSpectrum(FourierProduct):
     def set_impulse(self,signal):
         """   
         This method sets the impulse response function imp_resp from which the 
-        cross spectrum is calculated.
+        cross spectrum can be calculated.
         
         Parameters
         ----------
@@ -597,11 +597,30 @@ class CrossSpectrum(FourierProduct):
             response function. 
         """
         
-        #tbd: add thing that checks the arrays are the right size
         self.imp_resp = signal
         #ensure the correct irf input format for a 1d cross spectrum        
         if self.n_chans == 1:
             self.imp_resp = np.reshape(self.imp_resp,(1,self.n_times))
+        
+        return
+
+    def set_transfer(self,signal):
+        """   
+        This method sets the transfer function trans_func from which the cross
+        spectrum can be calculated.
+        
+        Parameters
+        ----------
+        signal: np.array(float,float) 
+            An array of size (n_chans x n_freqs) containing the model transfer 
+            function. 
+        """
+        
+        self.trans_func = signal
+        #ensure the correct transfer function input format for a 1d cross 
+        #spectrum        
+        if self.n_chans == 1:
+            self.trans_func = np.reshape(self.trans_func,(1,self.n_freqs))
         
         return
 
@@ -636,8 +655,9 @@ class CrossSpectrum(FourierProduct):
         Parameters
         ----------
         input_lc: np.array(float) 
-            An arrray of size (n_chans) containing the reference band 
-            lightcurve.
+            An arrray of size (n_chans) containing either the reference band 
+            lightcurve (if the model is defined in the time domain) or its 
+            Fourier transform (for models defined in the Fourier domain).
         """
         
         if (len(input_lc)) != self.n_times:
@@ -648,7 +668,66 @@ class CrossSpectrum(FourierProduct):
         
         return
     
-    def compute_cross(self,signal=None,reference=None,power=None):
+    def cross_from_transfer(self,transfer=None,ref_ft=None,power=None):
+        """   
+        This method computes thecross spectrum from an input defined in Fourier
+        space (such as a transfer function), reference band, and power spectra
+        provided by the  user. These can either be already stored by the setter  
+        methods set_psd_weights, set_transfer, and set_reference_idx or 
+        set_reference_lc (which is the default behavior), or they can be passed
+        as arguments of  this method. In the latter case, the reference can 
+        only be provided in array, rather than channel index, form.
+        
+        Parameters
+        ----------
+        transfer: np.array(float,float), default=self.trans_func 
+            An array of size (n_chans x n_freqs) containing a model defined in 
+            Fourier space, such as a transfer function. 
+            
+        reference: np.array(float), default=self.ref 
+            An arrray of size (n_chans) containing the reference band count rate
+            defined in Fourier space.
+            
+        power: np.array(float), default=self.power_spec 
+            An array of size (n_freqs) that is to be used as the weighing power 
+            spectrum when computing the cross spectrum.
+        """
+        
+        if transfer is None:
+            transfer = self.trans_func
+        else:
+            self.set_transfer(transfer)
+        
+        if ref_ft is None:
+            ref_ft = self.ref
+        else:
+            self.set_reference_lc(ref_ft)
+        
+        if power is None:
+            power_spec = self.power_spec 
+        else:
+            self.set_psd_weights(power)  
+        
+        self.cross = []
+        
+        for index in range(self.n_chans):
+            if self.correct_ref is False:
+                cross_prod = power_spec*np.multiply(transfer[index,:],
+                                                    np.conj(ref_ft))
+            else:
+                corr_ft = ref_ft - ci_ft
+                cross_prod = power_spec*np.multiply(transfer[index,:],
+                                                    np.conj(ref_ft))              
+            self.cross.append(cross_prod)  
+
+        self.cross = np.reshape(np.array(self.cross),
+                               (self.n_chans,self.n_freqs))
+
+        return   
+
+    #tbd: add a setter for the transfer, and a cross_from_trans method
+    #maybe throw in a wrapper like with transform 
+    def cross_from_irf(self,signal=None,reference=None,power=None):
         """   
         This method computes the transfer function and cross spectrum from the 
         impulse response, reference band, and power spectra provided by the 
@@ -686,7 +765,7 @@ class CrossSpectrum(FourierProduct):
         if power is None:
             power_spec = self.power_spec 
         else:
-            self.set_psd_weights(power)
+            self.set_psd_weights(power)  
         
         self.cross = []
         self.trans_func = []
@@ -695,7 +774,7 @@ class CrossSpectrum(FourierProduct):
         for index in range(self.n_chans):
             ci_ft = self.transform(signal[index,:])
             self.trans_func.append(ci_ft)
-            if (self.correct_ref == False):
+            if self.correct_ref is False:
                 cross_prod = power_spec*np.multiply(ci_ft,np.conj(ref_ft))
             else:
                 corr_ft = ref_ft - ci_ft
