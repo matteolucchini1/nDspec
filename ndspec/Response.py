@@ -347,7 +347,7 @@ class ResponseMatrix(nDspecOperator):
         
         return conv_model
 
-    def plot_response(self,plot_type="channel"):
+    def plot_response(self,plot_type="channel",return_plot=False):
         """
         Plots the instrument response as a function of incoming energy and 
         instrument channel. For ease of visualization, the z-axis plots 
@@ -377,9 +377,14 @@ class ResponseMatrix(nDspecOperator):
         plt.ylabel("Energy (keV)")
         plt.title("log10(Response)")
         plt.show()
-        return
         
-    def plot_arf(self,plot_scale="log"):
+        if return_plot is True:
+            return fig 
+        else:
+            return   
+
+        
+    def plot_arf(self,plot_scale="log",return_plot=False):
         """
         Plots the instrument effective area, if one has been loaded, as a 
         function of energy. 
@@ -405,7 +410,12 @@ class ResponseMatrix(nDspecOperator):
             raise TypeError("Please specify either linear (lin) or logarithmic (log) x scale") 
         
         plt.show()
-        return
+        
+        if return_plot is True:
+            return fig 
+        else:
+            return   
+
         
     def diagonal_matrx(self,num):
         """

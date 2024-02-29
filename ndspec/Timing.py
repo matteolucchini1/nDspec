@@ -100,9 +100,9 @@ class FourierProduct(nDspecOperator):
         self.time_bins = np.diff(self.times)
         self.n_times = self.times.size
         
-        if np.all(np.isclose(self.time_bins, self.time_bins[0])) is False:
+        if (np.all(np.isclose(self.time_bins, self.time_bins[0])) is False):
             self.method = 'sinc'
-        elif np.isin(method,(['sinc'],['fft'])) is True:
+        elif np.isin(method,(['sinc'],['fft'])):# is True):
             self.method = method
         else:
             self.method ='fft'
@@ -111,6 +111,8 @@ class FourierProduct(nDspecOperator):
         
         #add safeguard for sinc method with freq array undefined
         self.freqs = self._set_frequencies(freq_array)     
+        if (self.method == 'sinc'):
+            self.irf_sinc_arr = self._sinc_decomp()
         
         pass
        
@@ -162,8 +164,7 @@ class FourierProduct(nDspecOperator):
             if np.shape(freq_array) == () or len(np.shape(freq_array)) > 1:
                 raise TypeError("Input frequency grid in incorrect format")     
             self.n_freqs = len(freq_array)
-            frequencies = freq_array
-            self.irf_sinc_arr = self._sinc_decomp()
+            frequencies = freq_array            
         else:
             raise ValueError("Fourier transform method not recognized")
         
@@ -409,7 +410,7 @@ class PowerSpectrum(FourierProduct):
         
         return 
     
-    def plot_psd(self,units='Power*freq'):
+    def plot_psd(self,units='Power*freq',return_plot=False):
         """ 
         This method plots the either the power or power per unit frequency 
         as a function of frequency, stored in the class instance.  
@@ -441,7 +442,10 @@ class PowerSpectrum(FourierProduct):
         plt.tight_layout()
         plt.show()        
         
-        return
+        if return_plot is True:
+            return fig 
+        else:
+            return   
         
         
 class CrossSpectrum(FourierProduct):
@@ -653,8 +657,15 @@ class CrossSpectrum(FourierProduct):
         """   
         
         ref_index = np.searchsorted(chans,self.chans)
-        self.ref = np.reshape(np.sum(impulse_test[ref_index,:],axis=0),
-                             (self.n_times))
+        
+        if hasattr(self,"imp_resp"):
+            self.ref = np.reshape(np.sum(self.imp_resp[ref_index,:],axis=0),
+                                 (self.n_times))
+        elif hasattr(self,"trans_func"):
+            self.ref = np.reshape(np.sum(self.trans_func[ref_index,:],axis=0),
+                                 (self.n_freqs))    
+        else:
+            raise AttributeError("Neither impulse response nor transfer function defined")        
         self.correct_ref = True
         
         return
@@ -677,8 +688,8 @@ class CrossSpectrum(FourierProduct):
             Fourier transform (for models defined in the Fourier domain).
         """
         
-        if (len(input_lc)) != self.n_times:
-            raise ValueError("Reference array is the incorrect size!")
+        #if (len(input_lc)) != self.n_times:
+        #    raise ValueError("Reference array is the incorrect size!")
         
         self.ref = input_lc
         self.correct_ref = False
@@ -814,7 +825,7 @@ class CrossSpectrum(FourierProduct):
         self.trans_func = np.reshape(np.array(self.trans_func),
                                     (self.n_chans,self.n_freqs))
         
-         return
+        return
 
     def rebin_frequency(self,new_grid):
         """   
@@ -938,16 +949,16 @@ class CrossSpectrum(FourierProduct):
         
         Parameters
         ----------
-        int_bounds: np.array(int) 
-            A list of integer indexes for the energy channels to be used in the 
-            channels of interest - using the convention used in X-ray spectral 
-            timing, this should be the energy band where reverberation lags 
-            appear with negative values.
+        int_bounds: np.array(float) 
+            A list of energy channel bounds to be used in the channels of 
+            interest - using the convention used in X-ray spectral timing, this 
+            should be the energy band where reverberation lags appear with
+            negative values.
             
-        ref_bounds: np.array(int), default=None  
-            A list of integer indexes for the energy channels to be used in the 
-            reference band. By default, this assumes that the reference band is 
-            identical to that used in calculating the cross spectrum. 
+        ref_bounds: np.array(float), default=None  
+            A list of energy channel bounds to be used in the reference band.
+            By default, this assumes that the reference band is identical to  
+            that used in calculating the cross spectrum. 
 
         Returns
         -------
@@ -964,7 +975,13 @@ class CrossSpectrum(FourierProduct):
         #we want to use some other referene band, it is more convenient to just 
         #sum over the (pre calculated) transfer function. 
         if ref_bounds is None:
-            ref = self.transform(self.ref)
+            #if the cross spectrum is defined from an impulse response, take 
+            #the FT of the reference band; otherwise, we assume we already 
+            #defined in the Fourier domain so we don't need to transform again
+            if hasattr(self,"imp_resp"):
+                ref = self.transform(self.ref)
+            else:
+                ref = self.ref 
         else:
             idx_ref = np.where(np.logical_and(self.energ>ref_bounds[0],
                                               self.energ<ref_bounds[1]))
@@ -972,8 +989,8 @@ class CrossSpectrum(FourierProduct):
         
         idx_int = np.where(np.logical_and(self.energ>int_bounds[0],
                                           self.energ<int_bounds[1]))
-        int = np.sum(self.trans_func[idx_int,:],axis=1)
-        cross = self.power_spec*np.multiply(int,np.conj(ref))
+        ch_int = np.sum(self.trans_func[idx_int,:],axis=1)
+        cross = self.power_spec*np.multiply(ch_int,np.conj(ref))
         
         return cross
 
@@ -987,16 +1004,16 @@ class CrossSpectrum(FourierProduct):
         
         Parameters
         ----------
-        int_bounds: np.array(int) 
-            A list of integer indexes for the energy channels to be used in the 
-            channels of interest - using the convention used in X-ray spectral 
-            timing, this should be the energy band where reverberation lags 
-            appear with negative values.
+        int_bounds: np.array(float) 
+            A list of energy channel bounds to be used in the channels of 
+            interest - using the convention used in X-ray spectral timing, this 
+            should be the energy band where reverberation lags appear with
+            negative values.
             
-        ref_bounds: np.array(int), default=None 
-            A list of integer indexes for the energy channels to be used in the 
-            reference band. By default, this assumes that the reference band is 
-            identical to that used in calculating the cross spectrum. 
+        ref_bounds: np.array(float), default=None  
+            A list of energy channel bounds to be used in the reference band.
+            By default, this assumes that the reference band is identical to  
+            that used in calculating the cross spectrum. 
 
         Returns
         -------
@@ -1021,16 +1038,16 @@ class CrossSpectrum(FourierProduct):
         
         Parameters
         ----------
-        int_bounds: np.array(int) 
-            A list of integer indexes for the energy channels to be used in the 
-            channels of interest - using the convention used in X-ray spectral 
-            timing, this should be the energy band where reverberation lags 
-            appear with negative values.
+        int_bounds: np.array(float) 
+            A list of energy channel bounds to be used in the channels of 
+            interest - using the convention used in X-ray spectral timing, this 
+            should be the energy band where reverberation lags appear with
+            negative values.
             
-        ref_bounds: np.array(int), default=None   
-            A list of integer indexes for the energy channels to be used in the 
-            reference band. By default, this assumes that the reference band is 
-            identical to that used in calculating the cross spectrum. 
+        ref_bounds: np.array(float), default=None  
+            A list of energy channel bounds to be used in the reference band.
+            By default, this assumes that the reference band is identical to  
+            that used in calculating the cross spectrum. 
 
         Returns
         -------
@@ -1056,16 +1073,16 @@ class CrossSpectrum(FourierProduct):
         
         Parameters
         ----------
-        int_bounds: np.array(int) 
-            A list of integer indexes for the energy channels to be used in the 
-            channels of interest - using the convention used in X-ray spectral 
-            timing, this should be the energy band where reverberation lags 
-            appear with negative values.
+        int_bounds: np.array(float) 
+            A list of energy channel bounds to be used in the channels of 
+            interest - using the convention used in X-ray spectral timing, this 
+            should be the energy band where reverberation lags appear with
+            negative values.
             
-        ref_bounds: np.array(int), default=None   
-            A list of integer indexes for the energy channels to be used in the 
-            reference band. By default, this assumes that the reference band is 
-            identical to that used in calculating the cross spectrum. 
+        ref_bounds: np.array(float), default=None  
+            A list of energy channel bounds to be used in the reference band.
+            By default, this assumes that the reference band is identical to  
+            that used in calculating the cross spectrum. 
 
         Returns
         -------
@@ -1090,16 +1107,16 @@ class CrossSpectrum(FourierProduct):
         
         Parameters
         ----------
-        int_bounds: np.array(int) 
-            A list of integer indexes for the energy channels to be used in the 
-            channels of interest - using the convention used in X-ray spectral 
-            timing, this should be the energy band where reverberation lags 
-            appear with negative values.
+        int_bounds: np.array(float) 
+            A list of energy channel bounds to be used in the channels of 
+            interest - using the convention used in X-ray spectral timing, this 
+            should be the energy band where reverberation lags appear with
+            negative values.
             
-        ref_bounds: np.array(int), default=None   
-            A list of integer indexes for the energy channels to be used in the 
-            reference band. By default, this assumes that the reference band is 
-            identical to that used in calculating the cross spectrum. 
+        ref_bounds: np.array(float), default=None  
+            A list of energy channel bounds to be used in the reference band.
+            By default, this assumes that the reference band is identical to  
+            that used in calculating the cross spectrum. 
 
         Returns
         -------
@@ -1125,16 +1142,16 @@ class CrossSpectrum(FourierProduct):
         
         Parameters
         ----------
-        int_bounds: np.array(int) 
-            A list of integer indexes for the energy channels to be used in the 
-            channels of interest - using the convention used in X-ray spectral 
-            timing, this should be the energy band where reverberation lags 
-            appear with negative values.
+        int_bounds: np.array(float) 
+            A list of energy channel bounds to be used in the channels of 
+            interest - using the convention used in X-ray spectral timing, this 
+            should be the energy band where reverberation lags appear with
+            negative values.
             
-        ref_bounds: np.array(int), default=None   
-            A list of integer indexes for the energy channels to be used in the 
-            reference band. By default, this assumes that the reference band is 
-            identical to that used in calculating the cross spectrum. 
+        ref_bounds: np.array(float), default=None  
+            A list of energy channel bounds to be used in the reference band.
+            By default, this assumes that the reference band is identical to  
+            that used in calculating the cross spectrum. 
 
         Returns
         -------
@@ -1300,7 +1317,7 @@ class CrossSpectrum(FourierProduct):
         
 
     #tbd: add setting to return the ax objects instead so I can combine plots
-    def plot_cross_1d(self,form="polar"):
+    def plot_cross_1d(self,form="polar",return_plot=False):
         """   
         This method plots the a one-dimensional cross spectrum as a function of  
         Fourier frequency.
@@ -1368,7 +1385,11 @@ class CrossSpectrum(FourierProduct):
             plt.show()
         else:
             raise ValueError("plot format not supported")
-        return
+
+        if return_plot is True:
+            return fig 
+        else:
+            return   
 
     def _plot_limits(self,plot_input):
         """   
@@ -1392,14 +1413,24 @@ class CrossSpectrum(FourierProduct):
        
         lim_min = np.min(plot_input)
         lim_max = np.max(plot_input)
-        norm = TwoSlopeNorm(vmin=lim_min,vcenter=0,vmax=lim_max)
+
+        if (lim_max > 0 and lim_min < 0):
+            norm = TwoSlopeNorm(vmin=lim_min,vcenter=0,vmax=lim_max)
+        elif (lim_max < 0):
+            norm = TwoSlopeNorm(vmin=lim_min,vcenter=0,vmax=-lim_max)   
+        elif (lim_min > 0 ):
+             norm = TwoSlopeNorm(vmin=-lim_min,vcenter=0,vmax=lim_max) 
+        else:
+            print(lim_min,lim_max)
+            raise ValueError("Both lower and upper plot limits are 0")  
+                         
         ticks_negative = np.linspace(0.99*lim_min,0,5)
         ticks_positive = np.linspace(0,1.01*lim_max,5)
         ticks = np.append(ticks_negative[:-1],ticks_positive)
         
         return norm,ticks
    
-    def plot_cross_2d(self,form="polar",energy_limits=[0.3,10.5]):
+    def plot_cross_2d(self,form="polar",energy_limits=[0.3,10.5],return_plot=False):
         """   
         Plots the a two-dimensional cross spectrum as a function of Fourier 
         frequency and energy.
@@ -1457,12 +1488,12 @@ class CrossSpectrum(FourierProduct):
                                   self.lag()[energy_indexes,:])
             
             fig, ((ax1,ax2,ax3)) = plt.subplots(1,3,figsize=(15.,5.))
-            modulus = ax1.pcolormesh(self.freqs,self.energ,self.mod(),
-                                     cmap="magma_r",shading='auto',
+            modulus = ax1.pcolormesh(self.freqs,self.energ,np.log10(self.mod()),
+                                     cmap="magma",shading='auto',
                                      linewidth=0,rasterized=True)
             cb = fig.colorbar(modulus,ax=ax1,format="%.1f")            
             ax1.set_xscale("log",base=10)
-            ax1.set_title("Modulus")
+            ax1.set_title("Log10(Modulus)")
             ax1.set_xlabel("Frequency")
             ax1.set_ylabel("Energy")
             ax1.set_ylim([energy_limits[0],energy_limits[1]])
@@ -1491,4 +1522,8 @@ class CrossSpectrum(FourierProduct):
             plt.show()
         else:
             raise ValueError("plot mode not supported")
-        return        
+            
+        if return_plot is True:
+            return fig 
+        else:
+            return     
