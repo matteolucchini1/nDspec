@@ -131,7 +131,7 @@ class FourierProduct(nDspecOperator):
             linearly spaced in Fourier frequency, unless the "rebin" flag is 
             true (see below).
             
-        rebin: bool, default False 
+        rebin: bool, default=False 
             Used only for the fft method. If false, the method assumes we are 
             initializing the object for the first time, and therefore sets the 
             frequency grid to the output of the fftfreq function. If true, it 
@@ -212,7 +212,7 @@ class FourierProduct(nDspecOperator):
     
         Parameters
         ----------
-        include_zero : bool, default False
+        include_zero : bool, default=False
             Include the zero frequency in the output slice.
     
         Returns
@@ -635,50 +635,46 @@ class CrossSpectrum(FourierProduct):
         
         return
 
-    def set_reference_idx(self,chans):
+    def set_reference_energ(self,ref_bounds,correct_ref=True):
         """   
-        This method sets the reference band from a list of channel indexes 
-        provided by the user. Currently, it is up to users to convert a given 
-        energy range they might be interested in into these channel indexes, 
-        pending improvements to the Operator class. 
-        
-        Using this method impclicitely assumes that the channel of interest 
-        band needs to be subracted from the reference band when computing the 
-        cross spectrum; this is typical if the reference band and channel of 
-        interest are taken with the same instrument.
-        
+        This method sets the reference band from a range of energies provided by
+        the user. Users can also specify whether or not they want  
+        each channel of interest to be subtracted from the reference band when 
+        computing the cross spectrum.
+          
         Parameters
-        ----------
-        chans: np.array(int) 
-            An array of integers of size <= (n_chans) containing the indexes 
-            of the channels (to be compared with the chans attribute), from 
-            which to compute the reference band. 
-
+        ----------           
+        ref_bounds: np.array(float)
+            A list with lower and upper energy channel bounds to be used in the 
+            reference band. By default, we assume that the reference band is
+            identical to that used in calculating the cross spectrum. 
+            
+        correct_ref: bool, default=True
+            Flag to correct the reference band by removing each channel of 
+            interest or not.    
         """   
-        
-        ref_index = np.searchsorted(chans,self.chans)
-        
+        idx_ref = np.where(np.logical_and(self.energ>ref_bounds[0],
+                                          self.energ<ref_bounds[1])) 
+                                
         if hasattr(self,"imp_resp"):
-            self.ref = np.reshape(np.sum(self.imp_resp[ref_index,:],axis=0),
+            self.ref = np.reshape(np.sum(self.imp_resp[idx_ref,:],axis=1),
                                  (self.n_times))
         elif hasattr(self,"trans_func"):
-            self.ref = np.reshape(np.sum(self.trans_func[ref_index,:],axis=0),
-                                 (self.n_freqs))    
+            self.ref = np.reshape(np.sum(self.trans_func[idx_ref,:],axis=1),
+                                 (self.n_freqs))        
         else:
-            raise AttributeError("Neither impulse response nor transfer function defined")        
-        self.correct_ref = True
-        
-        return
+            raise AttributeError("Neither impulse response nor transfer function defined")  
+            
+        self.correct_ref = correct_ref
 
-    def set_reference_lc(self,input_lc):
+        return 
+
+    def set_reference_lc(self,input_lc,correct_ref=False):
         """   
         This method sets the reference band from an array (e.g. count rate as a
-        function of energy) provided by the user.
-        
-        Using this method impclicitely assumes that the channel of interest 
-        band will not be subracted from the reference band when computing the 
-        cross spectrum; this is typical if the reference band and channel of 
-        interest are taken with different instruments.
+        function of energy) provided by the user. Users can also specify 
+        whether or not they want   each channel of interest to be subtracted 
+        from the reference band when computing the cross spectrum.
         
         Parameters
         ----------
@@ -686,13 +682,17 @@ class CrossSpectrum(FourierProduct):
             An arrray of size (n_chans) containing either the reference band 
             lightcurve (if the model is defined in the time domain) or its 
             Fourier transform (for models defined in the Fourier domain).
+            
+        correct_ref: bool, default=False
+            Flag to correct the reference band by removing each channel of 
+            interest or not.    
         """
         
         #if (len(input_lc)) != self.n_times:
         #    raise ValueError("Reference array is the incorrect size!")
         
         self.ref = input_lc
-        self.correct_ref = False
+        self.correct_ref = correct_ref
         
         return
     
@@ -1005,15 +1005,15 @@ class CrossSpectrum(FourierProduct):
         Parameters
         ----------
         int_bounds: np.array(float) 
-            A list of energy channel bounds to be used in the channels of 
-            interest - using the convention used in X-ray spectral timing, this 
-            should be the energy band where reverberation lags appear with
-            negative values.
+            A list with lower and upper energy channel bounds to be used in the 
+            channels of  interest - using the convention used in X-ray spectral
+            timing, this  should be the energy band where reverberation lags 
+            appear with negative values.
             
         ref_bounds: np.array(float), default=None  
-            A list of energy channel bounds to be used in the reference band.
-            By default, this assumes that the reference band is identical to  
-            that used in calculating the cross spectrum. 
+            A list with lower and upper energy channel bounds to be used in the 
+            reference band. By default, we assume that the reference band is
+            identical to that used in calculating the cross spectrum. 
 
         Returns
         -------
@@ -1039,15 +1039,15 @@ class CrossSpectrum(FourierProduct):
         Parameters
         ----------
         int_bounds: np.array(float) 
-            A list of energy channel bounds to be used in the channels of 
-            interest - using the convention used in X-ray spectral timing, this 
-            should be the energy band where reverberation lags appear with
-            negative values.
+            A list with lower and upper energy channel bounds to be used in the 
+            channels of  interest - using the convention used in X-ray spectral
+            timing, this  should be the energy band where reverberation lags 
+            appear with negative values.
             
         ref_bounds: np.array(float), default=None  
-            A list of energy channel bounds to be used in the reference band.
-            By default, this assumes that the reference band is identical to  
-            that used in calculating the cross spectrum. 
+            A list with lower and upper energy channel bounds to be used in the 
+            reference band. By default, we assume that the reference band is
+            identical to that used in calculating the cross spectrum. 
 
         Returns
         -------
@@ -1074,15 +1074,15 @@ class CrossSpectrum(FourierProduct):
         Parameters
         ----------
         int_bounds: np.array(float) 
-            A list of energy channel bounds to be used in the channels of 
-            interest - using the convention used in X-ray spectral timing, this 
-            should be the energy band where reverberation lags appear with
-            negative values.
+            A list with lower and upper energy channel bounds to be used in the 
+            channels of  interest - using the convention used in X-ray spectral
+            timing, this  should be the energy band where reverberation lags 
+            appear with negative values.
             
         ref_bounds: np.array(float), default=None  
-            A list of energy channel bounds to be used in the reference band.
-            By default, this assumes that the reference band is identical to  
-            that used in calculating the cross spectrum. 
+            A list with lower and upper energy channel bounds to be used in the 
+            reference band. By default, we assume that the reference band is
+            identical to that used in calculating the cross spectrum. 
 
         Returns
         -------
@@ -1108,15 +1108,15 @@ class CrossSpectrum(FourierProduct):
         Parameters
         ----------
         int_bounds: np.array(float) 
-            A list of energy channel bounds to be used in the channels of 
-            interest - using the convention used in X-ray spectral timing, this 
-            should be the energy band where reverberation lags appear with
-            negative values.
+            A list with lower and upper energy channel bounds to be used in the 
+            channels of  interest - using the convention used in X-ray spectral
+            timing, this  should be the energy band where reverberation lags 
+            appear with negative values.
             
         ref_bounds: np.array(float), default=None  
-            A list of energy channel bounds to be used in the reference band.
-            By default, this assumes that the reference band is identical to  
-            that used in calculating the cross spectrum. 
+            A list with lower and upper energy channel bounds to be used in the 
+            reference band. By default, we assume that the reference band is
+            identical to that used in calculating the cross spectrum. 
 
         Returns
         -------
@@ -1143,15 +1143,15 @@ class CrossSpectrum(FourierProduct):
         Parameters
         ----------
         int_bounds: np.array(float) 
-            A list of energy channel bounds to be used in the channels of 
-            interest - using the convention used in X-ray spectral timing, this 
-            should be the energy band where reverberation lags appear with
-            negative values.
+            A list with lower and upper energy channel bounds to be used in the 
+            channels of  interest - using the convention used in X-ray spectral
+            timing, this  should be the energy band where reverberation lags 
+            appear with negative values.
             
         ref_bounds: np.array(float), default=None  
-            A list of energy channel bounds to be used in the reference band.
-            By default, this assumes that the reference band is identical to  
-            that used in calculating the cross spectrum. 
+            A list with lower and upper energy channel bounds to be used in the 
+            reference band. By default, we assume that the reference band is
+            identical to that used in calculating the cross spectrum. 
 
         Returns
         -------
