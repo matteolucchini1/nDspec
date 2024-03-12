@@ -97,7 +97,7 @@ class ResponseMatrix(nDspecOperator):
         """
         
         self.rmfpath = filepath 
-        with fits.open(filepath) as response:
+        with fits.open(filepath, memmap=False) as response:
             # get all the extension names
             extnames = np.array([h.name for h in response])
             self.bounds = response["EBOUNDS"]

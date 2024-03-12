@@ -22,11 +22,14 @@ colorscale = pl.cm.PuRd(np.linspace(0.,1.,5))
 
 from .Operator import nDspecOperator
 
+pyfftw.interfaces.cache.enable()
+
 class FourierProduct(nDspecOperator):
     """
     Parent class for all Fourier operators in the software. It is mainly used 
     to handle performing Fourier transforms from the time to the frequency 
-    domain, which is implemented using two methods.
+    domain, which is implemented using two methods. It is not to be instantiated
+    by itself.
     
     The first simply uses the numpy fftw to calculate a standard fast Fourier 
     transform; the second uses the sinc function decomposition described in 
@@ -172,7 +175,10 @@ class FourierProduct(nDspecOperator):
    
     def _compute_fft(self,input_array):
         """   
-        This method computes the fast Fourier transform of the input array.
+        This method computes the fast Fourier transform of the input array. The 
+        normalization convention used is that both the forwards and backwards
+        transforms are normalized by a factor sqrt(N), in order to return the 
+        same normalization as the sinc function method.
         
         Parameters
         ----------
@@ -187,7 +193,11 @@ class FourierProduct(nDspecOperator):
         """        
         
         fgt0 = self._positive_fft_bins()
-        transform = fft(input_array)[fgt0]        
+        #An additional normalization factor (dt*t_tot), where t_tot is the
+        #length of the time series sampled, also needs to be included because  
+        #the normalization with fftw otherwise becomes resolution dependent
+        norm = np.sqrt(np.size(input_array)/(self.time_bins[0]*self.times[-1]))   
+        transform = fft(input_array)[fgt0]/norm        
         
         return transform
 
@@ -253,7 +263,8 @@ class FourierProduct(nDspecOperator):
         deltau[1:len(self.times)] = self.time_bins
         #all the reshaping here is to ensure that decomp is the correct 
         #format - ie, a matrix of size (n_times x n_freqs)
-        decomp = np.sinc(deltau.reshape((len(deltau),1))* \
+        decomp = deltau.reshape((len(deltau),1))* \
+                 np.sinc(deltau.reshape((len(deltau),1))* \
                          self.freqs.reshape((1,self.n_freqs)))* \
                          np.exp(-2*np.pi*self.freqs.reshape((1,self.n_freqs))* \
                          self.times.reshape((len(deltau),1))*1j)
@@ -654,7 +665,7 @@ class CrossSpectrum(FourierProduct):
             interest or not.    
         """   
         idx_ref = np.where(np.logical_and(self.energ>ref_bounds[0],
-                                          self.energ<ref_bounds[1])) 
+                                          self.energ<ref_bounds[1]))
                                 
         if hasattr(self,"imp_resp"):
             self.ref = np.reshape(np.sum(self.imp_resp[idx_ref,:],axis=1),
@@ -735,9 +746,10 @@ class CrossSpectrum(FourierProduct):
             power_spec = self.power_spec 
         else:
             self.set_psd_weights(power)  
+            power_spec = power 
         
         self.cross = []
-        
+                
         for index in range(self.n_chans):
             if self.correct_ref is False:
                 cross_prod = power_spec*np.multiply(transfer[index,:],
@@ -749,7 +761,7 @@ class CrossSpectrum(FourierProduct):
                 #because the Fourier transform is a linear operator
                 corr_ft = ref_ft - transfer[index,:]
                 cross_prod = power_spec*np.multiply(transfer[index,:],
-                                                    np.conj(ref_ft))              
+                                                    np.conj(corr_ft))              
             self.cross.append(cross_prod)  
 
         #reshaping ensures a consistent correct cross spectrum format between
@@ -799,6 +811,7 @@ class CrossSpectrum(FourierProduct):
             power_spec = self.power_spec 
         else:
             self.set_psd_weights(power)  
+            power_spec = power 
         
         self.cross = []
         self.trans_func = []

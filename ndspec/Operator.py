@@ -13,7 +13,8 @@ class nDspecOperator(object):
     standardized, private methods to manipulate arrays by performing 
     e.g. interpolation, integration over a range or axis, etc. These can be
     called by each specific operator to perform physical calculations, such as 
-    integrating over a Fourier frequency range to calculate a lag spectrum. 
+    integrating over a Fourier frequency range to calculate a lag spectrum. This
+    class is not to be instantiated by itself.
     """
     
     def __init__(self):
