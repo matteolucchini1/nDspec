@@ -75,7 +75,8 @@ class nDspecOperator(object):
     def _integrate_range(self,signal,array,arr_min,arr_max,axis):
         """ 
         This method integrates an input two-d array over a defined range and 
-        aixs, using the numpy implementation of the trapezoid method. 
+        aixs, using the numpy implementation of the trapezoid method. Note that 
+        the bounds provided are included in the integration.
         A generalized method to deal with one- or multi-dimensional data will
         be implemented in the future.         
         
@@ -105,7 +106,12 @@ class nDspecOperator(object):
             The result of the integral.
         """    
         
-        arr_range = np.where(np.logical_and(array>arr_min,array<arr_max))
+        if (arr_min >= arr_max):
+            raise ValueError("Lower integration bound higher than upper integration bound")       
+        
+        arr_range = np.where(np.logical_and(array>=arr_min,array<=arr_max))
+        if (arr_range.size == 0):
+            raise ValueError("No bins found within the integration bounds")
         
         if (axis == 0):
             integral =  np.trapz(signal[arr_range,:],x=array[arr_range])

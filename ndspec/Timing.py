@@ -151,8 +151,8 @@ class FourierProduct(nDspecOperator):
         """
         
         #if the Fourier transforms were computed with fft but we are rebinning 
-        #the power spectrum, we need to update the frequency array and its 
-        #size; otherwise, if no rebinning is done and we are just setting the 
+        #a spectrum, we need to update the frequency array and its size;
+        #otherwise, if no rebinning is done and we are just setting the 
         #frequency grid, we get the frequency array from the time array and 
         #the fftfreq() function in pyfftw.
         if (self.method == 'fft'):
@@ -259,6 +259,8 @@ class FourierProduct(nDspecOperator):
         """
         
         deltau = np.zeros(len(self.times))
+        #the reason for setting the first element manually is to allow for start 
+        #points of the time grid that are greater than 0
         deltau[0] = self.times[0]
         deltau[1:len(self.times)] = self.time_bins
         #all the reshaping here is to ensure that decomp is the correct 
@@ -578,8 +580,8 @@ class CrossSpectrum(FourierProduct):
     def __init__(self,time_array,freq_array=0,energ=None,method='fft'):
         FourierProduct.__init__(self,time_array,freq_array,method)
         self.energ = energ
-        #energ=none is used to treat one-d cross spectra between only two 
-        #energy channels
+        #energ=none is used to treat 1-d cross spectra between only two energy
+        #channels
         if energ is None:
             self.n_chans = 1
             self.chans = 0
@@ -658,14 +660,16 @@ class CrossSpectrum(FourierProduct):
         ref_bounds: np.array(float)
             A list with lower and upper energy channel bounds to be used in the 
             reference band. By default, we assume that the reference band is
-            identical to that used in calculating the cross spectrum. 
+            identical to that used in calculating the cross spectrum. As 
+            implemented here, the limits specified in ref_bounds are included in
+            the reference - e.g. [0.3,10.0] keV rather than (0.3,10.) keV.
             
         correct_ref: bool, default=True
             Flag to correct the reference band by removing each channel of 
             interest or not.    
         """   
-        idx_ref = np.where(np.logical_and(self.energ>ref_bounds[0],
-                                          self.energ<ref_bounds[1]))
+        idx_ref = np.where(np.logical_and(self.energ>=ref_bounds[0],
+                                          self.energ<=ref_bounds[1]))
                                 
         if hasattr(self,"imp_resp"):
             self.ref = np.reshape(np.sum(self.imp_resp[idx_ref,:],axis=1),
@@ -684,8 +688,8 @@ class CrossSpectrum(FourierProduct):
         """   
         This method sets the reference band from an array (e.g. count rate as a
         function of energy) provided by the user. Users can also specify 
-        whether or not they want   each channel of interest to be subtracted 
-        from the reference band when computing the cross spectrum.
+        whether or not they want each channel of interest to be subtracted from
+        the reference band when computing the cross spectrum.
         
         Parameters
         ----------
@@ -958,7 +962,9 @@ class CrossSpectrum(FourierProduct):
         "trans" attribute into a one-dimensional, Fourier frequency dependent  
         cross spectrum, by summing over energy channels specified by the user  
         and re-calculating the cross product between the reference band and 
-        channels of interest.
+        channels of interest. As implemented here, the limits specified in 
+        ref_bounds and int_bounds are included in the reference - e.g. 
+        [0.3,10.0] keV rather than (0.3,10.) keV.
         
         Parameters
         ----------
@@ -996,12 +1002,12 @@ class CrossSpectrum(FourierProduct):
             else:
                 ref = self.ref 
         else:
-            idx_ref = np.where(np.logical_and(self.energ>ref_bounds[0],
-                                              self.energ<ref_bounds[1]))
+            idx_ref = np.where(np.logical_and(self.energ>=ref_bounds[0],
+                                              self.energ<=ref_bounds[1]))
             ref = np.sum(self.trans_func[idx_ref,:],axis=1)
         
-        idx_int = np.where(np.logical_and(self.energ>int_bounds[0],
-                                          self.energ<int_bounds[1]))
+        idx_int = np.where(np.logical_and(self.energ>=int_bounds[0],
+                                          self.energ<=int_bounds[1]))
         ch_int = np.sum(self.trans_func[idx_int,:],axis=1)
         cross = self.power_spec*np.multiply(ch_int,np.conj(ref))
         
@@ -1432,7 +1438,7 @@ class CrossSpectrum(FourierProduct):
         elif (lim_max < 0):
             norm = TwoSlopeNorm(vmin=lim_min,vcenter=0,vmax=-lim_max)   
         elif (lim_min > 0 ):
-             norm = TwoSlopeNorm(vmin=-lim_min,vcenter=0,vmax=lim_max) 
+            norm = TwoSlopeNorm(vmin=-lim_min,vcenter=0,vmax=lim_max) 
         else:
             print(lim_min,lim_max)
             raise ValueError("Both lower and upper plot limits are 0")  

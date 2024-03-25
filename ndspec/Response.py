@@ -14,6 +14,7 @@ plt.rcParams.update({'font.size': fi-5})
 colorscale = pl.cm.PuRd(np.linspace(0.,1.,5))
 
 from .Operator import nDspecOperator
+from .Timing import CrossSpectrum
 
 class ResponseMatrix(nDspecOperator):
     """
@@ -305,17 +306,20 @@ class ResponseMatrix(nDspecOperator):
     def convolve_response(self,model_input,norm="rate"):
         """
         This method applies the response matrix loaded in the class to a user
-        defined mode. Two model normalizations are supported: either "rate"
-        normalization, which assumes the input is in units of count rate, or 
-        "xspec" normalization, which assumes the model is in units of count rate
-        times energy bin width. 
+        defined mode. 
+        Two model normalizations are supported: either "rate" normalization, 
+        which assumes the input is in units of count rate, or "xspec" 
+        normalization, which assumes the model is in units of count rate times
+        energy bin width. 
         
         Parameters:
         ----------      
-        model_input: np.array(float,float)
-            A two-dimensional array of size (n_energs x arbirtrary length), 
+        model_input: np.array(float,float) or CrossSpectrum
+            Either a) a 2-d array of size (n_energs x arbirtrary length), 
             containing the input model as a function of energy and optionally an 
-            additional quantity (Fourier frequency, time, pulse phase, etc.).
+            additional quantity (Fourier frequency, time, pulse phase, etc.), 
+            or b) a CrossSpectrum object from nDspec, containing the model cross
+            spectrum to be folded with the instrument response.
             
         norm: string, default="rate"
             A string detailing the normalization of the model.  The default 
@@ -325,27 +329,45 @@ class ResponseMatrix(nDspecOperator):
         
         Returns
         ---------- 
-        conv_model, np.array(float,float)
-            A two dimensional array of size (n_chans x arbitrary length), 
+        conv_model, np.array(float,float) or CrossSpectrum
+            Either a) a 2-d array of size (n_chans x arbitrary length), 
             containing the input model as a function of energy channel and a 
             secondary quantity identical to the input model_input (Fourier 
-            freqency, time, pulse phase, etc.).
+            frequency, time, pulse phase, etc.), or a CrossSpectrum object from
+            nDspec, containing the folded model cross spectrum as a function of
+            energy channel and Fourier frequency.
         """
+
+        if isinstance(model_input,CrossSpectrum):
+            unfolded_model = model_input.cross 
+            resp_energs = self._grid_bounds_to_midpoint(self.emin,self.emax)
+            output_model = CrossSpectrum(model_input.times,
+                                         energ = resp_energs,
+                                         freq_array = model_input.freqs,
+                                         method = model_input.method)
+            output_model.set_psd_weights(model_input.power_spec)
+        else: 
+           unfolded_model = model_input 
     
-        if np.shape(self.resp_matrix)[0] != np.shape(model_input)[0]:
+        if np.shape(self.resp_matrix)[0] != np.shape(unfolded_model)[0]:
             raise TypeError("Model energy grid has a different size from response")    
-        
+                
         if norm == "rate":
             bin_widths = self.energ_hi-self.energ_lo
-            renorm_model = np.multiply(np.transpose(model_input),bin_widths)
+            renorm_model = np.multiply(np.transpose(unfolded_model),bin_widths)
             conv_model = np.matmul(renorm_model,self.resp_matrix)
         elif norm == "xspec":
-            conv_model = np.matmul(model_input,self.resp_matrix)
+            conv_model = np.matmul(unfolded_model,self.resp_matrix)
         else:
             raise ValueError("Please specify units of either count rate or count rate normalized to bin width")
         conv_model = np.transpose(conv_model)
         
-        return conv_model
+        if isinstance(model_input,CrossSpectrum):
+            output_model.cross = conv_model
+        else:
+            output_model = conv_model
+                
+        return output_model
 
     def plot_response(self,plot_type="channel",return_plot=False):
         """
