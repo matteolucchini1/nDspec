@@ -112,7 +112,7 @@ class nDspecOperator(object):
         arr_range = np.where(np.logical_and(array>=arr_min,array<=arr_max))
 
         if (len(arr_range) == 0):
-            raise ValueError("No bins found within the integration bounds")
+            raise TypeError("No bins found within the integration bounds")
         
         if (axis == 0):
             integral =  np.trapz(signal[arr_range,:],x=array[arr_range])
@@ -157,13 +157,13 @@ class nDspecOperator(object):
             of the grid.   
         """    
  
-        if (len(grid_lower_bounds) is not len(grid_upper_bounds)):
-            raise ValueError("Lower and upper grid bound arrays have different size")
+        if (len(grid_lower_bounds) !=  len(grid_upper_bounds)):
+            raise TypeError("Lower and upper grid bound arrays have different size")
             
         if (np.allclose(grid_lower_bounds[1:len(grid_lower_bounds)-1],
                         grid_upper_bounds[0:len(grid_upper_bounds)-2])
                         is not True):
-            raise ValueError("Lower and upper grid bounds do not match")         
+            raise TypeError("Lower and upper grid bounds do not match")         
         
         grid_range = grid_lower_bounds.append(grid_upper_bounds[-1]) 
         
@@ -202,13 +202,13 @@ class nDspecOperator(object):
             bin in the grid.
         """    
 
-        if (len(grid_lower_bounds) is not len(grid_upper_bounds)):
-            raise ValueError("Lower and upper grid bound arrays have different size")
+        if (len(grid_lower_bounds) != len(grid_upper_bounds)):
+            raise TypeError("Lower and upper grid bound arrays have different size")
             
         if (np.allclose(grid_lower_bounds[1:len(grid_lower_bounds)-1],
                         grid_upper_bounds[0:len(grid_upper_bounds)-2])
                         is not True):
-            raise ValueError("Lower and upper grid bounds do not match")    
+            raise TypeError("Lower and upper grid bounds do not match")    
                     
         #For convenience, the bin widths are computed starting from the midpoint 
         #of the grid itself, computed through a different class method 
@@ -250,13 +250,13 @@ class nDspecOperator(object):
             (defined as the geometric average) of each bin in the grid.        
         """        
 
-        if (len(grid_lower_bounds) is not len(grid_upper_bounds)):
-            raise ValueError("Lower and upper grid bound arrays have different size")
+        if (len(grid_lower_bounds) != len(grid_upper_bounds)):
+            raise TypeError("Lower and upper grid bound arrays have different size")
             
         if (np.allclose(grid_lower_bounds[1:len(grid_lower_bounds)-1],
                         grid_upper_bounds[0:len(grid_upper_bounds)-2])
                         is not True):
-            raise ValueError("Lower and upper grid bounds do not match")    
+            raise TypeError("Lower and upper grid bounds do not match")    
         
         grid_midpoint = 0.5*(grid_lower_bounds+grid_upper_bounds)
         

@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import warnings
 import scipy
 import pyfftw
 from pyfftw.interfaces.numpy_fft import (
@@ -99,13 +100,17 @@ class FourierProduct(nDspecOperator):
 
     def __init__(self,time_array,freq_array=0,method='fft'):
 
+        if (np.any(np.diff(time_array)) <= 0):
+            raise TypeError("Input time array is not monotonically increasing")
+
         self.times = time_array
         self.time_bins = np.diff(self.times)
         self.n_times = self.times.size
         
         if (np.all(np.isclose(self.time_bins, self.time_bins[0])) is False):
+            warnings.warn("Bin sizes not constant over time array, defaulting method to sinc")
             self.method = 'sinc'
-        elif np.isin(method,(['sinc'],['fft'])):# is True):
+        elif np.isin(method,(['sinc'],['fft'])):
             self.method = method
         else:
             self.method ='fft'
@@ -165,11 +170,17 @@ class FourierProduct(nDspecOperator):
         #tbd: improve errors/catch for weird input of frequencies
         elif (self.method == 'sinc'):
             if np.shape(freq_array) == () or len(np.shape(freq_array)) > 1:
-                raise TypeError("Input frequency grid in incorrect format")     
+                raise TypeError("Input frequency grid in incorrect format")
+            if (np.any(np.diff(freq_array)) <= 0):
+                raise TypeError("Input frequency array is not monotonically increasing")                        
+            if (freq_array[0] < 1./self.times[-1]):
+                warnings.warn("Lowest frequency bin in frequency array is lower than the longest timescale stored")
+            if (freq_array[-1] < self.n_times/(self.times[-1]-self.times[0])):
+                warnings.warn("Highest frequency bin in frequency array is larger than the shortest timescale stored")                    
             self.n_freqs = len(freq_array)
             frequencies = freq_array            
         else:
-            raise ValueError("Fourier transform method not recognized")
+            raise TypeError("Fourier transform method not recognized")
         
         return frequencies
    
@@ -196,7 +207,10 @@ class FourierProduct(nDspecOperator):
         #An additional normalization factor (dt*t_tot), where t_tot is the
         #length of the time series sampled, also needs to be included because  
         #the normalization with fftw otherwise becomes resolution dependent
-        norm = np.sqrt(np.size(input_array)/(self.time_bins[0]*self.times[-1]))   
+        norm = np.sqrt(np.size(input_array)/(self.time_bins[0]*self.times[-1])) 
+        if (np.isnan(norm)):
+            warnings.warn("FFT normalisation nan, setting it to unity")
+            norm = 1  
         transform = fft(input_array)[fgt0]/norm        
         
         return transform
@@ -291,6 +305,8 @@ class FourierProduct(nDspecOperator):
             and Fourier frequency bins set by _sinc_decomp(). 
         """
         
+        if hasattr(self,"irf_sinc_arr") is False:
+            raise AttributeError("Sinc base not defined")
         #tbd: add safeguard to check that the sinc decomp is defined
         transform = np.matmul(input_array,self.irf_sinc_arr)        
         
@@ -317,7 +333,7 @@ class FourierProduct(nDspecOperator):
         elif (self.method == 'sinc'):
             transform = self._compute_sinc(input_array)
         else:
-            raise ValueError("Fourier transform method not recognized")
+            raise AttributeError("Fourier transform method not recognized")
         
         return transform 
 
@@ -398,6 +414,9 @@ class PowerSpectrum(FourierProduct):
         signal: np.array(float)
             The quantity from which to calculate the power spectrum.        
         """
+        
+        if len(signal) != self.n_times:
+            raise TypeError("Input signal size different from time array")
         
         transform = self.transform(signal)
         self.power_spec = np.multiply(transform,np.conj(transform))        
@@ -604,7 +623,7 @@ class CrossSpectrum(FourierProduct):
         """
         
         if (len(input_power)) != self.n_freqs:
-            raise ValueError("PSD array is the incorrect size!")        
+            raise TypeError("Input PSD array size different from frequency array")        
         self.power_spec = input_power
         
         return
@@ -620,6 +639,11 @@ class CrossSpectrum(FourierProduct):
             An array of size (n_chans x n_times) containing the model impulse 
             response function. 
         """
+        
+        if (signal.shape[0] != self.n_chans):
+            raise TypeError("Input matrix size incorrect; x axis is not n_chans")
+        if (signal.shape[1] != self.n_times):
+            raise TypeError("Input matrix size incorrect; y axis is not n_times")
         
         self.imp_resp = signal
         #reshaping ensures the correct irf input format for a 1d cross spectrum        
@@ -639,6 +663,11 @@ class CrossSpectrum(FourierProduct):
             An array of size (n_chans x n_freqs) containing the model transfer 
             function. 
         """
+
+        if (signal.shape[0] != self.n_chans):
+            raise TypeError("Input matrix size incorrect; x axis is not n_chans")
+        if (signal.shape[1] != self.n_freqs):
+            raise TypeError("Input matrix size incorrect; y axis is not n_freqs")
         
         self.trans_func = signal
         #reshaping ensures  the correct transfer function input format for a 1d 
@@ -668,8 +697,12 @@ class CrossSpectrum(FourierProduct):
             Flag to correct the reference band by removing each channel of 
             interest or not.    
         """   
+        
         idx_ref = np.where(np.logical_and(self.energ>=ref_bounds[0],
                                           self.energ<=ref_bounds[1]))
+        
+        if (len(idx_ref) == 0):
+            raise TypeError("No bins found within the reference band bounds")
                                 
         if hasattr(self,"imp_resp"):
             self.ref = np.reshape(np.sum(self.imp_resp[idx_ref,:],axis=1),
@@ -703,8 +736,10 @@ class CrossSpectrum(FourierProduct):
             interest or not.    
         """
         
-        #if (len(input_lc)) != self.n_times:
-        #    raise ValueError("Reference array is the incorrect size!")
+        if ((len(input_lc)) != self.n_times) and hasattr(self,"imp_resp"):
+            raise TypeError("Reference array is not the same size as time array")
+        if ((len(input_lc)) != self.n_freqs) and hasattr(self,"trans_func"):
+            raise TypeError("Reference array is not the same size as frequency array")
         
         self.ref = input_lc
         self.correct_ref = correct_ref
@@ -887,6 +922,9 @@ class CrossSpectrum(FourierProduct):
             An array of real parts of the cross spectrum, of size 
             (n_chans x n_freqs)
         """
+
+        if not hasattr(self,"cross"):
+            raise AttributeError("Cross spectrum not computed")
         
         real = np.real(self.cross)
         
@@ -903,6 +941,10 @@ class CrossSpectrum(FourierProduct):
             An array of imaginary parts of the cross spectrum, of size 
             (n_chans x n_freqs)
         """
+
+        if not hasattr(self,"cross"):
+            raise AttributeError("Cross spectrum not computed")
+
         imag = np.imag(self.cross)
         
         return imag
@@ -918,6 +960,9 @@ class CrossSpectrum(FourierProduct):
             An array of moduli of the cross spectrum, of size 
             (n_chans x n_freqs)
         """
+
+        if not hasattr(self,"cross"):
+            raise AttributeError("Cross spectrum not computed")
         
         mod = np.absolute(self.cross)
         
@@ -934,6 +979,9 @@ class CrossSpectrum(FourierProduct):
             An array of phases of the cross spectrum, of size 
             (n_chans x n_freqs)
         """
+
+        if not hasattr(self,"cross"):
+            raise AttributeError("Cross spectrum not computed")
         
         phase = np.angle(self.cross)
         
@@ -1004,10 +1052,16 @@ class CrossSpectrum(FourierProduct):
         else:
             idx_ref = np.where(np.logical_and(self.energ>=ref_bounds[0],
                                               self.energ<=ref_bounds[1]))
+            if (len(idx_ref) == 0):
+                raise TypeError("No bins found within the reference band bounds")
+                                              
             ref = np.sum(self.trans_func[idx_ref,:],axis=1)
         
         idx_int = np.where(np.logical_and(self.energ>=int_bounds[0],
                                           self.energ<=int_bounds[1]))
+        if (len(idx_int) == 0):
+            raise TypeError("No bins found within the channel of interest bounds")
+                                          
         ch_int = np.sum(self.trans_func[idx_int,:],axis=1)
         cross = self.power_spec*np.multiply(ch_int,np.conj(ref))
         
