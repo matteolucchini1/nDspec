@@ -1503,7 +1503,8 @@ class CrossSpectrum(FourierProduct):
         
         return norm,ticks
    
-    def plot_cross_2d(self,form="polar",energy_limits=[0.3,10.5],return_plot=False):
+    def plot_cross_2d(self,form="polar",energy_limits=[0.3,10.5],
+                      return_plot=False,normalize_en=True):
         """   
         Plots the a two-dimensional cross spectrum as a function of Fourier 
         frequency and energy.
@@ -1525,11 +1526,18 @@ class CrossSpectrum(FourierProduct):
                                                  self.energ<energy_limits[1]))
         
         if form == "cartesian":
+            if normalize_en is True:
+                plot_real = self.energ.reshape(self.n_chans,1)**2*self.real()
+                plot_imag = self.energ.reshape(self.n_chans,1)**2*self.imag()
+            else:
+                plot_real = self.real()
+                plot_real = self.imag()
+                
             norm_real, ticks_real = self._plot_limits(
-                                    self.real()[energy_indexes,:])
+                                    plot_real[energy_indexes,:])
             norm_imag, ticks_imag = self._plot_limits(
-                                    self.imag()[energy_indexes,:])
-            
+                                    plot_imag[energy_indexes,:])
+                       
             fig, ((ax1,ax2)) = plt.subplots(1,2,figsize=(12.5,5.))
             
             real = ax1.pcolormesh(self.freqs,self.energ,self.real(),cmap="PuOr",
@@ -1555,13 +1563,19 @@ class CrossSpectrum(FourierProduct):
             plt.tight_layout()
             plt.show()
         elif form == "polar":
+            if normalize_en is True:
+                plot_mod = self.energ.reshape(len(yaxis),1)**2* \
+                                    self.mod()
+            else:
+                plot_mod = self.mod()
+        
             norm_phase, ticks_phase = self._plot_limits(
                                       self.phase()[energy_indexes,:])            
             norm_lag, ticks_lag = self._plot_limits(
                                   self.lag()[energy_indexes,:])
             
             fig, ((ax1,ax2,ax3)) = plt.subplots(1,3,figsize=(15.,5.))
-            modulus = ax1.pcolormesh(self.freqs,self.energ,np.log10(self.mod()),
+            modulus = ax1.pcolormesh(self.freqs,self.energ,plot_mod,
                                      cmap="magma",shading='auto',
                                      linewidth=0,rasterized=True)
             cb = fig.colorbar(modulus,ax=ax1,format="%.1f")            

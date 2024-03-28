@@ -164,7 +164,7 @@ def bbody_bkn(array1,array2,params):
     
 def plot_2d(xaxis,yaxis,impulse_2d,impulse_x,impulse_y,
             xlim=[0.,400.],ylim=[0.1,10.5],xlog=False,ylog=False,
-            return_plot=False):
+            return_plot=False,normalize_en=True):
     fig = plt.figure(figsize=(9.,7.5))
 
     gs = gridspec.GridSpec(200,200)
@@ -172,6 +172,10 @@ def plot_2d(xaxis,yaxis,impulse_2d,impulse_x,impulse_y,
     ax = plt.subplot(gs[:-50,:-50])
     side = plt.subplot(gs[:-50,-50:200])
     below = plt.subplot(gs[-50:200,:-50])
+
+    if normalize_en is True:
+        impulse_2d = yaxis.reshape(len(yaxis),1)**2*impulse_2d
+        impulse_y = impulse_y*yaxis**2
 
     c = ax.pcolor(xaxis,yaxis,impulse_2d,cmap="PuRd",
                   shading='auto',linewidth=0,rasterized=True)
