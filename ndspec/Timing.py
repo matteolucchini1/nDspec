@@ -1564,8 +1564,7 @@ class CrossSpectrum(FourierProduct):
             plt.show()
         elif form == "polar":
             if normalize_en is True:
-                plot_mod = self.energ.reshape(len(yaxis),1)**2* \
-                                    self.mod()
+                plot_mod = self.energ.reshape(self.n_chans,1)**2*self.mod()
             else:
                 plot_mod = self.mod()
         
