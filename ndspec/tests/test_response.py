@@ -1,8 +1,8 @@
 import sys
 import os
 import numpy as np
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath('__file__/nextspec/'))))
-from nextspec.Response import ResponseMatrix, rebin_array
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath('__file__/ndspec/'))))
+from ndspec.Response import ResponseMatrix, rebin_array
 import pytest
 from xspec import *
 import warnings
@@ -25,9 +25,9 @@ class TestRMF(object):
         assert hasattr(self.response, "energ_hi"), "row missing in rmf file"
         assert hasattr(self.response, "emin"), "row missing in rmf file"
         assert hasattr(self.response, "emax"), "row missing in rmf file"
-        assert hasattr(self.response, "numchan"), "row missing in rmf file"
-        assert hasattr(self.response, "numenerg"), "row missing in rmf file"
-        assert hasattr(self.response, "channels"), "row missing in rmf file"
+        assert hasattr(self.response, "n_chans"), "row missing in rmf file"
+        assert hasattr(self.response, "n_energs"), "row missing in rmf file"
+        assert hasattr(self.response, "chans"), "row missing in rmf file"
         assert hasattr(self.response, "resp_matrix"), "row missing in rmf file"
         assert hasattr(self.response, "specresp"), "row missing in rmf file"
  
@@ -57,7 +57,7 @@ class TestRMF(object):
         assert np.allclose(modVals[10:],convolved_rebinned[10:],rtol=1e-3) == True
 
     def test_model_grid_match(self):
-        wrong_gridsize_model = np.linspace(2,-2,self.response.numenerg-1)
+        wrong_gridsize_model = np.linspace(2,-2,self.response.n_energs-1)
         with pytest.raises(TypeError):
             wrong_grid_convolution = self.response.convolve_response(
                                                    wrong_gridsize_model)
@@ -107,12 +107,12 @@ class TestRMF(object):
         with pytest.raises(IndexError):
             new_bounds_lo[1] = 0.101
             new_bounds_hi[0] = new_bounds_lo[1]
-            new_channels_lo,new_channels_hi = self.response.bounds_to_channels(
+            new_channels_lo,new_channels_hi = self.response._bounds_to_chans(
                                                             new_bounds_lo,
                                                             new_bounds_hi)
                                                             
-            rebin_array((self.response.channels[0:self.response.numchan-1],
-                         self.response.channels[1:self.response.numchan]),
+            rebin_array((self.response.chans[0:self.response.n_chans-1],
+                         self.response.chans[1:self.response.n_chans]),
                          (new_channels_lo, new_channels_hi),
                          self.response.resp_matrix[0,:])
 
