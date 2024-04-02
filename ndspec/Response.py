@@ -128,14 +128,16 @@ class ResponseMatrix(nDspecOperator):
         self.energ_hi = np.array(data.field("ENERG_HI"))
         self.n_energs = len(self.energ_lo)
         
+        self.offset = self._get_tlmin(h)
+        
         #We only need this information to convert the response to matrix format
         #so there is no need to store these as attributes 
-        n_grp = np.array(data.field("N_GRP"))
-        f_chan = np.array(data.field("F_CHAN"))
-        n_chan = np.array(data.field("N_CHAN"))
+        self.n_grp = np.array(data.field("N_GRP"))
+        self.f_chan = np.array(data.field("F_CHAN"))
+        self.n_chan = np.array(data.field("N_CHAN"))
         matrix = np.array(data.field("MATRIX"))
         
-        self.resp_matrix = self._read_matrix(n_grp,f_chan,n_chan,matrix)        
+        self.resp_matrix = self._read_matrix(self.n_grp,self.f_chan,self.n_chan,matrix)        
         return
         
     def _read_matrix(self,n_grp,f_chan,n_chan,matrix):
@@ -185,10 +187,11 @@ class ResponseMatrix(nDspecOperator):
                 #Sometimes there are more than one groups of entries per row
                 #As a result, we loop over the groups and assign the matrix  
                 #values in the appropariate channel range as below:
-                if any(m>1 for m in n_grp):     
-                    for l in range(f_chan[j][k]+1,n_chan[j][k]+f_chan[j][k]):
-                        i = i + 1
+                if (n_grp[j] > 1): 
+                #something is being assigned the wrong index here 
+                    for l in range(f_chan[j][k],n_chan[j][k]+f_chan[j][k]):
                         resp_matrix[j][l] = resp_matrix[j][l] + matrix[j][i]
+                        i = i + 1
                 #In this case, the length of j-th row of the "Matrix" array is 
                 #n_chan[j]+f_chan[j] corresponding to channel indexes 
                 #f_chan[j]+1 to n_chan[j]+f_chan[j]. We set those values in 
@@ -196,10 +199,10 @@ class ResponseMatrix(nDspecOperator):
                 #because some responses can be turned into strings, resulting 
                 #in a TypeError that has no reason to occur. 
                 else:
-                    for l in range(int(f_chan[j])+1,
+                    for l in range(int(f_chan[j]),
                                    int(n_chan[j])+int(f_chan[j])):
-                        i = i + 1
-                        resp_matrix[j][l] = resp_matrix[j][l] + matrix[j][i]          
+                        resp_matrix[j][l] = resp_matrix[j][l] + matrix[j][i]  
+                        i = i + 1        
         
         return resp_matrix
     
@@ -250,6 +253,36 @@ class ResponseMatrix(nDspecOperator):
         
         print("Arf loaded")
         return 
+        
+    def _get_tlmin(self, h):
+        """
+        Get the tlmin keyword for `F_CHAN`.
+
+        Parameters
+        ----------
+        h : an astropy.io.fits.hdu.table.BinTableHDU object
+            The extension containing the `F_CHAN` column
+
+        Returns
+        -------
+        tlmin : int
+            The tlmin keyword
+        """
+        # get the header
+        hdr = h.header
+        # get the keys of all
+        keys = np.array(list(hdr.keys()))
+
+        # find the place where the tlmin keyword is defined
+        t = np.array(["TLMIN" in k for k in keys])
+
+        # get the index of the TLMIN keyword
+        tlmin_idx = np.hstack(np.where(t))[0]
+
+        # get the corresponding value
+        tlmin = int(list(hdr.items())[tlmin_idx][1])
+
+        return tlmin
     
     #tbd: in the tutorial add an example of trying to rebin in energy rather 
     #than channel and show that it is dangerous
