@@ -31,11 +31,11 @@ class TestRMF(object):
         assert hasattr(self.response, "resp_matrix"), "row missing in rmf file"
         assert hasattr(self.response, "specresp"), "row missing in rmf file"
  
-    def test_convolution_comparison(self):
+    def test_nicer_convolution_comparison(self):
         Xset.chatter = 0
         AllData.clear()
         AllModels.clear()
-        placeholder = Spectrum("docs/data/nicer_unbinned.pha")
+        placeholder = Spectrum(os.getcwd()+"/ndspec/tests/data/nicer_unbinned.pha")
         placeholder.response = self.rmffile
         placeholder.response.arf = self.arffile
         m1 = Model("powerlaw")
@@ -63,18 +63,18 @@ class TestRMF(object):
                                                    wrong_gridsize_model)
 
     def test_rmf_ogip_error(self):
-        wrong_rmf = "docs/data/nicer_notogip.rmf"
+        wrong_rmf = os.getcwd()+"/ndspec/tests/data/nicer_notogip.rmf"
         with pytest.raises(TypeError):
             wrong_response = ResponseMatrix(wrong_rmf)
             
     def test_arf_ogip_error(self):
-        wrong_arf = "docs/data/nicer_notogip.arf"
+        wrong_arf = os.getcwd()+"/ndspec/tests/data/nicer_notogip.arf"
         right_response = ResponseMatrix(self.rmffile)
         with pytest.raises(TypeError):
             right_response.load_arf(wrong_arf)
    
     def test_matching_energy_grids(self):
-        xrt_arf = "docs/data/xrt_wt.arf"
+        xrt_arf = os.getcwd()+"/ndspec/tests/data/xrt_wt.arf"
         nicer_response = ResponseMatrix(self.rmffile)
         with pytest.raises(ValueError):
             nicer_response.load_arf(xrt_arf)
