@@ -132,12 +132,12 @@ class ResponseMatrix(nDspecOperator):
         
         #We only need this information to convert the response to matrix format
         #so there is no need to store these as attributes 
-        self.n_grp = np.array(data.field("N_GRP"))
-        self.f_chan = np.array(data.field("F_CHAN"))
-        self.n_chan = np.array(data.field("N_CHAN"))
+        n_grp = np.array(data.field("N_GRP"))
+        f_chan = np.array(data.field("F_CHAN"))
+        n_chan = np.array(data.field("N_CHAN"))
         matrix = np.array(data.field("MATRIX"))
         
-        self.resp_matrix = self._read_matrix(self.n_grp,self.f_chan,self.n_chan,matrix)        
+        self.resp_matrix = self._read_matrix(n_grp,f_chan,n_chan,matrix)        
         return
         
     def _read_matrix(self,n_grp,f_chan,n_chan,matrix):
@@ -187,7 +187,7 @@ class ResponseMatrix(nDspecOperator):
                 #Sometimes there are more than one groups of entries per row
                 #As a result, we loop over the groups and assign the matrix  
                 #values in the appropariate channel range as below:
-                if (n_grp[j] > 1): 
+                if any(m>1 for m in n_grp):
                 #something is being assigned the wrong index here 
                     for l in range(f_chan[j][k],n_chan[j][k]+f_chan[j][k]):
                         resp_matrix[j][l] = resp_matrix[j][l] + matrix[j][i]
@@ -199,8 +199,7 @@ class ResponseMatrix(nDspecOperator):
                 #because some responses can be turned into strings, resulting 
                 #in a TypeError that has no reason to occur. 
                 else:
-                    for l in range(int(f_chan[j]),
-                                   int(n_chan[j])+int(f_chan[j])):
+                    for l in range(f_chan[j],n_chan[j]+f_chan[j]):
                         resp_matrix[j][l] = resp_matrix[j][l] + matrix[j][i]  
                         i = i + 1        
         

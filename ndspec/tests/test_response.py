@@ -51,10 +51,106 @@ class TestRMF(object):
         convolved_rebinned = self.response.convolve_response(
                                            model_values/bin_widths,
                                            norm="rate")
-        #the first 10 bins are ignored because there is a discrepancy with xpsec
-        #but it has no impact on results since data below 0.1 keV is never used
-        assert np.allclose(modVals[10:],convolved_model[10:],rtol=1e-3) == True
-        assert np.allclose(modVals[10:],convolved_rebinned[10:],rtol=1e-3) == True
+        assert np.allclose(modVals,convolved_model,rtol=1e-6) == True
+        assert np.allclose(modVals,convolved_rebinned,rtol=1e-6) == True
+        
+    def test_nustar_convolution_comparison(self):
+        nustar_fpma = ResponseMatrix(os.getcwd()+"/ndspec/tests/data/nustar_fpma.rmf")
+        nustar_fpma.load_arf(os.getcwd()+"/ndspec/tests/data/nustar_fpma.arf") 
+        Xset.chatter = 0
+        AllData.clear()
+        AllModels.clear()
+        placeholder = Spectrum(os.getcwd()+"/ndspec/tests/data/nustar_fpma.pha")
+        placeholder.response = os.getcwd()+"/ndspec/tests/data/nustar_fpma.rmf"
+        placeholder.response.arf = os.getcwd()+"/ndspec/tests/data/nustar_fpma.arf"
+        m1 = Model("powerlaw")
+        m1.powerlaw.PhoIndex = 2.        
+        Plot("ldata")
+        modVals = Plot.model()        
+        model_values = np.array(m1.values(1))
+        model_energies = np.array(m1.energies(1))
+        bin_widths = np.diff(model_energies)
+        convolved_model = nustar_fpma.convolve_response(
+                                      model_values,
+                                      norm="xspec")
+        convolved_rebinned = nustar_fpma.convolve_response(
+                                         model_values/bin_widths,
+                                         norm="rate")
+        assert np.allclose(modVals,convolved_model,rtol=1e-6) == True
+        assert np.allclose(modVals,convolved_rebinned,rtol=1e-6) == True
+
+    def test_rxte_convolution_comparison(self):
+        rxte_pca = ResponseMatrix(os.getcwd()+"/ndspec/tests/data/rxte.rsp")
+        Xset.chatter = 0
+        AllData.clear()
+        AllModels.clear()
+        placeholder = Spectrum(os.getcwd()+"/ndspec/tests/data/rxte.pha")
+        placeholder.response = os.getcwd()+"/ndspec/tests/data/rxte.rsp"
+        m1 = Model("powerlaw")
+        m1.powerlaw.PhoIndex = 2.        
+        Plot("ldata")
+        modVals = Plot.model()        
+        model_values = np.array(m1.values(1))
+        model_energies = np.array(m1.energies(1))
+        bin_widths = np.diff(model_energies)
+        convolved_model = rxte_pca.convolve_response(
+                                   model_values,
+                                   norm="xspec")
+        convolved_rebinned = rxte_pca.convolve_response(
+                                      model_values/bin_widths,
+                                      norm="rate")
+        assert np.allclose(modVals,convolved_model,rtol=1e-6) == True
+        assert np.allclose(modVals,convolved_rebinned,rtol=1e-6) == True
+
+    def test_xrt_convolution_comparison(self):
+        xrt_resp = ResponseMatrix(os.getcwd()+"/ndspec/tests/data/xrt.rmf")
+        xrt_resp.load_arf(os.getcwd()+"/ndspec/tests/data/xrt.arf") 
+        Xset.chatter = 0
+        AllData.clear()
+        AllModels.clear()
+        placeholder = Spectrum(os.getcwd()+"/ndspec/tests/data/xrt.pha")
+        placeholder.response = os.getcwd()+"/ndspec/tests/data/xrt.rmf"
+        placeholder.response.arf = os.getcwd()+"/ndspec/tests/data/xrt.arf"
+        m1 = Model("powerlaw")
+        m1.powerlaw.PhoIndex = 2.        
+        Plot("ldata")
+        modVals = Plot.model()        
+        model_values = np.array(m1.values(1))
+        model_energies = np.array(m1.energies(1))
+        bin_widths = np.diff(model_energies)
+        convolved_model = xrt_resp.convolve_response(
+                                   model_values,
+                                   norm="xspec")
+        convolved_rebinned = xrt_resp.convolve_response(
+                                      model_values/bin_widths,
+                                      norm="rate")
+        assert np.allclose(modVals,convolved_model,rtol=1e-6) == True
+        assert np.allclose(modVals,convolved_rebinned,rtol=1e-6) == True
+
+    def test_xmm_convolution_comparison(self):
+        xmm_resp = ResponseMatrix(os.getcwd()+"/ndspec/tests/data/xmm.rmf")
+        xmm_resp.load_arf(os.getcwd()+"/ndspec/tests/data/xmm.arf") 
+        Xset.chatter = 0
+        AllData.clear()
+        AllModels.clear()
+        placeholder = Spectrum(os.getcwd()+"/ndspec/tests/data/xmm.pha")
+        placeholder.response = os.getcwd()+"/ndspec/tests/data/xmm.rmf"
+        placeholder.response.arf = os.getcwd()+"/ndspec/tests/data/xmm.arf"
+        m1 = Model("powerlaw")
+        m1.powerlaw.PhoIndex = 2.        
+        Plot("ldata")
+        modVals = Plot.model()        
+        model_values = np.array(m1.values(1))
+        model_energies = np.array(m1.energies(1))
+        bin_widths = np.diff(model_energies)
+        convolved_model = xmm_resp.convolve_response(
+                                   model_values,
+                                   norm="xspec")
+        convolved_rebinned = xmm_resp.convolve_response(
+                                      model_values/bin_widths,
+                                      norm="rate")
+        assert np.allclose(modVals,convolved_model,rtol=1e-6) == True
+        assert np.allclose(modVals,convolved_rebinned,rtol=1e-6) == True
 
     def test_model_grid_match(self):
         wrong_gridsize_model = np.linspace(2,-2,self.response.n_energs-1)
