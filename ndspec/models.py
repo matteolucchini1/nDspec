@@ -151,7 +151,7 @@ def bbody_bkn(array1,array2,params):
     decay_slope = params[3]
     break_time = params[4]
     decay_temp = params[5]
-    temp_profile = np.nan_to_num(temp*powerlaw(times,np.array([1.,decay_temp])))
+    temp_profile = temp*powerlaw(times,np.array([1.,decay_temp]))
     bkn_profile = brokenpower(times,np.array([1.,rise_slope,decay_slope,break_time]))
     brk_pulse = np.zeros((len(energy),len(times)))
     model_profile = np.zeros(len(energy))

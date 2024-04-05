@@ -1,11 +1,11 @@
 import numpy as np
 from scipy.interpolate import interp1d
 
-import pyfftw
-from pyfftw.interfaces.numpy_fft import (
-    fft,
-    fftfreq,
-)
+#import pyfftw
+#from pyfftw.interfaces.numpy_fft import (
+#    fft,
+#    fftfreq,
+#)
 
 class nDspecOperator(object):
     """
@@ -20,7 +20,7 @@ class nDspecOperator(object):
     def __init__(self):
         pass
 
-    def _interpolate(self,array,old_grid,new_grid,grid_tol=1e-4):
+    def _interpolate(self,array,old_grid,new_grid,use_log=True,grid_tol=1e-4):
         """
         This method interpolats a one-dimensional input, defined over 
         some grid, over an arbitrary new range, provided that this new range is
@@ -46,7 +46,12 @@ class nDspecOperator(object):
             Sets the precision to which  the boundaries of "new_grid" are set
             to be contained contained within "old_grid" to some small precision.
             This is a cautionary step to avoid some numerical issues which can 
-            show up when using scipy interp1d.        
+            show up when using scipy interp1d.  
+
+        use_log: bool, default True
+            Switches between interpolating the input array, or the base 10 
+            logarithm of the  input array, which is more accurate if the latter 
+            varies by many orders of magnitude over the grid
         
         Returns
         ---------- 
@@ -54,12 +59,7 @@ class nDspecOperator(object):
             The values of the input "array", interpolated over the updated grid 
             "new_grid".
         """
-        
-        if (new_grid[0] <= old_grid[0]):
-            new_grid[0] = new_grid[0] + (new_grid[1]-new_grid[0])*grid_tol
-        if (new_grid[-1] >= old_grid[-1]):
-            new_grid[-1] = new_grid[-1] - (new_grid[-1]-new_grid[-2])*grid_tol
-        
+              
         if (new_grid[0] < old_grid[0]):
             print(new_grid[0],old_grid[0])
             raise ValueError("New grid lower boundary exceeds old grid")
@@ -67,8 +67,17 @@ class nDspecOperator(object):
             print(new_grid[-1],old_grid[-1])
             raise ValueError("New grid upper boundary exceeds old grid")
 
-        interp_obj = interp1d(old_grid,array)
-        interp_array = interp_obj(new_grid)
+        if (new_grid[0] == old_grid[0]):
+            new_grid[0] = new_grid[0] + (new_grid[1]-new_grid[0])*grid_tol
+        if (new_grid[-1] == old_grid[-1]):
+            new_grid[-1] = new_grid[-1] - (new_grid[-1]-new_grid[-2])*grid_tol
+
+        if use_log is True:
+            interp_obj = interp1d(old_grid,np.log10(array))
+            interp_array = np.power(10.,interp_obj(new_grid))
+        else:
+            interp_obj = interp1d(old_grid,array)
+            interp_array = interp_obj(new_grid)
         
         return interp_array
 

@@ -5,9 +5,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath('__file__/ndspec
 from ndspec.Response import ResponseMatrix, rebin_array
 import pytest
 from xspec import *
-import warnings
 
-class TestRMF(object):
+class TestResponse(object):
 
     @classmethod
     def setup_class(cls):

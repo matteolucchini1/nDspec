@@ -100,19 +100,22 @@ class FourierProduct(nDspecOperator):
 
     def __init__(self,time_array,freq_array=0,method='fft'):
 
-        if (np.any(np.diff(time_array)) <= 0):
-            raise TypeError("Input time array is not monotonically increasing")
+        if (np.diff(time_array)<0).any():
+            raise ValueError("Input time array is not monotonically increasing")
 
         self.times = time_array
         self.time_bins = np.diff(self.times)
         self.n_times = self.times.size
         
         if (np.all(np.isclose(self.time_bins, self.time_bins[0])) is False):
-            warnings.warn("Bin sizes not constant over time array, defaulting method to sinc")
+            warnings.warn("Bin sizes not constant over time array, defaulting method to sinc",
+                           UserWarning)
             self.method = 'sinc'
         elif np.isin(method,(['sinc'],['fft'])):
             self.method = method
         else:
+            warnings.warn("Unknown transform method, defaulting to fftw",
+                           UserWarning)
             self.method ='fft'
         #if we're going to do fft the freqyency array is pre-determined, 
         #otherwise it  should be in the arguments
@@ -171,12 +174,14 @@ class FourierProduct(nDspecOperator):
         elif (self.method == 'sinc'):
             if np.shape(freq_array) == () or len(np.shape(freq_array)) > 1:
                 raise TypeError("Input frequency grid in incorrect format")
-            if (np.any(np.diff(freq_array)) <= 0):
-                raise TypeError("Input frequency array is not monotonically increasing")                        
+            if (np.diff(freq_array)<0).any():
+                raise ValueError("Input frequency array is not monotonically increasing")                        
             if (freq_array[0] < 1./self.times[-1]):
-                warnings.warn("Lowest frequency bin in frequency array is lower than the longest timescale stored")
+                warnings.warn("Lowest frequency bin in frequency array is lower than the longest timescale stored",
+                              UserWarning)
             if (freq_array[-1] < self.n_times/(self.times[-1]-self.times[0])):
-                warnings.warn("Highest frequency bin in frequency array is larger than the shortest timescale stored")                    
+                warnings.warn("Highest frequency bin in frequency array is larger than the shortest timescale stored",
+                               UserWarning)                    
             self.n_freqs = len(freq_array)
             frequencies = freq_array            
         else:
@@ -209,7 +214,8 @@ class FourierProduct(nDspecOperator):
         #the normalization with fftw otherwise becomes resolution dependent
         norm = np.sqrt(np.size(input_array)/(self.time_bins[0]*self.times[-1])) 
         if (np.isnan(norm)):
-            warnings.warn("FFT normalisation nan, setting it to unity")
+            warnings.warn("FFT normalisation nan, setting it to unity",
+                           UserWarning)
             norm = 1  
         transform = fft(input_array)[fgt0]/norm        
         
@@ -423,7 +429,7 @@ class PowerSpectrum(FourierProduct):
         
         return 
 
-    def rebin_frequency(self,new_grid):
+    def rebin_frequency(self,new_grid,use_log=True):
         """   
         This methods rebins the class freqs array, and also updates all relevant 
         attributes (n_freqs, power_spec). The re-binned power spectrum is 
@@ -433,11 +439,18 @@ class PowerSpectrum(FourierProduct):
         ----------
         new_grid: np.array(float) 
             The new grid of Fourier frequencies over which to rebin the power 
-            spectrum.    
+            spectrum.   
+            
+        Other parameters:
+        ----------
+        use_log: bool, default True
+            Switches between interpolating the power spectrum, or the base 10 
+            logarithm of the power spectrum, which is more accurate if the power 
+            varies by many orders of magnitude with frequency
         """
         
-        new_power = self._interpolate(self.power_spec,self.freqs,new_grid)
-        self.freqs = self._set_frequencies(new_grid)
+        new_power = self._interpolate(self.power_spec,self.freqs,new_grid,use_log)
+        self.freqs = self._set_frequencies(new_grid,rebin=True)
         self.power_spec = new_power        
         
         return 
