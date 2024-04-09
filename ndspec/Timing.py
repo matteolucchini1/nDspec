@@ -174,13 +174,7 @@ class FourierProduct(nDspecOperator):
             if np.shape(freqs) == () or len(np.shape(freqs)) > 1:
                 raise TypeError("Input frequency grid in incorrect format")
             if (np.diff(freqs)<0).any():
-                raise ValueError("Input frequency array is not monotonically increasing")                        
-            #if (freqs[0] < 1./self.times[-1]):
-            #    warnings.warn("Lowest frequency bin in frequency array is lower than the longest timescale stored",
-             #                 UserWarning)
-            #if (freqs[-1] < self.n_times/(self.times[-1]-self.times[0])):
-            #    warnings.warn("Highest frequency bin in frequency array is larger than the shortest timescale stored",
-            #                   UserWarning)                    
+                raise ValueError("Input frequency array is not monotonically increasing")                                          
             self.n_freqs = len(freqs)
             new_freqs = freqs            
         else:
@@ -319,7 +313,7 @@ class FourierProduct(nDspecOperator):
         return transform
 
     def _compute_sinc_cumul(self,input_array):
-         """   
+        """   
         This method computes the Fourier transform of the array using the sinc 
         decomposition method, which can be more computationally efficient than 
         fft in some cases. In this method, we assume that the impulse response 
@@ -337,7 +331,7 @@ class FourierProduct(nDspecOperator):
             The Fourier transform of the input array for the set of time delay 
             and Fourier frequency bins set by _sinc_decomp(). 
         """   
-
+        
         if hasattr(self,"irf_sinc_arr") is False:
             raise AttributeError("Sinc base not defined")
         transform = np.cumsum(np.matmul(input_array.reshape(1,self.n_times),

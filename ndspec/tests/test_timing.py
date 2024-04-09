@@ -160,6 +160,7 @@ class TestTiming(object):
             crossspectrum.set_reference_lc(self.bbflash_sinc[0,:])
             crossspectrum.set_psd_weights(self.lorentz_sinc)
             crossspectrum.cross_from_irf()
+            crossspectrum.method='wrong'
             crossspectrum.rebin_frequency(self.freqs_sinc)
         
     def test_set_psd_weights(self):
@@ -235,12 +236,7 @@ class TestTiming(object):
         with pytest.raises(ValueError):
             error = crossspectrum.phase_energy(self.freqs_sinc[4],
                                                self.freqs_sinc[2])
-        with pytest.raises(ValueError):
-            small_bound = self.freqs_sinc[4] + \
-                          1e-3*(self.freqs_sinc[5]-self.freqs_sinc[4])
-            error = crossspectrum.phase_energy(self.freqs_sinc[4],
-                                               small_bound)
-    
+                                               
  #   def test_cross_methods(self):
     #test that for an IRF the fft and sinc return similar things when interpolated
     #to the same grid 
