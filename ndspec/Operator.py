@@ -118,10 +118,9 @@ class nDspecOperator(object):
         if (arr_min >= arr_max):
             raise ValueError("Lower integration bound higher than upper integration bound")       
         
-        arr_range = np.where(np.logical_and(array>=arr_min,array<=arr_max))
-
-        if (len(arr_range) == 0):
-            raise TypeError("No bins found within the integration bounds")
+        arr_range = np.where(np.logical_and(array>arr_min,array<=arr_max))
+        if len(arr_range[0]) == 0:
+            raise ValueError("No bins found within the integration bounds")
         
         if (axis == 0):
             integral =  np.trapz(signal[arr_range,:],x=array[arr_range])

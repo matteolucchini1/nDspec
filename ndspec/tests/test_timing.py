@@ -14,6 +14,7 @@ import pytest
 import warnings
 from astropy.io import fits
 
+#tbd: separate in test PSD and test Cross 
 class TestTiming(object):
 
     @classmethod
@@ -64,51 +65,37 @@ class TestTiming(object):
         return 
         
     def test_powerspectrum_init(self):
+    #tbd: separate these 
         with pytest.raises(ValueError):
             wrong_times = np.array([0,1,2,3,4,6,5,7,8,9,10])
-            powerspectrum = timing.PowerSpectrum(time_array=wrong_times)
+            powerspectrum = timing.PowerSpectrum(times=wrong_times)
         with pytest.raises(TypeError):
             wrong_frequencies = np.array(([3,2],[1,3]))
             powerspectrum = timing.PowerSpectrum(self.times_sinc,
-                                              freq_array = wrong_frequencies,
+                                              freqs = wrong_frequencies,
                                               method='sinc')
         with pytest.raises(ValueError):
             wrong_frequencies = np.array([0,1,2,3,4,6,5,7,8,9,10])
             powerspectrum = timing.PowerSpectrum(self.times_sinc,
-                                              freq_array = wrong_frequencies,
+                                              freqs = wrong_frequencies,
                                               method='sinc')
         with pytest.warns(UserWarning):
             powerspectrum = timing.PowerSpectrum(self.times_sinc,
-                                              freq_array = self.freqs_sinc,
+                                              freqs = self.freqs_sinc,
                                               method='wrong')            
-        with pytest.raises(TypeError):
+#tbd: test both the attribute error in set_frequency(like here) and transform 
+        with pytest.raises(AttributeError):
             powerspectrum = timing.PowerSpectrum(self.times_sinc,
-                                              freq_array = self.freqs_sinc,
+                                              freqs = self.freqs_sinc,
                                               method='sinc')
             powerspectrum.method='wrong'
             powerspectrum.power_spec=self.lorentz_sinc
             powerspectrum.rebin_frequency(self.freqs_sinc)
-        with pytest.warns(UserWarning):
-            wrong_frequencies = np.linspace(0.9/self.times_fft[-1],
-                                            0.9/self.times_fft[0],
-                                            30)
-            powerspectrum = timing.PowerSpectrum(self.times_fft,
-                                              freq_array = wrong_frequencies,
-                                              method='sinc')
-        with pytest.warns(UserWarning):
-            wrong_frequencies = np.linspace(1.1/self.times_fft[-1],
-                                            0.9*self.time_res_fft/   \
-                                            (self.times_fft[-1]-     \
-                                            self.times_fft[0]),
-                                            30)
-            powerspectrum = timing.PowerSpectrum(self.times_fft,
-                                              freq_array = wrong_frequencies,
-                                              method='sinc')
-        
+
     def test_sinc_exists(self):
         with pytest.raises(AttributeError):
             powerspectrum = timing.PowerSpectrum(self.times_sinc,
-                                              freq_array = self.freqs_sinc,
+                                              freqs = self.freqs_sinc,
                                               method='sinc')
             del powerspectrum.irf_sinc_arr 
             powerspectrum.compute_psd(self.sin_wave)   
@@ -116,7 +103,7 @@ class TestTiming(object):
     def test_method_exists(self):                                    
         with pytest.raises(AttributeError):
             powerspectrum = timing.PowerSpectrum(self.times_sinc,
-                                              freq_array = self.freqs_sinc,
+                                              freqs = self.freqs_sinc,
                                               method='sinc')
             del powerspectrum.method 
             powerspectrum.compute_psd(self.sin_wave)  
@@ -128,7 +115,7 @@ class TestTiming(object):
             
     def test_interpolate_bounds(self):
         powerspectrum = timing.PowerSpectrum(self.times_sinc,
-                                      freq_array = self.freqs_sinc,
+                                      freqs = self.freqs_sinc,
                                       method='sinc')
         powerspectrum.compute_psd(self.sin_wave)  
         new_grid_lo = 0.5*self.freqs_sinc
@@ -138,50 +125,122 @@ class TestTiming(object):
         with pytest.raises(ValueError):
             powerspectrum.rebin_frequency(new_grid_hi)
 
-    #for some reason doing this with a powerspectrum is awful, i will just test 
-    #on a cross spectrum
-    #def test_interpolate_psd(self):
-    #calculate using sinc, interpolate to linear fft grid 
+    def test_crossspectrum_init(self):
+        with pytest.raises(ValueError):
+            wrong_energs = np.array([0,1,2,3,4,6,5,7,8,9,10])
+            crossspectrum = timing.CrossSpectrum(self.times_fft,
+                                                 energ=wrong_energs)   
+        with pytest.raises(ValueError):
+            wrong_times = np.array([0,1,2,3,4,6,5,7,8,9,10])
+            crossspectrum = timing.CrossSpectrum(times=wrong_times,
+                                                 energ=self.energies)
+        with pytest.raises(TypeError):
+            wrong_frequencies = np.array(([3,2],[1,3]))
+            crossspectrum = timing.CrossSpectrum(self.times_sinc,
+                                              freqs = wrong_frequencies,
+                                              energ=self.energies,
+                                              method='sinc')
+        with pytest.raises(ValueError):
+            wrong_frequencies = np.array([0,1,2,3,4,6,5,7,8,9,10])
+            crossspectrum = timing.CrossSpectrum(self.times_sinc,
+                                              freqs = wrong_frequencies,
+                                              energ=self.energies,
+                                              method='sinc')
+        with pytest.warns(UserWarning):
+            crossspectrum = timing.CrossSpectrum(self.times_sinc,
+                                              freqs = self.freqs_sinc,
+                                              energ=self.energies,
+                                              method='wrong')            
+        with pytest.raises(AttributeError):
+            crossspectrum = timing.CrossSpectrum(self.times_sinc,
+                                              freqs = self.freqs_sinc,
+                                              energ=self.energies,
+                                              method='sinc')
+            crossspectrum.set_impulse(self.bbflash_sinc)
+            crossspectrum.set_reference_lc(self.bbflash_sinc[0,:])
+            crossspectrum.set_psd_weights(self.lorentz_sinc)
+            crossspectrum.cross_from_irf()
+            crossspectrum.rebin_frequency(self.freqs_sinc)
+        
+    def test_set_psd_weights(self):
+        with pytest.raises(TypeError):
+            crossspectrum = timing.CrossSpectrum(self.times_sinc,
+                                              freqs = self.freqs_sinc,
+                                              energ=self.energies,
+                                              method='sinc')
+            crossspectrum.set_psd_weights(self.lorentz_fft)
+        
+    def test_set_impulse(self):
+        crossspectrum = timing.CrossSpectrum(self.times_sinc,
+                                      freqs = self.freqs_sinc,
+                                      energ=self.energies,
+                                      method='sinc')
+        with pytest.raises(TypeError):
+            crossspectrum.set_impulse(self.bbflash_sinc[1:,:]) 
+        with pytest.raises(TypeError):    
+            crossspectrum.set_impulse(self.bbflash_fft)
+                                         
+    def test_set_transfer(self):
+        crossspectrum = timing.CrossSpectrum(self.times_sinc,
+                                      freqs = self.freqs_sinc,
+                                      energ=self.energies,
+                                      method='sinc')
+        with pytest.raises(TypeError):
+            crossspectrum.set_transfer(self.pivoting_sinc[1:,:]) 
+        with pytest.raises(TypeError):    
+            crossspectrum.set_transfer(self.pivoting_fft)
+                                                     
+    def test_set_reference(self):
+        crossspectrum = timing.CrossSpectrum(self.times_sinc,
+                                      freqs = self.freqs_sinc,
+                                      energ=self.energies,
+                                      method='sinc')
+        with pytest.raises(AttributeError):
+            crossspectrum.set_reference_energ([1.0,2.])         
+        crossspectrum.set_impulse(self.bbflash_sinc)
+        with pytest.raises(ValueError): 
+            crossspectrum.set_reference_energ([300.,400.])  
+        with pytest.raises(ValueError): 
+            crossspectrum.set_reference_energ([1.0,1.0001])  
+
+    def test_cross_found(self):
+        crossspectrum = timing.CrossSpectrum(self.times_sinc,
+                                  freqs = self.freqs_sinc,
+                                  energ=self.energies,
+                                  method='sinc')
+        with pytest.raises(AttributeError):
+            test = crossspectrum.real()
+        with pytest.raises(AttributeError):
+            test = crossspectrum.imag()
+        with pytest.raises(AttributeError):
+            test = crossspectrum.mod()    
+        with pytest.raises(AttributeError):
+            test = crossspectrum.phase()          
+        with pytest.raises(AttributeError):
+            test = crossspectrum.lag()
+              
+    def test_oned_range_errors(self):
+        crossspectrum = timing.CrossSpectrum(self.times_sinc,
+                                  freqs = self.freqs_sinc,
+                                  energ=self.energies,
+                                  method='sinc')
+        crossspectrum.set_impulse(self.bbflash_sinc)
+        crossspectrum.set_reference_energ(self.bbflash_sinc[0,:])
+        crossspectrum.set_psd_weights(self.lorentz_sinc)
+        with pytest.raises(ValueError):
+            error = crossspectrum.lag_frequency(int_bounds=[1.0,1.0001])  
+        with pytest.raises(ValueError):
+            error = crossspectrum.lag_frequency(int_bounds=[300.,400.])  
+        crossspectrum.cross_from_irf()
+        with pytest.raises(ValueError):
+            error = crossspectrum.phase_energy(self.freqs_sinc[4],
+                                               self.freqs_sinc[2])
+        with pytest.raises(ValueError):
+            small_bound = self.freqs_sinc[4] + \
+                          1e-3*(self.freqs_sinc[5]-self.freqs_sinc[4])
+            error = crossspectrum.phase_energy(self.freqs_sinc[4],
+                                               small_bound)
     
-    #def test_fourier_methods(self):
-    #calculate using fft, interpolate to sinc grid, calculate using sinc, 
-    #check they are the same
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            
-            
+ #   def test_cross_methods(self):
+    #test that for an IRF the fft and sinc return similar things when interpolated
+    #to the same grid 

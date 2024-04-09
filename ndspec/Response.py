@@ -375,7 +375,7 @@ class ResponseMatrix(nDspecOperator):
             resp_energs = self._grid_bounds_to_midpoint(self.emin,self.emax)
             output_model = CrossSpectrum(model_input.times,
                                          energ = resp_energs,
-                                         freq_array = model_input.freqs,
+                                         freqs = model_input.freqs,
                                          method = model_input.method)
             output_model.set_psd_weights(model_input.power_spec)
         else: 

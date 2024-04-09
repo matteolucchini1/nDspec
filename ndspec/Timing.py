@@ -42,12 +42,12 @@ class FourierProduct(nDspecOperator):
     
     Parameters 
     ----------  
-    time_array: np.array(float)
+    times: np.array(float)
         The array of times over which the quantity to be transformed is defined.
         If using the fft method, this array also defines the frequencies over
         which the transform is computed. 
     
-    freq_array: np.array(float) 
+    freqs: np.array(float) 
         Defines the range of Fourier frequencies over which the input quantity 
         is to be transformed, only if using the sinc function method. Has no 
         effect with fft.
@@ -98,12 +98,12 @@ class FourierProduct(nDspecOperator):
         grid.       
     """
 
-    def __init__(self,time_array,freq_array=0,method='fft'):
+    def __init__(self,times,freqs=0,method='fft'):
 
-        if (np.diff(time_array)<0).any():
+        if (np.diff(times)<0).any():
             raise ValueError("Input time array is not monotonically increasing")
 
-        self.times = time_array
+        self.times = times
         self.time_bins = np.diff(self.times)
         self.n_times = self.times.size
         
@@ -111,7 +111,7 @@ class FourierProduct(nDspecOperator):
             warnings.warn("Bin sizes not constant over time array, defaulting method to sinc",
                            UserWarning)
             self.method = 'sinc'
-        elif np.isin(method,(['sinc'],['fft'])):
+        elif np.isin(method,(['sinc'],['fft'],['sinc_cumul'])):
             self.method = method
         else:
             warnings.warn("Unknown transform method, defaulting to fftw",
@@ -121,13 +121,13 @@ class FourierProduct(nDspecOperator):
         #otherwise it  should be in the arguments
         
         #add safeguard for sinc method with freq array undefined
-        self.freqs = self._set_frequencies(freq_array)     
-        if (self.method == 'sinc'):
+        self.freqs = self._set_frequencies(freqs)     
+        if (self.method == 'sinc') or (self.method == 'sinc_cumul'):
             self.irf_sinc_arr = self._sinc_decomp()
         
         pass
        
-    def _set_frequencies(self,freq_array=0,rebin=False):
+    def _set_frequencies(self,freqs=0,rebin=False):
         """   
         This method is used to the internal frequency array and its size. If 
         using the sinc transform method, the decomposition matrix irc_sinc_arr 
@@ -135,7 +135,7 @@ class FourierProduct(nDspecOperator):
         
         Parameters
         ----------
-        freq_array: np.array(float) 
+        freqs: np.array(float) 
             If using the sinc method, this is the array that will be used as the
             objet Fourier frequency grid. If using the fft method, the array is
             computed from the "n_times" and "time_bins" attributes, and is 
@@ -152,7 +152,7 @@ class FourierProduct(nDspecOperator):
 
         Returns
         -------
-        frequencies: np.array(float) 
+        new_freqs: np.array(float) 
             The updated frequency array, which can then be assigned to the
             "freqs" method. 
             
@@ -165,29 +165,28 @@ class FourierProduct(nDspecOperator):
         #the fftfreq() function in pyfftw.
         if (self.method == 'fft'):
             if rebin is True:
-                frequencies = freq_array
+                new_freqs = freqs
             else:
                 fgt0 = self._positive_fft_bins()
-                frequencies = fftfreq(self.n_times,self.time_bins[0])[fgt0]
-            self.n_freqs = len(frequencies)
-        #tbd: improve errors/catch for weird input of frequencies
-        elif (self.method == 'sinc'):
-            if np.shape(freq_array) == () or len(np.shape(freq_array)) > 1:
+                new_freqs = fftfreq(self.n_times,self.time_bins[0])[fgt0]
+            self.n_freqs = len(new_freqs)
+        elif (self.method == 'sinc') or (self.method == 'sinc_cumul'):
+            if np.shape(freqs) == () or len(np.shape(freqs)) > 1:
                 raise TypeError("Input frequency grid in incorrect format")
-            if (np.diff(freq_array)<0).any():
+            if (np.diff(freqs)<0).any():
                 raise ValueError("Input frequency array is not monotonically increasing")                        
-            if (freq_array[0] < 1./self.times[-1]):
-                warnings.warn("Lowest frequency bin in frequency array is lower than the longest timescale stored",
-                              UserWarning)
-            if (freq_array[-1] < self.n_times/(self.times[-1]-self.times[0])):
-                warnings.warn("Highest frequency bin in frequency array is larger than the shortest timescale stored",
-                               UserWarning)                    
-            self.n_freqs = len(freq_array)
-            frequencies = freq_array            
+            #if (freqs[0] < 1./self.times[-1]):
+            #    warnings.warn("Lowest frequency bin in frequency array is lower than the longest timescale stored",
+             #                 UserWarning)
+            #if (freqs[-1] < self.n_times/(self.times[-1]-self.times[0])):
+            #    warnings.warn("Highest frequency bin in frequency array is larger than the shortest timescale stored",
+            #                   UserWarning)                    
+            self.n_freqs = len(freqs)
+            new_freqs = freqs            
         else:
-            raise TypeError("Fourier transform method not recognized")
+            raise AttributeError("Fourier transform method not recognized")
         
-        return frequencies
+        return new_freqs
    
     def _compute_fft(self,input_array):
         """   
@@ -297,7 +296,9 @@ class FourierProduct(nDspecOperator):
         """   
         This method computes the Fourier transform of the array using the sinc 
         decomposition method, which can be more computationally efficient than 
-        fft in some cases. 
+        fft in some cases. In this method, we assume that we are inputting a 
+        single impulse response function, essentially neglecting the summatory
+        in eq. 27 in Uttley and Malzac 2023.
         
         Parameters
         ----------
@@ -313,10 +314,36 @@ class FourierProduct(nDspecOperator):
         
         if hasattr(self,"irf_sinc_arr") is False:
             raise AttributeError("Sinc base not defined")
-        #tbd: add safeguard to check that the sinc decomp is defined
         transform = np.matmul(input_array,self.irf_sinc_arr)        
         
         return transform
+
+    def _compute_sinc_cumul(self,input_array):
+         """   
+        This method computes the Fourier transform of the array using the sinc 
+        decomposition method, which can be more computationally efficient than 
+        fft in some cases. In this method, we assume that the impulse response 
+        at the i-th time bin is the response at that time bin, plus the response 
+        up to the i-1th bin, identically to eq. 27 in Uttley and Malzac 2023.
+        
+        Parameters
+        ----------
+        input_array: np.array(float) 
+            The array to be Fourier transformed. 
+
+        Returns
+        ------
+        transform: np.array(complex) 
+            The Fourier transform of the input array for the set of time delay 
+            and Fourier frequency bins set by _sinc_decomp(). 
+        """   
+
+        if hasattr(self,"irf_sinc_arr") is False:
+            raise AttributeError("Sinc base not defined")
+        transform = np.cumsum(np.matmul(input_array.reshape(1,self.n_times),
+                                        self.irf_sinc_arr),axis=1)
+        
+        return transform 
         
     def transform(self,input_array):
         """   
@@ -338,6 +365,8 @@ class FourierProduct(nDspecOperator):
             transform = self._compute_fft(input_array)
         elif (self.method == 'sinc'):
             transform = self._compute_sinc(input_array)
+        elif (self.method =='sinc_cumul'):
+            transform = self._compute_sinc_cumul(input_array)
         else:
             raise AttributeError("Fourier transform method not recognized")
         
@@ -353,10 +382,10 @@ class PowerSpectrum(FourierProduct):
     
     Parameters inherited from FourierProduct
     ----------  
-    time_array: np.array(float)
+    times: np.array(float)
         The array of times over which the input signal is defined. 
     
-    freq_array: np.array(float) 
+    freqs: np.array(float) 
         The Fourier frequency array over which the power spectrum is defined. 
     
     method: string{"fft" | "sinc" }, default='fft'
@@ -405,8 +434,8 @@ class PowerSpectrum(FourierProduct):
         an input signal.     
     """
     
-    def __init__(self,time_array,freq_array=0,method='fft'):        
-        FourierProduct.__init__(self,time_array,freq_array,method)        
+    def __init__(self,times,freqs=0,method='fft'):        
+        FourierProduct.__init__(self,times,freqs,method)        
         pass 
 
     def compute_psd(self,signal):
@@ -504,10 +533,10 @@ class CrossSpectrum(FourierProduct):
     
     Parameters inherited from FourierProduct
     ----------  
-    time_array: np.array(float)
+    times: np.array(float)
         The array of times over which the input signal is defined. 
     
-    freq_array: np.array(float) 
+    freqs: np.array(float) 
         The Fourier frequency array over which the power spectrum is defined. 
     
     method: string{"fft" | "sinc" }, default="fft"
@@ -609,8 +638,8 @@ class CrossSpectrum(FourierProduct):
         space).     
     """
     
-    def __init__(self,time_array,freq_array=0,energ=None,method='fft'):
-        FourierProduct.__init__(self,time_array,freq_array,method)
+    def __init__(self,times,freqs=0,energ=None,method='fft'):
+        FourierProduct.__init__(self,times,freqs,method)
         self.energ = energ
         #energ=none is used to treat 1-d cross spectra between only two energy
         #channels
@@ -618,6 +647,8 @@ class CrossSpectrum(FourierProduct):
             self.n_chans = 1
             self.chans = 0
         else:
+            if (np.diff(energ)<0).any():
+                raise ValueError("Input energy grid is not monotonically increasing")        
             self.n_chans = len(self.energ)
             self.chans = np.linspace(0,self.n_chans-1,self.n_chans,
                                      dtype=np.int16)  
@@ -713,9 +744,10 @@ class CrossSpectrum(FourierProduct):
         
         idx_ref = np.where(np.logical_and(self.energ>=ref_bounds[0],
                                           self.energ<=ref_bounds[1]))
-        
-        if (len(idx_ref) == 0):
-            raise TypeError("No bins found within the reference band bounds")
+        #idx_ref returns a tuple, not an array. The array of channel indexes is
+        #stored in the first element of the tuple, ie idx_ref[0]
+        if len(idx_ref[0]) == 0:
+            raise ValueError("No full bins found within the reference band bounds")
                                 
         if hasattr(self,"imp_resp"):
             self.ref = np.reshape(np.sum(self.imp_resp[idx_ref,:],axis=1),
@@ -912,15 +944,16 @@ class CrossSpectrum(FourierProduct):
         for index in range(self.n_chans):
             cross_rebin = self._interpolate(self.cross[index,:],
                                             self.freqs,new_grid)
-            trans_rebin = self._interpolate(self.trans[index,:],
+            trans_rebin = self._interpolate(self.trans_func[index,:],
                                             self.freqs,new_grid)
             new_cross.append(cross_rebin)
             new_trans.append(trans_rebin)
         
-        self.freqs = self._set_frequencies(new_grid)
+        self.freqs = self._set_frequencies(new_grid,rebin=True)
         self.power_spec = new_power
         self.cross = np.reshape(np.array(new_cross),(self.n_chans,self.n_freqs))
-        self.trans = np.reshape(np.array(new_trans),(self.n_chans,self.n_freqs)) 
+        self.trans_func = np.reshape(np.array(new_trans),(self.n_chans,
+                                                          self.n_freqs)) 
         
         return
     
@@ -1023,9 +1056,12 @@ class CrossSpectrum(FourierProduct):
         "trans" attribute into a one-dimensional, Fourier frequency dependent  
         cross spectrum, by summing over energy channels specified by the user  
         and re-calculating the cross product between the reference band and 
-        channels of interest. As implemented here, the limits specified in 
-        ref_bounds and int_bounds are included in the reference - e.g. 
-        [0.3,10.0] keV rather than (0.3,10.) keV.
+        channels of interest. Note that this method is only meant for 
+        visualization rather than for computing model products, which should be 
+        done with the cross_from_irf or cross_from_transfer methods. As
+        implemented here, the limits specified in ref_bounds and int_bounds are 
+        included in the reference - e.g. [0.3,10.0] keV rather than (0.3,10.) 
+        keV.
         
         Parameters
         ----------
@@ -1065,16 +1101,20 @@ class CrossSpectrum(FourierProduct):
         else:
             idx_ref = np.where(np.logical_and(self.energ>=ref_bounds[0],
                                               self.energ<=ref_bounds[1]))
-            if (len(idx_ref) == 0):
-                raise TypeError("No bins found within the reference band bounds")
+            #idx_ref returns a tuple, not an array. The array of channel indexes
+            #is stored in the first element of the tuple, ie idx_ref[0].
+            if (len(idx_ref[0]) == 0):
+                raise ValueError("No bins found within the reference band bounds")
                                               
             ref = np.sum(self.trans_func[idx_ref,:],axis=1)
         
         idx_int = np.where(np.logical_and(self.energ>=int_bounds[0],
                                           self.energ<=int_bounds[1]))
-        if (len(idx_int) == 0):
-            raise TypeError("No bins found within the channel of interest bounds")
-                                          
+        #idx_int returns a tuple, not an array. The array of channel indexes is
+        #stored in the first element of the tuple, ie idx_int[0]
+        if (len(idx_int[0]) == 0):
+            raise ValueError("No bins found within the channel of interest bounds")
+                               
         ch_int = np.sum(self.trans_func[idx_int,:],axis=1)
         cross = self.power_spec*np.multiply(ch_int,np.conj(ref))
         
@@ -1252,7 +1292,7 @@ class CrossSpectrum(FourierProduct):
                        (2.*np.pi*self.freqs)
                
         return lag_spectrum
-    
+#tbd: update these to have the same input format as the frequency dependent functions    
     def real_energy(self,nu_min,nu_max):
         """ 
         This method computes the real part of a one-dimensional cross spectrum 
