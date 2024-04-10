@@ -20,7 +20,7 @@ The goal of the software is to provide users with an Xspec-like package, but to 
 Documentation
 -------------
 
-The software documentation is `found at <https://nextspec-prototype.readthedocs.io/en/latest/>`_. You can also find notebooks discussing the features of each class in the /notebooks/ folder.
+The software documentation is `found on readthedocs <https://nextspec-prototype.readthedocs.io/en/latest/>`_. You can also find notebooks discussing the features of each class in the /notebooks/ folder.
 
 Installation and testing
 ------------------------
@@ -37,7 +37,7 @@ Contributing
 
 nDspec is a fully open source software, so we welcome your contribution and feedback!
 The best way to contact the developers is through the `issues_` page - even a simple comment on what you find useful or intuitive (or vice versa) goes a long way in helping the project. 
-If you would like to contribute a piece of code, you are welcome to do so either by opening an `issue`_ or submitting a `pull_request`_. 
+If you would like to contribute a piece of code, you are welcome to do so either by opening an `issue`_ or submitting a `pull request`_. 
 
 Citing
 ------
@@ -51,3 +51,6 @@ All content © 2023 The Authors. The code is distributed under the MIT license; 
 
 .. |Docs| image:: https://img.shields.io/badge/docs-latest-brightgreen.svg?style=flat
    :target: https://nextspec-prototype.readthedocs.io/en/latest/
+.. _issues: https://github.com/matteolucchini1/neXTsPec_prototype/issues
+.. _issue: https://github.com/matteolucchini1/neXTsPec_prototype/issues
+.. _pull request: https://github.com/matteolucchini1/neXTsPec_prototype/pulls
