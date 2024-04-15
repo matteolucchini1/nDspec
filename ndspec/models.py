@@ -99,7 +99,7 @@ def gauss_bkn(array1,array2,params):
     line_profile = np.zeros(len(energy))
     pulse_profile = np.zeros(len(times))
     for i in range(len(times)):
-        brk_pulse[:,i] = gaussian(energy,np.array([center,sigma[i]]))*bkn_profile[i]    
+        brk_pulse[:,i] = norm*gaussian(energy,np.array([center,sigma[i]]))*bkn_profile[i]    
     line_profile = np.sum(brk_pulse,axis=1)
     pulse_profile = np.sum(brk_pulse,axis=0)
     return brk_pulse, line_profile, pulse_profile

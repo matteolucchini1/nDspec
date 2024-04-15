@@ -499,7 +499,7 @@ class PowerSpectrum(FourierProduct):
             ax1.set_ylabel("Power")
         elif units == "Power*freq":
             ax1.plot(self.freqs,self.power_spec*self.freqs)
-            ax1.set_ylabel("Power*frequency")
+            ax1.set_ylabel("Power$\\times$frequency")
         else:
             raise ValueError("Y axis units not recognized")
         
