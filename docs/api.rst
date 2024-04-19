@@ -8,7 +8,7 @@ Documentation for every class and function in the nDspec modelling software
 Operator Class
 ~~~~~~~~~~~~~~
 
-.. autoclass:: ndspec.Operator.Operator
+.. autoclass:: ndspec.Operator.nDspecOperator
    :members:
 
 Response Matrix Class

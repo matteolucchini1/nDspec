@@ -17,9 +17,7 @@ author = 'Matteo Lucchini, Phil Uttley'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = [
-    'nbsphinx', 'sphinx.ext.autodoc'
-]
+extensions = ['nbsphinx', 'sphinx.ext.autodoc']
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
@@ -58,10 +56,11 @@ html_sidebars = {
 #note that the line below is messy with astropy affiliated packages so it will
 #be a problem in the long run
 sys.path.insert(0, os.path.abspath('../ndspec/'))
-#conf = ConfigParser()
-#conf.read([os.path.join(os.path.dirname(__file__), "..", "setup.cfg")])
-#setup_cfg = dict(conf.items("metadata"))
+conf = ConfigParser()
+conf.read([os.path.join(os.path.dirname(__file__), "..", "setup.cfg")])
+setup_cfg = dict(conf.items("metadata"))
 
-autodoc_mock_imports = ['bs4', 'requests']
+autodoc_mock_imports = ['bs4', 'requests','numpy','astropy','matplotlib',
+                        'scipy','pyfftw','copy','warnings',]
 
 html_static_path = ['_static']

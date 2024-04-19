@@ -1,7 +1,7 @@
 import numpy as np
 import copy
 from astropy.io import fits
-import jax.numpy as jnp
+#import jax.numpy as jnp
 
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pl
