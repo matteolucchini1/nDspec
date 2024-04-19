@@ -57,7 +57,7 @@ html_sidebars = {
 #import stuff for the api docs
 #note that the line below is messy with astropy affiliated packages so it will
 #be a problem in the long run
-#sys.path.insert(0, os.path.abspath('../ndspec/'))
+sys.path.insert(0, os.path.abspath('../ndspec/'))
 conf = ConfigParser()
 conf.read([os.path.join(os.path.dirname(__file__), "..", "setup.cfg")])
 setup_cfg = dict(conf.items("metadata"))

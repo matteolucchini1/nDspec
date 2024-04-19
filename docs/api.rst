@@ -8,29 +8,29 @@ Documentation for every class and function in the nDspec modelling software
 Operator Class
 ~~~~~~~~~~~~~~
 
-.. autoclass:: ndspec.Operator
+.. autoclass:: ndspec.Operator.Operator
    :members:
 
 Response Matrix Class
 ~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: ndspec.ResponseMatrix
+.. autoclass:: ndspec.Response.ResponseMatrix
    :members:
 
 Fourier Product Class
 ~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: ndspec.timing.FourierProduct
+.. autoclass:: ndspec.Timing.FourierProduct
    :members:
    
 PowerSpectrum Class
 ~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: ndspec.timing.PowerSpectrum
+.. autoclass:: ndspec.Timing.PowerSpectrum
    :members:
    
 CrossSpectrum Class
 ~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: ndspec.timing.CrossSpectrum
+.. autoclass:: ndspec.Timing.CrossSpectrum
    :members:
