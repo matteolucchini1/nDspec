@@ -177,7 +177,7 @@ def plot_2d(xaxis,yaxis,impulse_2d,impulse_x,impulse_y,
         impulse_2d = yaxis.reshape(len(yaxis),1)**2*impulse_2d
         impulse_y = impulse_y*yaxis**2
 
-    c = ax.pcolor(xaxis,yaxis,impulse_2d,cmap="PuRd",
+    c = ax.pcolormesh(xaxis,yaxis,impulse_2d,cmap="PuRd",
                   shading='auto',linewidth=0,rasterized=True)
     ax.set_xticklabels([])
     ax.set_xlim(xlim)

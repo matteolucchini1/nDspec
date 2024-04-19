@@ -426,7 +426,7 @@ class ResponseMatrix(nDspecOperator):
             raise TypeError("Specify either channel or energy for the x-axis")
                 
         energy_array = (self.energ_hi+self.energ_lo)/2.
-        plt.pcolor(x_axis,energy_array,np.log10(self.resp_matrix),
+        plt.pcolormesh(x_axis,energy_array,np.log10(self.resp_matrix),
                    cmap="PuRd",shading='auto',linewidth=0,rasterized=True)
         plt.ylabel("Energy (keV)")
         plt.title("log10(Response)")
