@@ -54,6 +54,6 @@ html_sidebars = {
     ]
 }
 
-
+autodoc_mock_imports = ['bs4', 'requests']
 
 html_static_path = ['_static']
