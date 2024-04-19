@@ -15,15 +15,16 @@ Installation and testing
 
 The early version of the software can only be installed from the repository. Unit tests utilize py-test. 
 
-==================================== 
+Table of contents
+================= 
 
 .. toctree::
     response   
     timing
 
-Indices and tables
-==================
+References and tables
+=====================
 
-* :ref:`genindex`
-* :ref:`modindex`
+.. toctree::
+    api 
 * :ref:`search`
