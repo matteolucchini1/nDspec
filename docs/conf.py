@@ -1,7 +1,7 @@
 import os
 import sys
-#from importlib import import_module
-#from configparser import ConfigParser
+from importlib import import_module
+from configparser import ConfigParser
 # Configuration file for the Sphinx documentation builder.
 #
 # For the full list of built-in configuration values, see the documentation:
