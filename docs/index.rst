@@ -26,6 +26,5 @@ References and tables
 ~~~~~~~~~~~~~~~~~~~~~
 
 * :ref:`search`
-* :ref:`modindex`
 .. toctree::
     api 

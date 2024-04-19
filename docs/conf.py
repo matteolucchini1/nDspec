@@ -35,10 +35,11 @@ html_theme_options = {
     'description': 'Jupyter Notebooks + Sphinx',
     'github_banner': True,
     'github_button': True,
-    'github_repo': 'nbsphinx',
-    'github_type': 'star',
-    'github_user': 'spatialaudio',
-    'page_width': '1095px',
+    'github_repo': 'neXTsPec_prototype',
+    'github_type': 'watch',
+    'github_user': 'matteolucchini1',
+    'page_width': '1300px'
+    'sidebar_width': '300px',
     #'show_relbars': True,
 }
 html_sidebars = {
