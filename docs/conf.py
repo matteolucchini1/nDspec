@@ -1,7 +1,6 @@
 import os
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath('__file__'))))
-
+from importlib import import_module
+from configparser import ConfigParser
 # Configuration file for the Sphinx documentation builder.
 #
 # For the full list of built-in configuration values, see the documentation:
@@ -53,6 +52,11 @@ html_sidebars = {
         #'sourcelink.html',
     ]
 }
+
+#import stuff for the api docs
+conf = ConfigParser()
+conf.read([os.path.join(os.path.dirname(__file__), "..", "setup.cfg")])
+setup_cfg = dict(conf.items("metadata"))
 
 autodoc_mock_imports = ['bs4', 'requests']
 
