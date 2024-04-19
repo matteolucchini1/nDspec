@@ -1,27 +1,25 @@
-.. neXTsPec documentation master file, created by
+.. nDspec documentation master file, created by
    sphinx-quickstart on Fri Oct 27 14:54:37 2023.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to neXTsPec's documentation!
+Welcome to the nDspec documentation!
 ====================================
 
-This is the intial repository for the neXTsPec Python-based X-ray astronomy modeling software. Currently, the software allows users to correctly account for the effects of X-ray instrument responses in two-dimensional models - formally these would either be spectral-timing or spectral-polarimetry models, although the second dimension beyond photon energy does not matter. Ultimately, the code will be able to convert these convolved models into typical data products (such as lag spectra or modulation curves), support using and combining models in the Xspec library and/or custom ones, as well as interfacing with existing minimization libraries for fitting. 
+This is the intial repository for the nDspec Python-based X-ray astronomy modeling software. nDspec is designed to allow users to model spectral, spectral timing and (in the future) spectral polarimetry and polarimetry timing X-ray data.
 
-==================================== 
-
-As is obvious, the documentation is currently WiP. You can find notebooks highlighting the features of each class in the /notebooks/ folder.
-
-==================================== 
+Currently, the software has two functionalities. First, users can use it to fold two-dimensional models through the response matrix of modern X-ray instruments - formally these would either be spectral-timing or spectral-polarimetry models, although the second dimension beyond photon energy does not matter. The observatories/instruments explicitely supported are RXTE/PCA, Swift/XRT, XMM-Newton, NuSTAR and NICER. Second, the nDspec can compute standard Fourier products like lag spectra from time- and/or energy- dependent, user-defined models. It is possible to input models defined in both the time and Fourier domains, as well as to combine multiple components. 
 
 Installation and testing
+=========================
 
-The early version of the software can only be installed from the repository. Implementation of tests is pending further development.
+The early version of the software can only be installed from the repository. Unit tests utilize py-test. 
 
 ==================================== 
 
 .. toctree::
     response   
+    timing
 
 Indices and tables
 ==================

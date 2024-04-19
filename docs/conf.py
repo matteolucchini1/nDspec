@@ -8,7 +8,7 @@ import os
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'neXTsPec'
+project = 'nDspec'
 copyright = '2023, Matteo Lucchini, Phil Uttley'
 author = 'Matteo Lucchini, Phil Uttley'
 
