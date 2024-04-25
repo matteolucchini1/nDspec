@@ -40,6 +40,7 @@ html_theme_options = {
     'github_user': 'matteolucchini1',
     'page_width': '1500px',
     'sidebar_width': '370px',
+    'prev_next_buttons_location': 'bottom',
     #'show_relbars': True,
 }
 html_sidebars = {
