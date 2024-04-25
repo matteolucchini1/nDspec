@@ -17,7 +17,11 @@ author = 'Matteo Lucchini, Phil Uttley'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ['nbsphinx', 'sphinx.ext.autodoc']
+extensions += [
+    'nbsphinx', 
+    'sphinx.ext.autodoc',
+     'matplotlib.sphinxext.plot_directive',
+]
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
@@ -38,7 +42,8 @@ html_theme_options = {
     'github_repo': 'neXTsPec_prototype',
     'github_type': 'watch',
     'github_user': 'matteolucchini1',
-    'body_max_width' : '1600px',
+    'body_min_width' : '70%',
+    'body_max_width' : '100%',
     'page_width': '1600px',
     'sidebar_width': '300px',
     'show_relbars': True,
