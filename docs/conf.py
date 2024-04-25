@@ -38,7 +38,8 @@ html_theme_options = {
     'github_repo': 'neXTsPec_prototype',
     'github_type': 'watch',
     'github_user': 'matteolucchini1',
-    'page_width': '1900px',
+    'body_max_width': 'auto',
+    'page_width': '1500px',
     'sidebar_width': '300px',
     'show_relbars': True,
 }
