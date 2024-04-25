@@ -20,7 +20,6 @@ author = 'Matteo Lucchini, Phil Uttley'
 extensions = [
     'nbsphinx', 
     'sphinx.ext.autodoc',
-     'matplotlib.sphinxext.plot_directive',
 ]
 
 templates_path = ['_templates']
