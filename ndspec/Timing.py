@@ -492,7 +492,7 @@ class PowerSpectrum(FourierProduct):
 
         """
         
-        fig, ((ax1)) = plt.subplots(1,1,figsize=(6.,4.5))   
+        fig, ((ax1)) = plt.subplots(1,1,figsize=(9.,6.))   
         
         if units == 'Power':
             ax1.plot(self.freqs,self.power_spec)

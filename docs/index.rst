@@ -23,6 +23,7 @@ Table of contents
     
     response   
     timing
+    numerics
 
 References and tables
 ~~~~~~~~~~~~~~~~~~~~~
