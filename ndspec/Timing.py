@@ -1568,7 +1568,7 @@ class CrossSpectrum(FourierProduct):
             The lower and upper bound to be used in the energy axis of the 
             cross spectrum.
         """
-        
+               
         energy_indexes = np.where(np.logical_and(self.energ>energy_limits[0],
                                                  self.energ<energy_limits[1]))
         
@@ -1622,7 +1622,7 @@ class CrossSpectrum(FourierProduct):
             
             fig, ((ax1,ax2,ax3)) = plt.subplots(1,3,figsize=(15.,5.))
             modulus = ax1.pcolormesh(self.freqs,self.energ,plot_mod,
-                                     cmap="magma",shading='auto',
+                                     cmap="magma_r",shading='auto',
                                      linewidth=0,rasterized=True)
             cb = fig.colorbar(modulus,ax=ax1,format="%.1f")            
             ax1.set_xscale("log",base=10)
@@ -1631,7 +1631,7 @@ class CrossSpectrum(FourierProduct):
             ax1.set_ylabel("Energy")
             ax1.set_ylim([energy_limits[0],energy_limits[1]])
            
-            phase = ax2.pcolormesh(self.freqs,self.energ,self.phase(),cmap="PuOr",
+            phase = ax2.pcolormesh(self.freqs,self.energ,self.phase(),cmap="twilight",
                                    shading='auto',linewidth=0,
                                    rasterized=True,norm=norm_phase)
             cb = fig.colorbar(phase,ax=ax2,ticks=ticks_phase,format="%.2f")           
@@ -1641,7 +1641,7 @@ class CrossSpectrum(FourierProduct):
             ax2.set_ylabel("Energy")
             ax2.set_ylim([energy_limits[0],energy_limits[1]])
             
-            lags = ax3.pcolormesh(self.freqs,self.energ,self.lag(),cmap="PuOr",
+            lags = ax3.pcolormesh(self.freqs,self.energ,self.lag(),cmap="twilight",
                                   shading='auto',linewidth=0,
                                   rasterized=True,norm=norm_lag)
             cb = fig.colorbar(lags,ax=ax3,ticks=ticks_lag,format="%.2f")
