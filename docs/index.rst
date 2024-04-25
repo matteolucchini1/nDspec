@@ -20,6 +20,7 @@ Table of contents
 
 .. toctree::
     :maxdepth: 2
+    
     response   
     timing
 
@@ -29,4 +30,5 @@ References and tables
 * :ref:`search`
 .. toctree::
     :maxdepth: 2
+    
     api 
