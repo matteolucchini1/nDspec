@@ -17,7 +17,7 @@ author = 'Matteo Lucchini, Phil Uttley'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions += [
+extensions = [
     'nbsphinx', 
     'sphinx.ext.autodoc',
      'matplotlib.sphinxext.plot_directive',
