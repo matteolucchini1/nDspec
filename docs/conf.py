@@ -38,11 +38,9 @@ html_theme_options = {
     'github_repo': 'neXTsPec_prototype',
     'github_type': 'watch',
     'github_user': 'matteolucchini1',
-    'page_width': '1600px',
+    'page_width': '1900px',
     'sidebar_width': '300px',
     'show_relbars': True,
-    'show_relbar_top': False,
-    'show_relbar_bottom': True,
 }
 html_sidebars = {
     '**': [
