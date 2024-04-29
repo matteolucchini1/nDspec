@@ -29,7 +29,8 @@ class TestResponse(object):
         assert hasattr(self.response, "chans"), "row missing in rmf file"
         assert hasattr(self.response, "resp_matrix"), "row missing in rmf file"
         assert hasattr(self.response, "specresp"), "row missing in rmf file"
- 
+
+    #compare the convolution with the nicer response to that in xspec 
     def test_nicer_convolution_comparison(self):
         Xset.chatter = 0
         AllData.clear()
@@ -52,7 +53,8 @@ class TestResponse(object):
                                            norm="rate")
         assert np.allclose(modVals,convolved_model,rtol=1e-6) == True
         assert np.allclose(modVals,convolved_rebinned,rtol=1e-6) == True
-        
+
+    #compare the convolution with the nustar response to that in xspec        
     def test_nustar_convolution_comparison(self):
         nustar_fpma = ResponseMatrix(os.getcwd()+"/ndspec/tests/data/nustar_fpma.rmf")
         nustar_fpma.load_arf(os.getcwd()+"/ndspec/tests/data/nustar_fpma.arf") 
@@ -78,6 +80,7 @@ class TestResponse(object):
         assert np.allclose(modVals,convolved_model,rtol=1e-6) == True
         assert np.allclose(modVals,convolved_rebinned,rtol=1e-6) == True
 
+    #compare the convolution with the rxte response to that in xspec
     def test_rxte_convolution_comparison(self):
         rxte_pca = ResponseMatrix(os.getcwd()+"/ndspec/tests/data/rxte.rsp")
         Xset.chatter = 0
@@ -101,6 +104,7 @@ class TestResponse(object):
         assert np.allclose(modVals,convolved_model,rtol=1e-6) == True
         assert np.allclose(modVals,convolved_rebinned,rtol=1e-6) == True
 
+    #compare the convolution with the xrt response to that in xspec
     def test_xrt_convolution_comparison(self):
         xrt_resp = ResponseMatrix(os.getcwd()+"/ndspec/tests/data/xrt.rmf")
         xrt_resp.load_arf(os.getcwd()+"/ndspec/tests/data/xrt.arf") 
@@ -126,6 +130,7 @@ class TestResponse(object):
         assert np.allclose(modVals,convolved_model,rtol=1e-6) == True
         assert np.allclose(modVals,convolved_rebinned,rtol=1e-6) == True
 
+    #compare the convolution with the xmm/epic response to that in xspec
     def test_xmm_convolution_comparison(self):
         xmm_resp = ResponseMatrix(os.getcwd()+"/ndspec/tests/data/xmm.rmf")
         xmm_resp.load_arf(os.getcwd()+"/ndspec/tests/data/xmm.arf") 
@@ -151,29 +156,34 @@ class TestResponse(object):
         assert np.allclose(modVals,convolved_model,rtol=1e-6) == True
         assert np.allclose(modVals,convolved_rebinned,rtol=1e-6) == True
 
+    #test that we can't convolve models with the wrong number of channels
     def test_model_grid_match(self):
         wrong_gridsize_model = np.linspace(2,-2,self.response.n_energs-1)
         with pytest.raises(TypeError):
             wrong_grid_convolution = self.response.convolve_response(
                                                    wrong_gridsize_model)
 
+    #test that the code checks for the OGIP flag in the header of a rmf
     def test_rmf_ogip_error(self):
         wrong_rmf = os.getcwd()+"/ndspec/tests/data/nicer_notogip.rmf"
         with pytest.raises(TypeError):
             wrong_response = ResponseMatrix(wrong_rmf)
-            
+
+    #test that the code checks for the OGIP flag in the header of a arf            
     def test_arf_ogip_error(self):
         wrong_arf = os.getcwd()+"/ndspec/tests/data/nicer_notogip.arf"
         right_response = ResponseMatrix(self.rmffile)
         with pytest.raises(TypeError):
             right_response.load_arf(wrong_arf)
-   
+ 
+     #test that the code forces the ebounds to be the same in the rmf and arf
     def test_matching_energy_grids(self):
         xrt_arf = os.getcwd()+"/ndspec/tests/data/xrt_wt.arf"
         nicer_response = ResponseMatrix(self.rmffile)
         with pytest.raises(ValueError):
             nicer_response.load_arf(xrt_arf)
-            
+ 
+    #test that rebinning to weird grids raises the appropriate errors           
     def test_rebin_grid(self):
         new_bounds_lo = np.array([0.1,0.3,0.6,1,1.5,2,2.13,2.21,2.3,2.4,2.52,
                                   2.6,2.9,3.,3.5,4.,4.12,4.25,4.4,4.54,5,
@@ -198,7 +208,6 @@ class TestResponse(object):
             new_bounds_fine_lo = new_bounds_fine[:len(new_bounds_fine)-1]
             new_bounds_fine_hi = new_bounds_fine[1:]
             rebin = self.response.rebin_response(new_bounds_fine_lo,new_bounds_fine_hi)
-        #last test: energy bin sizes
         with pytest.raises(IndexError):
             new_bounds_lo[1] = 0.101
             new_bounds_hi[0] = new_bounds_lo[1]
