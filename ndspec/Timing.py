@@ -1046,16 +1046,16 @@ class CrossSpectrum(FourierProduct):
 
     def _oned_cross(self,int_bounds,ref_bounds=None):
         """   
-        This method converts a two-dimensional transfer function stored in the 
-        "trans" attribute into a one-dimensional, Fourier frequency dependent  
-        cross spectrum, by summing over energy channels specified by the user  
-        and re-calculating the cross product between the reference band and 
-        channels of interest. Note that this method is only meant for 
-        visualization rather than for computing model products, which should be 
-        done with the cross_from_irf or cross_from_transfer methods. As
-        implemented here, the limits specified in ref_bounds and int_bounds are 
-        included in the reference - e.g. [0.3,10.0] keV rather than (0.3,10.) 
-        keV.
+        This method returns a frequency-dependent, one-dimensional cross 
+        specctrum either from a two-dimensional transfer function stored in the 
+        "trans" attribute, or from the two-dimensional "cross" attribute, 
+        depending on whether a new reference band is used or not. The one-d 
+        cross spectrum is produced  by summing over energy channels specified 
+        by the user and, if a different reference band is chosen from the one 
+        saved in the "ref" attribute,  re-calculating the cross product between 
+        the reference band and channels of interest. As implemented here, the l
+        imits specified in ref_bounds and int_bounds are ncluded in the r
+        eference - e.g. [0.3,10.0] keV rather than (0.3,10.) keV.
         
         Parameters
         ----------
@@ -1078,49 +1078,39 @@ class CrossSpectrum(FourierProduct):
             reference band provided by the user. 
         """
         
-        #by default use the same reference band as the full 2d cross
-        #the reason the reference band is treated differently is that if we want 
-        #to use the reference band we already passed, the signal is already 
-        #summed over all energy channels before Fourier transforming. If instead
-        #we want to use some other referene band, it is more convenient to just 
-        #sum over the (pre calculated) transfer function. 
-        if ref_bounds is None:
-            #if the cross spectrum is defined from an impulse response, take 
-            #the FT of the reference band; otherwise, we assume we already 
-            #defined in the Fourier domain so we don't need to transform again
-            if hasattr(self,"imp_resp"):
-                ref = self.transform(self.ref)
-            else:
-                ref = self.ref 
-        else:
-            idx_ref = np.where(np.logical_and(self.energ>=ref_bounds[0],
-                                              self.energ<=ref_bounds[1]))
-            #idx_ref returns a tuple, not an array. The array of channel indexes
-            #is stored in the first element of the tuple, ie idx_ref[0].
-            if (len(idx_ref[0]) == 0):
-                raise ValueError("No bins found within the reference band bounds")
-                                              
-            ref = np.sum(self.trans_func[idx_ref,:],axis=1)
-        
         idx_int = np.where(np.logical_and(self.energ>=int_bounds[0],
                                           self.energ<=int_bounds[1]))
         #idx_int returns a tuple, not an array. The array of channel indexes is
         #stored in the first element of the tuple, ie idx_int[0]
         if (len(idx_int[0]) == 0):
-            raise ValueError("No bins found within the channel of interest bounds")
-                               
-        ch_int = np.sum(self.trans_func[idx_int,:],axis=1)
-        cross = self.power_spec*np.multiply(ch_int,np.conj(ref))
+            raise ValueError("No bins found within the channel of interest bounds")  
+        if ref_bounds is None:
+            #if we do not define a new reference band, take the frequency 
+            #dependent part from the existing cross spectrum simply by summing 
+            #over the input energy channels 
+            cross = np.sum(self.cross[idx_int,:],axis=1)
+        else:
+            #otherwise, we need to re-calculate a new cross spectrum with a new 
+            #reference band, from the existing transfer function 
+            idx_ref = np.where(np.logical_and(self.energ>=ref_bounds[0],
+                                              self.energ<=ref_bounds[1]))
+            #idx_ref returns a tuple, not an array. The array of channel indexes
+            #is stored in the first element of the tuple, ie idx_ref[0].
+            if (len(idx_ref[0]) == 0):
+                raise ValueError("No bins found within the reference band bounds")                                              
+            ref = np.sum(self.trans_func[idx_ref,:],axis=1)                                         
+            ch_int = np.sum(self.trans_func[idx_int,:],axis=1)
+            cross = self.power_spec*np.multiply(ch_int,np.conj(ref))
         
         return cross
 
     def real_frequency(self,int_bounds,ref_bounds=None):
         """   
-        This method computes, from a two-dimensional transfer function stored in  
-        the "trans" attribute, the real part of a one-dimensional, Fourier 
+        This method computes the real part of a one-dimensional, Fourier 
         frequency dependent cross spectrum, by summing over energy channels 
-        specified by the user and re-calculating the cross product between the 
-        reference band and channels of interest.
+        specified by the user and (if a new reference band is used) 
+        re-calculating the cross product between the reference band and channels 
+        of interest.
         
         Parameters
         ----------
@@ -1150,11 +1140,11 @@ class CrossSpectrum(FourierProduct):
     
     def imag_frequency(self,int_bounds,ref_bounds=None):
         """   
-        This method computes, from a two-dimensional transfer function stored in  
-        the "trans" attribute, the imaginary part of a one-dimensional, Fourier 
+        This method computes the imaginary part of a one-dimensional, Fourier 
         frequency dependent cross spectrum, by summing over energy channels 
-        specified by the user and re-calculating the cross product between the 
-        reference band and channels of interest.
+        specified by the user and (if a new reference band is used) 
+        re-calculating the cross product between the reference band and channels 
+        of interest.
         
         Parameters
         ----------
@@ -1174,7 +1164,7 @@ class CrossSpectrum(FourierProduct):
         imag_spectrum: np.array(float) 
             A one-dimensional array of size (n_freqs) containing the imaginary 
             part of the one dimensional cross spectrum between the channels of  
-            interest and the  reference band provided by the user, as a function 
+            interest and the reference band provided by the user, as a function 
             of Fourier frequency. 
         """
         
@@ -1185,11 +1175,10 @@ class CrossSpectrum(FourierProduct):
     
     def mod_frequency(self,int_bounds,ref_bounds=None):
         """   
-        This method computes, from a two-dimensional transfer function stored in  
-        the "trans" attribute, the modulus of a one-dimensional, Fourier 
-        frequency dependent cross spectrum, by summing over energy channels 
-        specified by the user and re-calculating the cross product between the 
-        reference band and channels of interest.
+        This method computes the modulus of a one-dimensional, Fourier frequency
+        dependent cross spectrum, by summing over energy channels specified by
+        the user and (if a new reference band is used) re-calculating the cross 
+        product between the reference band and channels of interest.
         
         Parameters
         ----------
@@ -1219,11 +1208,10 @@ class CrossSpectrum(FourierProduct):
     
     def phase_frequency(self,int_bounds,ref_bounds=None):
         """   
-        This method computes, from a two-dimensional transfer function stored in  
-        the "trans" attribute, the phase of a one-dimensional, Fourier frequency 
-        dependent cross spectrum, by summing over energy channels specified
-        by the user and re-calculating the cross product between the reference
-        band and channels of interest.
+        This method computes the phase of a one-dimensional, Fourier frequency
+        dependent cross spectrum, by summing over energy channels specified by
+        the user and (if a new reference band is used) re-calculating the cross 
+        product between the reference band and channels of interest.
         
         Parameters
         ----------
@@ -1254,11 +1242,11 @@ class CrossSpectrum(FourierProduct):
     
     def lag_frequency(self,int_bounds,ref_bounds=None):        
         """   
-        This method computes, from a two-dimensional transfer function stored in  
-        the "trans" attribute, the time lags of a one-dimensional, Fourier  
+        This method computes the time lag of a one-dimensional, Fourier 
         frequency dependent cross spectrum, by summing over energy channels 
-        specified by the user and re-calculating the cross product between the 
-        reference band and channels of interest.
+        specified by the user and (if a new reference band is used) 
+        re-calculating the cross product between the reference band and channels 
+        of interest.
         
         Parameters
         ----------
@@ -1286,8 +1274,8 @@ class CrossSpectrum(FourierProduct):
                        (2.*np.pi*self.freqs)
                
         return lag_spectrum
-#tbd: update these to have the same input format as the frequency dependent functions    
-    def real_energy(self,nu_min,nu_max):
+        
+    def real_energy(self,freq_bounds):
         """ 
         This method computes the real part of a one-dimensional cross spectrum 
         as a function of energy, by averaging the attribute "cross" over a given
@@ -1295,14 +1283,10 @@ class CrossSpectrum(FourierProduct):
         
         Parameters
         ----------
-        nu_min: float 
-            The lower bound of Fourier frequency over which to average the two 
-            dimensinoal cross spectrum
-            
-        nu_max: float 
-            The lower bound of Fourier frequency over which to average the two 
-            dimensinoal cross spectrum
-            
+        freq_bounds: np.array(float) 
+            A list with lower and upper frequency bounds over which to average 
+            the two dimensinoal cross spectrum
+
         Returns
         -------
         real_sectrum: np.array(float) 
@@ -1310,6 +1294,8 @@ class CrossSpectrum(FourierProduct):
             frequency averaged cross spectrum, as a function of energy. 
         """
         
+        nu_min = freq_bounds[0]
+        nu_max = freq_bounds[1]        
         integrated_resp = self._integrate_range(self.cross,self.freqs,
                                                 nu_min,nu_max,axis=1)
         real_spectrum = np.real(integrated_resp/(nu_max-nu_min))
@@ -1317,7 +1303,7 @@ class CrossSpectrum(FourierProduct):
         
         return real_spectrum
 
-    def imag_energy(self,nu_min,nu_max):
+    def imag_energy(self,freq_bounds):
         """ 
         This method computes the imaginary part of a one-dimensional cross  
         spectrum as a function of energy, by averaging the attribute "cross" 
@@ -1325,13 +1311,9 @@ class CrossSpectrum(FourierProduct):
         
         Parameters
         ----------
-        nu_min: float 
-            The lower bound of Fourier frequency over which to average the two 
-            dimensinoal cross spectrum
-            
-        nu_max: float 
-            The lower bound of Fourier frequency over which to average the two 
-            dimensinoal cross spectrum
+        freq_bounds: np.array(float) 
+            A list with lower and upper frequency bounds over which to average 
+            the two dimensinoal cross spectrum
             
         Returns
         -------
@@ -1340,6 +1322,8 @@ class CrossSpectrum(FourierProduct):
             Fourier frequency averaged cross spectrum, as a function of energy. 
         """
         
+        nu_min = freq_bounds[0]
+        nu_max = freq_bounds[1]                
         integrated_resp = self._integrate_range(self.cross,self.freqs,
                                                 nu_min,nu_max,axis=1)
         imag_spectrum = np.imag(integrated_resp/(nu_max-nu_min))
@@ -1347,7 +1331,7 @@ class CrossSpectrum(FourierProduct):
         
         return imag_spectrum
     
-    def mod_energy(self,nu_min,nu_max):
+    def mod_energy(self,freq_bounds):
         """ 
         This method computes the modulus of a one-dimensional cross spectrum as 
         a function of energy, by averaging the attribute "cross" over a given 
@@ -1355,13 +1339,9 @@ class CrossSpectrum(FourierProduct):
         
         Parameters
         ----------
-        nu_min: float 
-            The lower bound of Fourier frequency over which to average the two 
-            dimensinoal cross spectrum
-            
-        nu_max: float 
-            The lower bound of Fourier frequency over which to average the two 
-            dimensinoal cross spectrum
+        freq_bounds: np.array(float) 
+            A list with lower and upper frequency bounds over which to average 
+            the two dimensinoal cross spectrum
             
         Returns
         -------
@@ -1370,6 +1350,8 @@ class CrossSpectrum(FourierProduct):
             frequency averaged cross spectrum, as a function of energy. 
         """
         
+        nu_min = freq_bounds[0]
+        nu_max = freq_bounds[1]        
         integrated_resp = self._integrate_range(self.cross,self.freqs,
                                                 nu_min,nu_max,axis=1)
         mod_spectrum = np.absolute(integrated_resp/(nu_max-nu_min))
@@ -1377,7 +1359,7 @@ class CrossSpectrum(FourierProduct):
         
         return mod_spectrum
     
-    def phase_energy(self,nu_min,nu_max):
+    def phase_energy(self,freq_bounds):
         """ 
         This method computes the phase of a one-dimensional cross spectrum
         as a function of energy, by averaging the attribute "cross" over a given
@@ -1385,13 +1367,9 @@ class CrossSpectrum(FourierProduct):
         
         Parameters
         ----------
-        nu_min: float 
-            The lower bound of Fourier frequency over which to average the two 
-            dimensinoal cross spectrum
-            
-        nu_max: float 
-            The lower bound of Fourier frequency over which to average the two 
-            dimensinoal cross spectrum
+        freq_bounds: np.array(float) 
+            A list with lower and upper frequency bounds over which to average 
+            the two dimensinoal cross spectrum
             
         Returns
         -------
@@ -1399,7 +1377,9 @@ class CrossSpectrum(FourierProduct):
             An array of size (n_chans) containing the phase of the Fourier
             frequency averaged cross spectrum, as a function of energy. 
         """
-        
+
+        nu_min = freq_bounds[0]
+        nu_max = freq_bounds[1]        
         integrated_resp = self._integrate_range(self.cross,self.freqs,
                                                 nu_min,nu_max,axis=1)
         phase_spectrum = np.angle(integrated_resp/(nu_max-nu_min))
@@ -1407,7 +1387,7 @@ class CrossSpectrum(FourierProduct):
         
         return phase_spectrum
     
-    def lag_energy(self,nu_min,nu_max):
+    def lag_energy(self,freq_bounds):
         """ 
         This method computes the time lags of a one-dimensional cross spectrum
         as a function of energy, by averaging the attribute "cross" over a given
@@ -1415,13 +1395,9 @@ class CrossSpectrum(FourierProduct):
         
         Parameters
         ----------
-        nu_min: float 
-            The lower bound of Fourier frequency over which to average the two 
-            dimensinoal cross spectrum
-            
-        nu_max: float 
-            The lower bound of Fourier frequency over which to average the two 
-            dimensinoal cross spectrum
+        freq_bounds: np.array(float) 
+            A list with lower and upper frequency bounds over which to average 
+            the two dimensinoal cross spectrum
             
         Returns
         -------
@@ -1429,9 +1405,10 @@ class CrossSpectrum(FourierProduct):
             An array of size (n_chans) containing the time lags of the Fourier
             frequency averaged cross spectrum, as a function of energy. 
         """
-       
-        lag_spectrum = self.phase_energy(nu_min,nu_max)/ \
-                       (2.*np.pi*(nu_max-nu_min))
+
+        nu_min = freq_bounds[0]
+        nu_max = freq_bounds[1]       
+        lag_spectrum = self.phase_energy(freq_bounds)/(2.*np.pi*(nu_max-nu_min))
         
         return lag_spectrum
         
