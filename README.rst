@@ -50,7 +50,7 @@ License
 All content © 2023 The Authors. The code is distributed under the MIT license; see `LICENSE <LICENSE>`_ for details.
 
 .. |Docs| image:: https://img.shields.io/badge/docs-latest-brightgreen.svg?style=flat
-   :target: https://nndspec.readthedocs.io/en/latest/
+   :target: https://ndspec.readthedocs.io/en/latest/
 .. _issues: https://github.com/matteolucchini1/ndspec/issues
 .. _issue: https://github.com/matteolucchini1/ndspec/issues
 .. _pull request: https://github.com/matteolucchini1/ndspec/pulls
