@@ -389,7 +389,8 @@ class ResponseMatrix(nDspecOperator):
             renorm_model = np.multiply(np.transpose(unfolded_model),bin_widths)
             conv_model = np.matmul(renorm_model,self.resp_matrix)
         elif norm == "xspec":
-            conv_model = np.matmul(unfolded_model,self.resp_matrix)
+            trans_model = np.transpose(unfolded_model)
+            conv_model = np.matmul(trans_model,self.resp_matrix)
         else:
             raise ValueError("Please specify units of either count rate or count rate normalized to bin width")
         conv_model = np.transpose(conv_model)
