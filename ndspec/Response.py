@@ -370,6 +370,8 @@ class ResponseMatrix(nDspecOperator):
             energy channel and Fourier frequency.
         """
 
+        #if passing a nDspec CrossSpectrum object, we are returning a new class 
+        #instance, otherwise just a matrix with the folded input model 
         if isinstance(model_input,CrossSpectrum):
             unfolded_model = model_input.cross 
             resp_energs = self._grid_bounds_to_midpoint(self.emin,self.emax)
@@ -383,7 +385,9 @@ class ResponseMatrix(nDspecOperator):
     
         if np.shape(self.resp_matrix)[0] != np.shape(unfolded_model)[0]:
             raise TypeError("Model energy grid has a different size from response")    
-                
+
+        #all the transpose calls are to get the right format for the matrix 
+        #multiplication                 
         if norm == "rate":
             bin_widths = self.energ_hi-self.energ_lo
             renorm_model = np.multiply(np.transpose(unfolded_model),bin_widths)
