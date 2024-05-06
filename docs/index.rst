@@ -19,7 +19,7 @@ Table of contents
 ~~~~~~~~~~~~~~~~~ 
 
 .. toctree::
-    :maxdepth: 2
+    :maxdepth: 1
     
     response   
     timing
