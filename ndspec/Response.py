@@ -1,6 +1,8 @@
 import numpy as np
 import copy
+import warnings
 from astropy.io import fits
+from scipy.interpolate import interp1d
 #import jax.numpy as jnp
 
 import matplotlib.pyplot as plt
@@ -294,10 +296,10 @@ class ResponseMatrix(nDspecOperator):
         Parameters:
         ----------    
         new_bounds_lo: np.array(float)
-            An array of energies with the lower bound of each enegy bin. 
+            An array of energies with the lower bound of each energy channel. 
             
         new_bounds_hi: np.array(float)  
-            An array of energies with the upper bound of each enegy bin.     
+            An array of energies with the upper bound of each energy channel.     
         
         Returns
         ---------- 
@@ -322,15 +324,63 @@ class ResponseMatrix(nDspecOperator):
         for j in range(self.n_energs):
             rebinned_response[j,:] = rebin_array((self.chans[0:self.n_chans-1],
                                                   self.chans[1:self.n_chans]),
-                                                 (new_chans_lo,
-                                                  new_chans_hi),
-                                                 self.resp_matrix[j,:])
+                                                 (new_chans_lo,new_chans_hi),
+                                                  self.resp_matrix[j,:])
         
         bin_resp = copy.copy(self)
         bin_resp.emin = new_bounds_lo
         bin_resp.emax = new_bounds_hi
         bin_resp.n_chans = len(new_bounds_lo)
         bin_resp.chans = np.linspace(0,bin_resp.n_chans-1,bin_resp.n_chans)
+        bin_resp.resp_matrix = rebinned_response
+
+        return bin_resp
+
+    def rebin_response_energy(self,new_bounds_lo,new_bounds_hi):
+        """
+        This method rebins the response matrix resp_matrix to an arbitrary, 
+        continuous grid of energies, and updates the energ_lo, energ_hi and 
+        n_energs attributes appropriately. 
+        
+        Parameters:
+        ----------    
+        new_bounds_lo: np.array(float)
+            An array of energies with the lower bound of each energy bin. 
+            
+        new_bounds_hi: np.array(float)  
+            An array of energies with the upper bound of each energy bin.     
+        
+        Returns
+        ---------- 
+        bin_resp: ResponseMatrix
+            A ResponseMatrix object containing the same response loaded in the 
+            self object, but rebinned over the energy axis to the input grid.
+        """    
+        warnings.warn("WARNING: rebinning a response in energy is extremely dangerous use at your own risk!",
+                      UserWarning)    
+
+        if new_bounds_lo[0] < self.energ_lo[0]:
+            raise ValueError("New energy grid below lower limit of existing one")
+        if  new_bounds_hi[-1] > self.energ_hi[-1]:
+            raise ValueError("New energy grid above upper limit of existing one")
+        if len(new_bounds_lo) != len(new_bounds_hi):
+            raise TypeError("Lower and upper bounds of new energy grid have different size")
+        
+        rebinned_response = np.zeros((len(new_bounds_lo),self.n_chans))
+        bin_widths_start = self.energ_hi - self.energ_lo
+        bin_widths_end = new_bounds_hi - new_bounds_lo
+        
+        for j in range(self.n_chans):
+            rebinned_response[:,j] = rebin_array((self.energ_lo,self.energ_hi),
+                                                 (new_bounds_lo,new_bounds_hi),
+                                                  self.resp_matrix[:,j]/ \
+                                                  bin_widths_start)
+            rebinned_response[:,j] = rebinned_response[:,j]*bin_widths_end
+        
+        bin_resp = copy.copy(self)
+        bin_resp.energ_lo = new_bounds_lo
+        bin_resp.energ_hi = new_bounds_hi
+        bin_resp.n_energs = len(new_bounds_lo)
         bin_resp.resp_matrix = rebinned_response
 
         return bin_resp
@@ -498,8 +548,8 @@ class ResponseMatrix(nDspecOperator):
     def unfold_response(self):    
         print("TBD once the data+model side is complete")
         
-
-def rebin_array(array_start,array_end,array):
+#tbd: move this to be an operator method 
+def rebin_array(start_grid,rebin_grid,input_array):
     """
     This function can be used to rebin an input array, from an arbitrarily 
     defined initial grid array_start, to an arbitrarily defined grid array_end. 
@@ -508,53 +558,64 @@ def rebin_array(array_start,array_end,array):
     
     Parameters:
     ---------- 
-    array_start: np.array(float), np.array(float)
+    start_grid: np.array(float), np.array(float)
         A two-dimensional list of arrays. The first array contains the lower 
         bounds of the initial grid over which the input "array" is defined, the 
         second array containst the upper bounds of the same grid.          
 
-    array_end: np.array(float), np.array(float)
+    rebin_grid: np.array(float), np.array(float)
         A two-dimensional list of arrays. The first array contains the lower 
         bounds of the final grid over which the input "array" is to be rebinned,  
         the second array containst the upper bounds of the same grid.      
 
-    array: np.array(float)
+    input_array: np.array(float)
         An array of length identical to either element of array_start, 
         containing the array that the user wishes to be rebinned to the new grid 
         array_end.
     
     Returns
     ----------    
-    return_array: np.float 
+    rebin_array: np.float 
         An array of length identical to either element of array_end, 
         containing the rebinned array.
     """
-    return_array = np.zeros(len(array_end[0]))
-    for i in range(len(array_end[0])):
-        #find the indexes of the bins in the old arrays that will go to the new 
-        #one
-        index_lo = np.digitize(array_end[0][i],array_start[0],right=True)
-        index_hi = np.digitize(array_end[1][i],array_start[1])
-        #first: calculate the contribution excluding the bin edges
-        #loop over indexes of the incoming bins and do a bin-width weighted 
-        #average tbd: write clearer warning in case of index_lo = index_hi
-       
-        if index_lo == index_hi:
-            raise IndexError("Outgoing bin "+str(i)+" has just one incoming bin, check energy grids")
-       
-        for k in range(index_lo,index_hi):            
-            lower = np.max((array_start[0][k],array_end[0][i]))
-            upper = np.min((array_start[1][k],array_end[1][i]))
-            return_array[i] = return_array[i] + array[k]*(upper-lower)
-       
-        #second: include the contribution from the bin edges in order to 
-        #renormalize correctly
-        lower = array_end[0][i]
-        upper = array_start[0][index_lo]
-        return_array[i] = return_array[i] + array[index_lo-1]*(upper-lower)
-        lower = array_start[1][index_hi-1]
-        upper = array_end[1][i]     
-        return_array[i] = return_array[i] + array[index_hi+1]*(upper-lower)                       
-        return_array[i] = return_array[i]/(array_end[1][i]-array_end[0][i])
+    start_grid_center = 0.5*(start_grid[1] + start_grid[0])
+    #start_grid_widths = start_grid[1] - start_grid[0]
+    rebin_grid_center = 0.5*(rebin_grid[1] + rebin_grid[0])
+    #rebin_grid_widths = rebin_grid[1] - rebin_grid[0]
+
+    #find the indexes of the bins in the old arrays that will go to the new 
+    #one
+    index_lo_rebin = np.digitize(rebin_grid[0][:],start_grid[0])
+    index_hi_rebin = np.digitize(rebin_grid[1][:],start_grid[1])   
+
+    #set up the interpolation in case the new grid is finer than the old one 
+    array_interp = interp1d(start_grid_center, input_array)
     
-    return return_array
+    rebin_array = np.zeros(rebin_grid[0].shape)   
+    
+    for i in range(len(rebin_array)):
+        if (index_lo_rebin[i]-index_hi_rebin[i]) < 0:
+        #if we are rebinning to a coarser grid than the initial one, we need to 
+        #a) calculate a bin-width average value for the array and 
+        #b) explicitely account for the edges of the bins in the new bins being 
+        #split between initial grid bins 
+            for k in range(index_lo_rebin[i],index_hi_rebin[i]):            
+                lower = np.max((start_grid[0][k],rebin_grid[0][i]))
+                upper = np.min((start_grid[1][k],rebin_grid[1][i]))
+                rebin_array[i] = rebin_array[i] + input_array[k]*(upper-lower)
+            if i > 0:
+                lower = rebin_grid[0][i]
+                upper = start_grid[0][index_lo_rebin[i]]
+                rebin_array[i] = rebin_array[i] + input_array[index_lo_rebin[i]-1]*(upper-lower)
+            if i < len(rebin_array)-1:
+                lower = start_grid[1][index_hi_rebin[i]-1]
+                upper = rebin_grid[1][i]     
+                rebin_array[i] = rebin_array[i] + input_array[index_hi_rebin[i]+1]*(upper-lower)                       
+            rebin_array[i] = rebin_array[i]/(rebin_grid[1][i]-rebin_grid[0][i])
+        else:
+            #if instead the new grid is finer than the old one, interpolating is 
+            #safe (because really we are interpolating over a constant
+            rebin_array[i] = array_interp(rebin_grid_center[i])
+        
+    return rebin_array
