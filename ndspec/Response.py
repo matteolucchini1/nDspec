@@ -75,6 +75,11 @@ class ResponseMatrix(nDspecOperator):
         The instrument effective area as a function of energy as contained in 
         the arf file.
         
+    energ_rebin: bool
+        A flag to check whether the response was re-binned over energies, in 
+        which case folding requires a renormalization constant to conserve the
+        total photon counts  
+        
     has_arf: bool
         A flag to check whether only a rmf file has been loaded, or a full 
         rmf+arf response. This varies between observatories.           
@@ -124,13 +129,17 @@ class ResponseMatrix(nDspecOperator):
         self.emin = np.array(channel_info.field("E_MIN"))
         self.emax = np.array(channel_info.field("E_MAX"))
         self.chans = np.array(channel_info.field("CHANNEL"))
-        self.n_chans = len(self.chans)        
+        self.n_chans = len(self.chans)  
 
         self.energ_lo = np.array(data.field("ENERG_LO"))
         self.energ_hi = np.array(data.field("ENERG_HI"))
         self.n_energs = len(self.energ_lo)
         
         self.offset = self._get_tlmin(h)
+        #by default we assume we're loading a file that was not rebinned in 
+        #energy. This is needed to track whether a normalization constant due 
+        #to energy rebinning is required when folding
+        self.energ_rebin = False
         
         #We only need this information to convert the response to matrix format
         #so there is no need to store these as attributes 
@@ -287,11 +296,15 @@ class ResponseMatrix(nDspecOperator):
     
     #tbd: in the tutorial add an example of trying to rebin in energy rather 
     #than channel and show that it is dangerous
-    def rebin_response(self,new_bounds_lo,new_bounds_hi):
+    def rebin_channels(self,new_bounds_lo,new_bounds_hi):
         """
-        This method rebins the response matrix resp_matrix to an arbitrary, 
+        This method rebins the response matrix resp_matrix to an input, 
         continuous grid of channels, and updates the emin, emax and n_chans  
-        attributes appropriately. 
+        attributes appropriately. In order to avoid potential issues with gain 
+        shifting due bin edges, the method also re-aligns the input grid such 
+        that its bounds match the (finer) existing grid. With this method, both 
+        the probability to assign an energy channel to a recorded photon, and 
+        the total number of photons in the model, are conserved after rebinning.
         
         Parameters:
         ----------    
@@ -316,16 +329,18 @@ class ResponseMatrix(nDspecOperator):
             raise TypeError("Lower and upper bounds of new channel grid have different size")
         if len(new_bounds_lo) > self.n_chans:
             raise TypeError("You can not rebin to a finer channel grid")
+        #raise error if channels have 0 spacing
         
-        new_chans_lo,new_chans_hi = self._bounds_to_chans(new_bounds_lo,
-                                                          new_bounds_hi)
-        rebinned_response = np.zeros((self.n_energs,len(new_chans_lo)))
-        
+        #shift the new bounds to coincide match with the existing channel bounds
+        new_bounds_lo = self._align_grid(self.emin,new_bounds_lo)
+        new_bounds_hi = self._align_grid(self.emax,new_bounds_hi)
+        rebinned_response = np.zeros((self.n_energs,len(new_bounds_lo)))
+
+        #rebin by summing over all energy bins
         for j in range(self.n_energs):
-            rebinned_response[j,:] = rebin_array((self.chans[0:self.n_chans-1],
-                                                  self.chans[1:self.n_chans]),
-                                                 (new_chans_lo,new_chans_hi),
-                                                  self.resp_matrix[j,:])
+            rebinned_response[j,:] = self._rebin_sum(self.resp_matrix[j,:],
+                                                     (self.emin,self.emax),
+                                             (new_bounds_lo,new_bounds_hi))
         
         bin_resp = copy.copy(self)
         bin_resp.emin = new_bounds_lo
@@ -336,19 +351,23 @@ class ResponseMatrix(nDspecOperator):
 
         return bin_resp
 
-    def rebin_response_energy(self,new_bounds_lo,new_bounds_hi):
+    def rebin_energies(self,factor):
         """
-        This method rebins the response matrix resp_matrix to an arbitrary, 
-        continuous grid of energies, and updates the energ_lo, energ_hi and 
-        n_energs attributes appropriately. 
+        This method rebins the response matrix resp_matrix in energy by grouping
+        the a numer of existing binning (defined by the energ_lo and energ_hi 
+        attributes) in coarser bins. The input parameter "factor" controls how 
+        many bins of the old grid will be grouped in the new grid. With this 
+        method, both the probability to assign an energy channel to a recorded 
+        photon, and the total number of photons in the model, are conserved 
+        after rebinning.        
+        Note that rebinning in energy is VERY dangerous and should only be done
+        very carefully.
         
         Parameters:
         ----------    
-        new_bounds_lo: np.array(float)
-            An array of energies with the lower bound of each energy bin. 
-            
-        new_bounds_hi: np.array(float)  
-            An array of energies with the upper bound of each energy bin.     
+        factor: integer
+            The number of bins of the old energy grid that will be grouped in 
+            the new energy grid  
         
         Returns
         ---------- 
@@ -356,43 +375,48 @@ class ResponseMatrix(nDspecOperator):
             A ResponseMatrix object containing the same response loaded in the 
             self object, but rebinned over the energy axis to the input grid.
         """    
-        warnings.warn("WARNING: rebinning a response in energy is extremely dangerous use at your own risk!",
+        warnings.warn("WARNING: rebinning a response in energy is dangerous, use at your own risk!",
                       UserWarning)    
+        
+        new_bounds_lo = self._integer_slice(self.energ_lo,factor)
+        new_bounds_hi = self._integer_slice(self.energ_hi,factor)
 
-        if new_bounds_lo[0] < self.energ_lo[0]:
-            raise ValueError("New energy grid below lower limit of existing one")
-        if  new_bounds_hi[-1] > self.energ_hi[-1]:
-            raise ValueError("New energy grid above upper limit of existing one")
-        if len(new_bounds_lo) != len(new_bounds_hi):
-            raise TypeError("Lower and upper bounds of new energy grid have different size")
+        if factor < 1:
+            raise ValueError("You can not rebin to a finer energy grid")
         
         rebinned_response = np.zeros((len(new_bounds_lo),self.n_chans))
         bin_widths_start = self.energ_hi - self.energ_lo
         bin_widths_end = new_bounds_hi - new_bounds_lo
         
         for j in range(self.n_chans):
-            rebinned_response[:,j] = rebin_array((self.energ_lo,self.energ_hi),
-                                                 (new_bounds_lo,new_bounds_hi),
-                                                  self.resp_matrix[:,j]/ \
-                                                  bin_widths_start)
-            rebinned_response[:,j] = rebinned_response[:,j]*bin_widths_end
+            rebinned_response[:,j] = self._rebin_int(self.resp_matrix[:,j],
+                                             (self.energ_lo,self.energ_hi),
+                                             (new_bounds_lo,new_bounds_hi),
+                                                               renorm=True)
         
         bin_resp = copy.copy(self)
         bin_resp.energ_lo = new_bounds_lo
         bin_resp.energ_hi = new_bounds_hi
         bin_resp.n_energs = len(new_bounds_lo)
         bin_resp.resp_matrix = rebinned_response
+        #flag if the response object was rebinned in energy and save the 
+        #required normalization for folding models correctly
+        bin_resp.energ_rebin = True
+        bin_resp.rebin_renorm = self.n_energs/len(new_bounds_lo)
 
         return bin_resp
 
-    def convolve_response(self,model_input,norm="rate"):
+    def convolve_response(self,model_input,units_in="xspec",units_out="kev"):
         """
         This method applies the response matrix loaded in the class to a user
         defined mode. 
-        Two model normalizations are supported: either "rate" normalization, 
+        Two input model normalizations are supported: "rate" normalization, 
         which assumes the input is in units of count rate, or "xspec" 
         normalization, which assumes the model is in units of count rate times
         energy bin width. 
+        Two output normalizations are supported: "kev", in which case the model 
+        is returned in units of counts/s/kev, or "channel", in which case the  
+        model is returned in units of counts/s/channel.
         
         Parameters:
         ----------      
@@ -403,11 +427,16 @@ class ResponseMatrix(nDspecOperator):
             or b) a CrossSpectrum object from nDspec, containing the model cross
             spectrum to be folded with the instrument response.
             
-        norm: string, default="rate"
-            A string detailing the normalization of the model.  The default 
-            "rate" normalization assumes the input is in units of count rate;
+        units_in: string, default="rate"
+            A string detailing the normalization of the iinput model. The base 
             "xspec" normalization assumes the input is in units of count rate
-            times energy bin width.       
+            times energy bin width in each bin; "rate" normalization assumes the
+            input is in units of count rate in each bin. 
+            
+        units_out: string, default="kev"
+            A string setting the normalization of the output model. The default 
+            "kev" normalizations returns a model in units of counts/s/kev, 
+            "channel" instead returns a model in units of counts/s/channel.
         
         Returns
         ---------- 
@@ -438,15 +467,27 @@ class ResponseMatrix(nDspecOperator):
 
         #all the transpose calls are to get the right format for the matrix 
         #multiplication                 
-        if norm == "rate":
+        if units_in == "rate":
             bin_widths = self.energ_hi-self.energ_lo
             renorm_model = np.multiply(np.transpose(unfolded_model),bin_widths)
             conv_model = np.matmul(renorm_model,self.resp_matrix)
-        elif norm == "xspec":
+        elif units_in == "xspec":
             trans_model = np.transpose(unfolded_model)
             conv_model = np.matmul(trans_model,self.resp_matrix)
         else:
             raise ValueError("Please specify units of either count rate or count rate normalized to bin width")
+        
+        #get the right output units 
+        #renormalize if the response was rebinned over energies
+        if self.energ_rebin == True:
+            conv_model = conv_model*self.rebin_renorm        
+        #convert to per kev units if desired:
+        if units_out == "kev":
+            bin_widths = self.emax-self.emin
+            conv_model = conv_model/bin_widths 
+        elif units_out != "channel":
+            raise ValueError("Output units incorrect, specify either kev or channel")
+        #finally transpose to obtain the correct format 
         conv_model = np.transpose(conv_model)
         
         if isinstance(model_input,CrossSpectrum):
@@ -481,8 +522,9 @@ class ResponseMatrix(nDspecOperator):
             raise TypeError("Specify either channel or energy for the x-axis")
                 
         energy_array = (self.energ_hi+self.energ_lo)/2.
-        plt.pcolormesh(x_axis,energy_array,np.log10(self.resp_matrix),
-                   cmap="PuRd",shading='auto',linewidth=0,rasterized=True)
+        p = plt.pcolormesh(x_axis,energy_array,np.log10(self.resp_matrix),
+                           cmap="PuRd",shading='auto',linewidth=0,rasterized=True)
+        fig.colorbar(p)
         plt.ylabel("Energy (keV)")
         plt.title("log10(Response)")
         plt.show()
@@ -526,7 +568,7 @@ class ResponseMatrix(nDspecOperator):
             return   
 
         
-    def diagonal_matrx(self,num):
+    def diagonal_matrix(self,num):
         """
         Returns a diagonal identity matrix, which by definition contains only
         ones on the diagonal and zeroes  otherwise.
@@ -547,75 +589,4 @@ class ResponseMatrix(nDspecOperator):
               
     def unfold_response(self):    
         print("TBD once the data+model side is complete")
-        
-#tbd: move this to be an operator method 
-def rebin_array(start_grid,rebin_grid,input_array):
-    """
-    This function can be used to rebin an input array, from an arbitrarily 
-    defined initial grid array_start, to an arbitrarily defined grid array_end. 
-    The flexibility of this function comes at a large computational cost, so it
-    should only be used when strictly necessary, and never during fitting.
-    
-    Parameters:
-    ---------- 
-    start_grid: np.array(float), np.array(float)
-        A two-dimensional list of arrays. The first array contains the lower 
-        bounds of the initial grid over which the input "array" is defined, the 
-        second array containst the upper bounds of the same grid.          
 
-    rebin_grid: np.array(float), np.array(float)
-        A two-dimensional list of arrays. The first array contains the lower 
-        bounds of the final grid over which the input "array" is to be rebinned,  
-        the second array containst the upper bounds of the same grid.      
-
-    input_array: np.array(float)
-        An array of length identical to either element of array_start, 
-        containing the array that the user wishes to be rebinned to the new grid 
-        array_end.
-    
-    Returns
-    ----------    
-    rebin_array: np.float 
-        An array of length identical to either element of array_end, 
-        containing the rebinned array.
-    """
-    start_grid_center = 0.5*(start_grid[1] + start_grid[0])
-    #start_grid_widths = start_grid[1] - start_grid[0]
-    rebin_grid_center = 0.5*(rebin_grid[1] + rebin_grid[0])
-    #rebin_grid_widths = rebin_grid[1] - rebin_grid[0]
-
-    #find the indexes of the bins in the old arrays that will go to the new 
-    #one
-    index_lo_rebin = np.digitize(rebin_grid[0][:],start_grid[0])
-    index_hi_rebin = np.digitize(rebin_grid[1][:],start_grid[1])   
-
-    #set up the interpolation in case the new grid is finer than the old one 
-    array_interp = interp1d(start_grid_center, input_array)
-    
-    rebin_array = np.zeros(rebin_grid[0].shape)   
-    
-    for i in range(len(rebin_array)):
-        if (index_lo_rebin[i]-index_hi_rebin[i]) < 0:
-        #if we are rebinning to a coarser grid than the initial one, we need to 
-        #a) calculate a bin-width average value for the array and 
-        #b) explicitely account for the edges of the bins in the new bins being 
-        #split between initial grid bins 
-            for k in range(index_lo_rebin[i],index_hi_rebin[i]):            
-                lower = np.max((start_grid[0][k],rebin_grid[0][i]))
-                upper = np.min((start_grid[1][k],rebin_grid[1][i]))
-                rebin_array[i] = rebin_array[i] + input_array[k]*(upper-lower)
-            if i > 0:
-                lower = rebin_grid[0][i]
-                upper = start_grid[0][index_lo_rebin[i]]
-                rebin_array[i] = rebin_array[i] + input_array[index_lo_rebin[i]-1]*(upper-lower)
-            if i < len(rebin_array)-1:
-                lower = start_grid[1][index_hi_rebin[i]-1]
-                upper = rebin_grid[1][i]     
-                rebin_array[i] = rebin_array[i] + input_array[index_hi_rebin[i]+1]*(upper-lower)                       
-            rebin_array[i] = rebin_array[i]/(rebin_grid[1][i]-rebin_grid[0][i])
-        else:
-            #if instead the new grid is finer than the old one, interpolating is 
-            #safe (because really we are interpolating over a constant
-            rebin_array[i] = array_interp(rebin_grid_center[i])
-        
-    return rebin_array
