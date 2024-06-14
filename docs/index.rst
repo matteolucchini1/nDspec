@@ -21,7 +21,8 @@ Table of contents
 .. toctree::
     :maxdepth: 1
     
-    response   
+    response_basics
+    response_optimization   
     timing
     numerics
 

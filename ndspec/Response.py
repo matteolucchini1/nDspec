@@ -379,14 +379,12 @@ class ResponseMatrix(nDspecOperator):
                       UserWarning)    
         
         new_bounds_lo = self._integer_slice(self.energ_lo,factor)
-        new_bounds_hi = self._integer_slice(self.energ_hi,factor)
+        new_bounds_hi = np.append(new_bounds_lo[1:],self.energ_hi[-1])#self._integer_slice(self.energ_hi,factor)
 
         if factor < 1:
             raise ValueError("You can not rebin to a finer energy grid")
         
         rebinned_response = np.zeros((len(new_bounds_lo),self.n_chans))
-        bin_widths_start = self.energ_hi - self.energ_lo
-        bin_widths_end = new_bounds_hi - new_bounds_lo
         
         for j in range(self.n_chans):
             rebinned_response[:,j] = self._rebin_int(self.resp_matrix[:,j],
@@ -399,10 +397,6 @@ class ResponseMatrix(nDspecOperator):
         bin_resp.energ_hi = new_bounds_hi
         bin_resp.n_energs = len(new_bounds_lo)
         bin_resp.resp_matrix = rebinned_response
-        #flag if the response object was rebinned in energy and save the 
-        #required normalization for folding models correctly
-        bin_resp.energ_rebin = True
-        bin_resp.rebin_renorm = self.n_energs/len(new_bounds_lo)
 
         return bin_resp
 
@@ -476,11 +470,7 @@ class ResponseMatrix(nDspecOperator):
             conv_model = np.matmul(trans_model,self.resp_matrix)
         else:
             raise ValueError("Please specify units of either count rate or count rate normalized to bin width")
-        
-        #get the right output units 
-        #renormalize if the response was rebinned over energies
-        if self.energ_rebin == True:
-            conv_model = conv_model*self.rebin_renorm        
+            
         #convert to per kev units if desired:
         if units_out == "kev":
             bin_widths = self.emax-self.emin
