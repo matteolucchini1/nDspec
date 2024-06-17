@@ -542,7 +542,7 @@ class ResponseMatrix(nDspecOperator):
         fig = plt.figure(figsize=(9.,7.5))
         plt.plot(energy_array,self.specresp,linewidth=2.5,color=colorscale[3])
         plt.xlabel("Energy (keV)")
-        plt.ylabel("Effective area")
+        plt.ylabel("Effective area (cm$^{2}$)")
         plt.yscale("log",base=10)
         
         if plot_scale == "log":
