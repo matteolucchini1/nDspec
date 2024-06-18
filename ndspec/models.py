@@ -191,7 +191,7 @@ def plot_2d(xaxis,yaxis,impulse_2d,impulse_x,impulse_y,
     below.set_xlim(xlim)
     below.set_ylim([1e-4*(max(impulse_x)),2.5*max(impulse_x)])
 
-    side.plot(impulse_y,yaxis,linewidth=2.5,color=colorscale[3])
+    side.step(impulse_y,yaxis,linewidth=2.5,color=colorscale[3],where='mid')
     side.invert_xaxis()
     side.yaxis.tick_right()
     side.yaxis.set_label_position('right')

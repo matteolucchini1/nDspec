@@ -20,6 +20,231 @@ class nDspecOperator(object):
     def __init__(self):
         pass
 
+    def _rebin(self,array,start_grid,rebin_grid,method,renorm):
+        rebin_array = np.start_grid(len(rebin_grid))
+        
+        if method == 'weighted':
+            rebin_array = self._rebin_weighted(array,start_grid,rebin_grid)
+        elif method == 'sum':
+            rebin_array = self._rebin_sum(array,start_grid,rebin_grid,renorm)
+        elif method == 'int':
+            rebin_array = self._rebin_int(array,start_grid,rebin_grid,renorm)
+        else:
+            raise ValueError("Rebinning method not recognized")
+            
+        return rebin_array
+        
+    def _rebin_weighted(self,array,start_grid,rebin_grid):
+        """
+        This method can be used to rebin an input array, from an arbitrarily 
+        defined initial grid start_grid, to an arbitrarily defined grid 
+        rebin_grid. The rebinned output is calculated by calculating a bin-width 
+        weighted average of the input array.
+        
+        Parameters:
+        ---------- 
+        array: np.array(float)
+            An array of length identical to either element of array_start, 
+            containing the array that the user wishes to be rebinned to the new 
+            grid rebin_grid.
+
+        start_grid: np.array(float), np.array(float)
+            A two-dimensional list of arrays. The first array contains the lower 
+            bounds of the initial grid over which the input "array" is defined, 
+            the second array contains the upper bounds of the same grid.          
+
+        rebin_grid: np.array(float), np.array(float)
+            A two-dimensional list of arrays. The first array contains the lower 
+            bounds of the final grid over which the input "array" is to be 
+            rebinned, the second array contains the upper bounds of the same 
+            grid.      
+        
+        Returns
+        ----------    
+        rebin_array: np.float 
+            An array of length identical to either element of rebin_grid, 
+            containing the rebinned array.
+        """
+        #set up explicit arrays for the grid edges, centers and widths
+        start_lo = start_grid[0]
+        start_hi = start_grid[1]
+        rebin_lo = rebin_grid[0]
+        rebin_hi = rebin_grid[1]
+        start_grid_center = self._grid_bounds_to_midpoint(start_lo,start_hi)
+        start_grid_widths = self._grid_bounds_to_widths(start_lo,start_hi)
+        rebin_grid_center = self._grid_bounds_to_midpoint(rebin_lo,rebin_hi)
+        rebin_grid_widths = self._grid_bounds_to_widths(rebin_lo,rebin_hi)
+        
+        #find the indexes of the bins in the old arrays that will go to the new 
+        #one
+        index_lo = np.digitize(rebin_lo,start_lo)
+        index_hi = np.digitize(rebin_hi,start_hi)   
+
+        #set up the interpolation in case the new grid is finer than the old one 
+        array_interp = interp1d(start_grid_center,array,fill_value='extrapolate')        
+        rebin_array = np.zeros(rebin_lo.shape)    
+        
+        for i in range(len(rebin_array)):
+            if (index_lo[i]-index_hi[i]) < 0:
+            #if we are rebinning to a coarser grid than the initial one, we need to 
+            #a) calculate a bin-width average value for the array and 
+            #b) explicitely account for the edges of the bins in the new bins being 
+            #split between initial grid bins 
+                for k in range(index_lo[i],index_hi[i]): 
+                    rebin_array[i] = rebin_array[i] + array[k]*\
+                                     (start_grid_widths[k])                 
+                rebin_array[i] = rebin_array[i] + array[index_lo[i]-1]*\
+                                 (start_lo[index_lo[i]]-rebin_lo[i])
+                rebin_array[i] = rebin_array[i] + array[k+1]*\
+                                 (rebin_hi[i] - start_hi[k])    
+                rebin_array[i] =  rebin_array[i]/rebin_grid_widths[i]           
+            else:
+                #if instead the new grid is finer than the old one, interpolating is 
+                #safe (because really we are interpolating over a constant)
+                rebin_array[i] = array_interp(rebin_grid_center[i])            
+            
+        return rebin_array    
+        
+    def _rebin_sum(self,array,start_grid,rebin_grid,renorm=False):
+        """
+        This function can be used to rebin an input array from an initial grid 
+        "start_grid" to a final grid "rebin_grid". "Rebin_grid" must be coarser
+        than "start_grid". Additionally, the edges of each bin in "rebin_grid"
+        must match with the edge of a bin in "start_grid".The rebinned output is 
+        calculated by summing all the bins in "start_grid" that are contained 
+        within a bin in "rebin_grid"; if users choose to, they can renormalize 
+        each final bin by the number of bins that were included in the sum. This 
+        method is analogous to that used by Heasoft in "ftrbnrmf" to rebin 
+        responses over channels.
+        
+        Parameters:
+        ---------- 
+        array: np.array(float)
+            An array of length identical to either element of array_start, 
+            containing the array that the user wishes to be rebinned to the new 
+            grid rebin_grid.
+
+        start_grid: np.array(float), np.array(float)
+            A two-dimensional list of arrays. The first array contains the lower 
+            bounds of the initial grid over which the input "array" is defined, 
+            the second array contains the upper bounds of the same grid.          
+
+        rebin_grid: np.array(float), np.array(float)
+            A two-dimensional list of arrays. The first array contains the lower 
+            bounds of the final grid over which the input "array" is to be 
+            rebinned, the second array contains the upper bounds of the same 
+            grid. 
+            
+        renorm: bool, default=False
+            A bool to decide whether each bin in the final array should be 
+            renormalized by the number of bins the initial grid that were summed 
+            in it.     
+        
+        Returns
+        ----------    
+        rebin_array: np.float 
+            An array of length identical to either element of rebin_grid, 
+            containing the rebinned array.
+        """
+        #set up explicit arrays for the grid edges
+        start_lo = start_grid[0]
+        start_hi = start_grid[1]
+        rebin_lo = rebin_grid[0]
+        rebin_hi = rebin_grid[1]
+        
+        #find the indexes of the bins in the old arrays that will go to the new 
+        #one
+        index_lo = np.digitize(rebin_lo,start_lo)
+        index_hi = np.digitize(rebin_hi,start_hi)    
+        
+        rebin_array = np.zeros(rebin_lo.shape)    
+        
+        for i in range(len(rebin_array)):
+            #find out how many bins to sum together by checking whether we're 
+            #reaching the end of the (final) grid 
+            if (i < len(rebin_array)-1):
+                upper_bin = index_hi[i]+1
+            else:
+                upper_bin = len(start_lo)
+            #In this case, we assume the bin edges are aligned before calling 
+            #the rebinning, so we do not need to care about edge effects
+            counter = 0
+            for k in range(index_lo[i],upper_bin): 
+                rebin_array[i] = rebin_array[i] + array[k] 
+                counter = counter + 1
+            if (renorm == True):
+                rebin_array[i] = rebin_array[i]/counter                    
+            
+        return rebin_array         
+            
+    def _rebin_int(self,array,start_grid,rebin_grid,renorm=False):
+        """
+        This function can be used to rebin an input array from an initial grid 
+        "start_grid" to a final grid "rebin_grid". "Rebin_grid" must be coarser
+        than "start_grid", and it must contain a fixed number of bins from the 
+        initial grid. If users choose to, they can renormalize each final bin by 
+        the number of bins that were included in the sum. This method is 
+        analogous to that used by Heasoft in "ftrbnrmf" to rebin responses over 
+        energy.
+        
+        Parameters:
+        ---------- 
+        array: np.array(float)
+            An array of length identical to either element of array_start, 
+            containing the array that the user wishes to be rebinned to the new 
+            grid rebin_grid.
+
+        start_grid: np.array(float), np.array(float)
+            A two-dimensional list of arrays. The first array contains the lower 
+            bounds of the initial grid over which the input "array" is defined, 
+            the second array contains the upper bounds of the same grid.          
+
+        rebin_grid: np.array(float), np.array(float)
+            A two-dimensional list of arrays. The first array contains the lower 
+            bounds of the final grid over which the input "array" is to be 
+            rebinned, the second array contains the upper bounds of the same 
+            grid.      
+ 
+         renorm: bool, default=False
+            A bool to decide whether each bin in the final array should be 
+            renormalized by the number of bins the initial grid that were summed 
+            in it.     
+        
+        Returns
+        ----------    
+        rebin_array: np.float 
+            An array of length identical to either element of rebin_grid, 
+            containing the rebinned array.
+        """
+        #set up explicit arrays for the grid edges
+        #because in this case the grids are much simpler to handle, we only need 
+        #information from either the lower (used here) or upper bound arrays 
+        start_lo = start_grid[0]
+        rebin_lo = rebin_grid[0]
+        #find the indexes of the bins in the old arrays that will go to the new one
+        #the factor -1 here is required because otherwise digitize grabs the elements 
+        #starting from element 1 in the array, instead of element 0       
+        indexes = np.digitize(rebin_lo,start_lo)-1
+        rebin_array = np.zeros(rebin_lo.shape) 
+
+        for i in range(len(rebin_array)):
+            #find out how many bins to sum together by checking whether we're 
+            #reaching the end of the (final) grid 
+            if (i < len(rebin_array)-1):
+                upper_bin = indexes[i+1]
+            else:
+                upper_bin = len(start_lo)
+            counter = 0
+            #In this case, we assume the bin edges are aligned before calling 
+            #the rebinning, so we do not need to care about edge effects
+            for k in range(indexes[i],upper_bin): 
+                rebin_array[i] = rebin_array[i] + array[k] 
+                counter = counter + 1
+            if (renorm == True):
+                rebin_array[i] = rebin_array[i]/counter             
+            
+        return rebin_array
+
     def _interpolate(self,array,old_grid,new_grid,use_log=True,grid_tol=1e-4):
         """
         This method interpolats a one-dimensional input, defined over 
@@ -130,6 +355,67 @@ class nDspecOperator(object):
             raise ValueError("Incorrect axis specified")
         
         return integral
+
+    def _integer_slice(self,grid,factor):
+        """
+        This method returns an array containig only one in "factor" elements of 
+        the input array "grid".
+        
+        Parameters:
+        ----------
+        grid: np.array(float)
+            The array to be sliced.
+            
+        factor: integer
+            The fract of elements of the input to keep; e.g. factor = 3 means 
+            that one in 3 elements, starting from the 0th and rounded down to 
+            the nearest integer, will be kept.
+        
+        Returns
+        ----------     
+        sliced_grid: float 
+            The input array sliced by a factor "factor".
+        """
+
+        sliced_grid = grid[::factor].copy()
+        return sliced_grid
+
+    def _align_grid(self,start_grid,rebin_grid):
+        """
+        This method takes an input array "rebin_grid", containing either the 
+        lower or upper bin edges of a grid, and aligns the edges so that 
+        they match with the edges of a fixed grid "starting_grid".
+        
+        Parameters:
+        ----------  
+        start_grid: np.array(float)
+            An array containing either the lower or upper bounds of the fixed
+            grid.          
+
+        rebin_grid: np.array(float)
+            An array containing either the lower or upper bounds of the grid to 
+            be re-aligned.        
+ 
+        
+        Returns:
+        ----------   
+        aligned_grid: np.array(float) 
+            An array with the same size as the "rebin_grid" input. Made of the 
+            closest elements of the fixed "rebin_grid" to the initial input 
+            "rebin_grid".
+        """
+        indexes = np.digitize(rebin_grid,start_grid)-1
+        diff_hi = np.abs(rebin_grid-start_grid[indexes])
+        diff_lo = np.abs(rebin_grid-start_grid[indexes-1])
+        aligned_grid = np.zeros(len(rebin_grid))
+
+        for i in range(len(rebin_grid)):
+            if diff_hi[i] < diff_lo[i]:
+                aligned_grid[i] = start_grid[indexes[i]]
+            else:
+                aligned_grid[i] = start_grid[indexes[i]-1] 
+
+        return aligned_grid
 
     def _grid_bounds_to_range(self,grid_lower_bounds,grid_upper_bounds):
         """
