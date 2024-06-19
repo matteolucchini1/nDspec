@@ -255,6 +255,8 @@ class ResponseMatrix(nDspecOperator):
             self.exposure = hdr["EXPOSURE"]
         else:
             self.exposure = 1.0
+            print(("No exposure header found in ARF, setting exposure time to"
+                  " 1 second"))
         
         for k in range(self.n_chans):
             for j in range(self.n_energs):
@@ -375,8 +377,8 @@ class ResponseMatrix(nDspecOperator):
             A ResponseMatrix object containing the same response loaded in the 
             self object, but rebinned over the energy axis to the input grid.
         """    
-        warnings.warn("WARNING: rebinning a response in energy is dangerous, use at your own risk!",
-                      UserWarning)    
+        warnings.warn(("WARNING: rebinning a response in energy is dangerous,"
+                     " use at your own risk!"), UserWarning)    
         
         new_bounds_lo = self._integer_slice(self.energ_lo,factor)
         new_bounds_hi = np.append(new_bounds_lo[1:],self.energ_hi[-1])#self._integer_slice(self.energ_hi,factor)
@@ -457,7 +459,8 @@ class ResponseMatrix(nDspecOperator):
            unfolded_model = model_input 
     
         if np.shape(self.resp_matrix)[0] != np.shape(unfolded_model)[0]:
-            raise TypeError("Model energy grid has a different size from response")    
+            raise TypeError(("Model energy grid has a different size from"
+                             " response"))    
 
         #all the transpose calls are to get the right format for the matrix 
         #multiplication                 
@@ -469,14 +472,16 @@ class ResponseMatrix(nDspecOperator):
             trans_model = np.transpose(unfolded_model)
             conv_model = np.matmul(trans_model,self.resp_matrix)
         else:
-            raise ValueError("Please specify units of either count rate or count rate normalized to bin width")
+            raise ValueError(("Please specify units of either count rate or"
+                              " count rate normalized to bin width"))
             
         #convert to per kev units if desired:
         if units_out == "kev":
             bin_widths = self.emax-self.emin
             conv_model = conv_model/bin_widths 
         elif units_out != "channel":
-            raise ValueError("Output units incorrect, specify either kev or channel")
+            raise ValueError(("Output units incorrect, specify either kev or"
+                              " channel"))
         #finally transpose to obtain the correct format 
         conv_model = np.transpose(conv_model)
         
@@ -513,7 +518,8 @@ class ResponseMatrix(nDspecOperator):
                 
         energy_array = (self.energ_hi+self.energ_lo)/2.
         p = plt.pcolormesh(x_axis,energy_array,np.log10(self.resp_matrix),
-                           cmap="PuRd",shading='auto',linewidth=0,rasterized=True)
+                           cmap="PuRd",shading='auto',linewidth=0,
+                           rasterized=True)
         fig.colorbar(p)
         plt.ylabel("Energy (keV)")
         plt.title("log10(Response)")
@@ -533,8 +539,8 @@ class ResponseMatrix(nDspecOperator):
         Parameters:
         ----------             
         plot_scale: string, default="log"
-            Switches between log10(arf) (plot_scale="log", the default behavior)
-            and just the arf (plot_scale="lin").  
+            Switches between log10(arf) (plot_scale="log", the default 
+            behavior) and just the arf (plot_scale="lin").  
         """
     
         #tbd: only allow this to happen if specresp is defined
@@ -548,7 +554,8 @@ class ResponseMatrix(nDspecOperator):
         if plot_scale == "log":
             plt.xscale("log",base=10)
         elif plot_scale != "lin":
-            raise TypeError("Please specify either linear (lin) or logarithmic (log) x scale") 
+            raise TypeError(("Please specify either linear (lin) or"
+                             " logarithmic (log) x scale")) 
         
         plt.show()
         
@@ -579,4 +586,94 @@ class ResponseMatrix(nDspecOperator):
               
     def unfold_response(self):    
         print("TBD once the data+model side is complete")
+    
+    def ignore_bins(self,high=0,low=0,high_energy=0,low_energy=0):
+        """
+        Returns an adjusted response matrix that ignores selected bins.
+        Useful in the rare case where you don't have model outputs that cover
+        an entire instrument response.
 
+        Parameters
+        ----------
+        high : int, optional
+            Ending index of ignored energy bin. The default is 0.
+        low : int, optional
+            Beginning index of ignored energy . The default is 0.
+        high_energy : float, optional
+            Higher bound of ignored energy . The default is 0.
+        low : int, optional
+            Lower bound of ignored energy . The default is 0.
+
+        Returns
+        -------
+        None.
+
+        """
+        if (high == 0 & low ==0) & (high_energy == 0 & low_energy ==0):
+            raise ValueError("Specify ignored energy ranges or energy bins")
+        
+        if type(high) != int & type(low) != int:
+            raise TypeError("Bin indexes must be integers")
+        
+        if ((isinstance(high_energy, (np.floating, float, int)) != True)|
+            (isinstance(low_energy, (np.floating, float, int)) != True)):
+            raise TypeError("Energy bounds must be floats or integers")
+            
+        if (high >= self.nchans)|(low < 0):
+            raise ValueError("Indexes must be within energy channel ranges")
+        
+        if (high_energy > np.max(self.emin))|(low_energy < np.min(self.emin)):
+            raise ValueError(("Specified energies must be within energy"
+                              " response ranges."))
+            
+        if (high_energy == 0 & low_energy ==0) != True:
+            bounds = np.argwhere((self.energ_lo>low_energy)&
+                                 (self.energ_lo<high_energy))
+            self.emax        = self.emax[bounds]
+            self.chans       = self.chans[bounds]
+            self.emin        = self.emin[bounds]
+            self.nchans      = len(self.chans)        
+        
+            self.energ_hi    = self.energ_hi[bounds]
+            self.energ_lo    = self.energ_lo[bounds]
+        elif (high == 0 & low ==0):
+            self.emax        = self.emax[low:high]
+            self.chans       = self.chans[low:high]
+            self.emin        = self.emin[low:high]
+            self.nchans      = len(self.chans)        
+        
+            self.energ_hi    = self.energ_hi[low:high]
+            self.energ_lo    = self.energ_lo[low:high]
+        
+        self.numenerg    = len(self.energ_lo)
+        
+        numerg_diff      = self.resp_matrix.shape[0] - self.numenerg
+        numchan_diff     = self.resp_matrix.shape[1] - self.nchans
+        
+        self.resp_matrix = self.resp_matrix[numerg_diff-1:,numchan_diff:]
+        return
+    
+    def set_exposure_time(self,time):
+        """
+        Adjusts the response matrix to a new time. Some mission's FITS files
+        do not contain this information and thus need to be set manually.
+
+        Parameters
+        ----------
+        time : float
+            Exposure time of observation.
+
+        Returns
+        -------
+        None.
+
+        """
+        if (isinstance(time, (np.floating, float, int)) != True):
+            raise TypeError("Time must be a float or integer")
+        
+        factor = time/self.exposure
+        
+        self.resp_matrix = self.resp_matrix*factor
+        self.exposure = time
+        
+        return
