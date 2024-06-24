@@ -587,7 +587,7 @@ class ResponseMatrix(nDspecOperator):
     def unfold_response(self):    
         print("TBD once the data+model side is complete")
     
-    def ignore_bins(self,high=0,low=0,high_energy=0,low_energy=0):
+    def ignore_bins(self,high_bin=0,low_bin=0,high_energy=0,low_energy=0):
         """
         Returns an adjusted response matrix that ignores selected bins.
         Useful in the rare case where you don't have model outputs that cover
@@ -595,10 +595,10 @@ class ResponseMatrix(nDspecOperator):
 
         Parameters
         ----------
-        high : int, optional
+        high_bin : int, optional
             Ending index of ignored energy bin. The default is 0.
-        low : int, optional
-            Beginning index of ignored energy . The default is 0.
+        low_bin : int, optional
+            Beginning index of ignored energy bin. The default is 0.
         high_energy : float, optional
             Higher bound of ignored energy . The default is 0.
         low : int, optional
@@ -606,52 +606,46 @@ class ResponseMatrix(nDspecOperator):
 
         Returns
         -------
-        None.
+        resp_matrix : ResponseMatrix
+            A ResponseMatrix object containing the same response loaded in the 
+            self object, but ignoring specified energy channels.
 
         """
-        if (high == 0 & low ==0) & (high_energy == 0 & low_energy ==0):
+        if (high_bin == 0 & low_bin ==0) & (high_energy == 0 & low_energy ==0):
             raise ValueError("Specify ignored energy ranges or energy bins")
         
-        if type(high) != int & type(low) != int:
+        if type(high_bin) != int & type(low_bin) != int:
             raise TypeError("Bin indexes must be integers")
         
         if ((isinstance(high_energy, (np.floating, float, int)) != True)|
             (isinstance(low_energy, (np.floating, float, int)) != True)):
             raise TypeError("Energy bounds must be floats or integers")
             
-        if (high >= self.nchans)|(low < 0):
+        if (high_bin >= self.nchans)|(low_bin < 0):
             raise ValueError("Indexes must be within energy channel ranges")
         
         if (high_energy > np.max(self.emin))|(low_energy < np.min(self.emin)):
             raise ValueError(("Specified energies must be within energy"
                               " response ranges."))
-            
+        
+        new_resp = copy.copy(self)
         if (high_energy == 0 & low_energy ==0) != True:
-            bounds = np.argwhere((self.energ_lo>low_energy)&
-                                 (self.energ_lo<high_energy))
-            self.emax        = self.emax[bounds]
-            self.chans       = self.chans[bounds]
-            self.emin        = self.emin[bounds]
-            self.nchans      = len(self.chans)        
+            bounds = np.argwhere((self.energ_lo<low_energy)&
+                                 (self.energ_lo>high_energy))
+            new_resp.emax        = new_resp.emax[~bounds]
+            new_resp.chans       = new_resp.chans[~bounds]
+            new_resp.emin        = new_resp.emin[~bounds]
+            new_resp.nchans      = len(new_resp.chans)        
+        elif (high_bin == 0 & low_bin ==0):
+            new_resp.emax        = new_resp.emax[low_bin:high_bin]
+            new_resp.chans       = new_resp.chans[low_bin:high_bin]
+            new_resp.emin        = new_resp.emin[low_bin:high_bin]
+            new_resp.nchans      = len(new_resp.chans)        
         
-            self.energ_hi    = self.energ_hi[bounds]
-            self.energ_lo    = self.energ_lo[bounds]
-        elif (high == 0 & low ==0):
-            self.emax        = self.emax[low:high]
-            self.chans       = self.chans[low:high]
-            self.emin        = self.emin[low:high]
-            self.nchans      = len(self.chans)        
+        numchan_diff     = new_resp.resp_matrix.shape[1] - new_resp.nchans
         
-            self.energ_hi    = self.energ_hi[low:high]
-            self.energ_lo    = self.energ_lo[low:high]
-        
-        self.numenerg    = len(self.energ_lo)
-        
-        numerg_diff      = self.resp_matrix.shape[0] - self.numenerg
-        numchan_diff     = self.resp_matrix.shape[1] - self.nchans
-        
-        self.resp_matrix = self.resp_matrix[numerg_diff-1:,numchan_diff:]
-        return
+        new_resp.resp_matrix = new_resp.resp_matrix[:,numchan_diff:]
+        return new_resp
     
     def set_exposure_time(self,time):
         """

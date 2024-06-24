@@ -4,3 +4,6 @@ ndspec/tests/__pycache__
 
 notebooks/api
 notebooks/_build
+
+.DS_Store
+ndspec/.DS_Store
