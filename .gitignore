@@ -7,3 +7,6 @@ notebooks/_build
 
 .DS_Store
 ndspec/.DS_Store
+
+.ipynb_checkpoints/
+powerlaw_tests.ipynb
