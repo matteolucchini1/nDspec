@@ -1598,8 +1598,8 @@ class CrossSpectrum(FourierProduct):
                                   self.lag()[energy_indexes,:])
             
             fig, ((ax1,ax2,ax3)) = plt.subplots(1,3,figsize=(15.,5.))
-            modulus = ax1.pcolormesh(self.freqs,self.energ,plot_mod,
-                                     cmap="magma_r",shading='auto',
+            modulus = ax1.pcolormesh(self.freqs,self.energ,np.log10(plot_mod),
+                                     cmap="magma",shading='auto',
                                      linewidth=0,rasterized=True)
             cb = fig.colorbar(modulus,ax=ax1,format="%.1f")            
             ax1.set_xscale("log",base=10)

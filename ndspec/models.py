@@ -96,7 +96,7 @@ def bbody(array, params):
     model = renorm*np.power(array,2.)/planck
     return model 
     
-def gauss_fred(array1,array2,params):
+def gauss_fred(array1,array2,params,return_full=False):
     times = array1
     energy = array2
     if params.ndim == 1:
@@ -144,11 +144,12 @@ def gauss_fred(array1,array2,params):
             pulse_profile[j] = np.sum(fred_pulse[j],axis=0)
     else:
         raise TypeError("Params has too many dimensions, limit to 1 or 2 dimensions")
-        
+    if return_full is True:
+        return fred_pulse, line_profile, pulse_profile
+    else:
+        return fred_pulse
     
-    return fred_pulse, line_profile, pulse_profile
-    
-def gauss_bkn(array1,array2,params):
+def gauss_bkn(array1,array2,params,return_full=False):
     times = array1
     energy = array2
     if params.ndim == 1:
@@ -194,8 +195,10 @@ def gauss_bkn(array1,array2,params):
             pulse_profile[j] = np.sum(brk_pulse[j],axis=0)
     else:
         raise TypeError("Params has too many dimensions, limit to 1 or 2 dimensions")
-    
-    return brk_pulse, line_profile, pulse_profile
+    if return_full is True:
+        return brk_pulse, line_profile, pulse_profile
+    else:
+        return brk_pulse
     
 def pivoting_pl(array1,array2,params):
     freqs = array1
@@ -232,12 +235,10 @@ def pivoting_pl(array1,array2,params):
         piv_factor = 1 - (gamma_nu*np.exp(1j*phase))[:,np.newaxis,:]*log_energ
         pivoting = piv_factor*powerlaw_shape[:,:,np.newaxis]
     else:
-        raise TypeError("Params has too many dimensions, limit to 1 or 2 dimensions")
-    
-    
+        raise TypeError("Params has too many dimensions, limit to 1 or 2 dimensions")      
     return pivoting    
     
-def bbody_fred(array1,array2,params):
+def bbody_fred(array1,array2,params,return_full=False):
     times = array1
     energy = array2 
     if params.ndim == 1:
@@ -280,11 +281,12 @@ def bbody_fred(array1,array2,params):
             pulse_profile[j] = np.sum(fred_pulse[j],axis=0)
     else:
         raise TypeError("Params has too many dimensions, limit to 1 or 2 dimensions")
+    if return_full is True:
+        return fred_pulse, model_profile, line_profile
+    else:
+        return fred_pulse
     
-    
-    return fred_pulse, model_profile, pulse_profile  
-    
-def bbody_bkn(array1,array2,params):
+def bbody_bkn(array1,array2,params,return_full=False):
     times = array1
     energy = array2 
     if params.ndim == 1:
@@ -326,8 +328,10 @@ def bbody_bkn(array1,array2,params):
             pulse_profile[j] = np.sum(brk_pulse[j],axis=0)
     else:
         raise TypeError("Params has too many dimensions, limit to 1 or 2 dimensions")
-    
-    return brk_pulse, model_profile, pulse_profile   
+    if return_full is True:
+        return brk_pulse, model_profile, pulse_profile
+    else:
+        return brk_pulse  
     
 def plot_2d(xaxis,yaxis,impulse_2d,impulse_x,impulse_y,
             xlim=[0.,400.],ylim=[0.1,10.5],xlog=False,ylog=False,
