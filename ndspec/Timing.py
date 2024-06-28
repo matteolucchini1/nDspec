@@ -107,7 +107,7 @@ class FourierProduct(nDspecOperator):
         self.time_bins = np.diff(self.times)
         self.n_times = self.times.size
         
-        if (np.all(np.isclose(self.time_bins, self.time_bins[0])) is False):
+        if (np.allclose(self.time_bins, self.time_bins[0]) is False):
             warnings.warn("Bin sizes not constant over time array, defaulting method to sinc",
                            UserWarning)
             self.method = 'sinc'
