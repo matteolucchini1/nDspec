@@ -655,14 +655,21 @@ class CrossSpectrum(FourierProduct):
         
         Parameters
         ----------
-        input_power: np.array(float) 
-            An array of size (n_freqs) that is to be used as the weighing power 
-            spectrum when computing the cross spectrum.
+        input_power: np.array(float) or PowerSpectrum
+            Either an array of size (n_freqs) that is to be used as the weighing  
+            power spectrum when computing the cross spectrum, or an nDspec 
+            PowerSpectrum object. Both have to be defined over the same Fourier 
+            frequency array. 
         """
-        
-        if (len(input_power)) != self.n_freqs:
-            raise TypeError("Input PSD array size different from frequency array")        
-        self.power_spec = input_power
+
+        if isinstance(input_power,PowerSpectrum):
+            if (np.allclose(input_power.freqs,self.freqs) is False):
+                raise ValueError("Frequency array of PSD does not match the existing one")
+            self.power_spec = input_power.power_spec
+        else:                    
+            if (len(input_power)) != self.n_freqs:
+                raise TypeError("Input PSD array size different from frequency array")        
+            self.power_spec = input_power
         
         return
 
@@ -805,9 +812,10 @@ class CrossSpectrum(FourierProduct):
             An arrray of size (n_chans) containing the reference band count rate
             defined in Fourier space.
             
-        power: np.array(float), default=self.power_spec 
-            An array of size (n_freqs) that is to be used as the weighing power 
-            spectrum when computing the cross spectrum.
+        power: np.array(float) or PowerSpectrum, default=self.power_spec 
+            Either an array of size (n_freqs), or a PowerSpectrum nDspec object, 
+            that is to be used as the weighing power spectrum when computing the
+            cross spectrum.
         """
         
         if transfer is None:
@@ -823,8 +831,11 @@ class CrossSpectrum(FourierProduct):
         if power is None:
             power_spec = self.power_spec 
         else:
-            self.set_psd_weights(power)  
-            power_spec = power 
+            self.set_psd_weights(power) 
+            if isinstance(power,PowerSpectrum): 
+                power_spec = power.power_spec
+            else:
+                power_spec = power 
         
         self.cross = []
                 
@@ -870,9 +881,10 @@ class CrossSpectrum(FourierProduct):
             An arrray of size (n_chans) containing the reference band 
             lightcurve.
             
-        power: np.array(float), default=self.power_spec 
-            An array of size (n_freqs) that is to be used as the weighing power 
-            spectrum when computing the cross spectrum.
+        power: np.array(float) or PowerSpectrum, default=self.power_spec 
+            Either an array of size (n_freqs), or a PowerSpectrum nDspec object, 
+            that is to be used as the weighing power spectrum when computing the
+            cross spectrum.
         """
         
         if signal is None:
@@ -889,7 +901,10 @@ class CrossSpectrum(FourierProduct):
             power_spec = self.power_spec 
         else:
             self.set_psd_weights(power)  
-            power_spec = power 
+            if isinstance(power,PowerSpectrum): 
+                power_spec = power.power_spec
+            else:
+                power_spec = power 
         
         self.cross = []
         self.trans_func = []
