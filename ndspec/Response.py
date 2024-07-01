@@ -598,7 +598,7 @@ class ResponseMatrix(nDspecOperator):
         ----------
         high_energy : float, optional
             Higher bound of ignored energy . The default is None.
-        low_energy : int, optional
+        low_energy : float, optional
             Lower bound of ignored energy . The default is None.
         high_bin : int, optional
             Ending index of ignored energy bin. The default is None.
@@ -627,14 +627,13 @@ class ResponseMatrix(nDspecOperator):
         if (high_chan >= self.nchans)|(low_chan < 0):
             raise ValueError("Indexes must be within energy channel ranges")
         
-        if (high_energy > np.max(self.emin))|(low_energy < np.min(self.emin)):
-            raise ValueError(("Specified energies must be within energy"
-                              " response ranges."))
-        
         new_resp = copy.copy(self)
         if (high_energy == None & low_energy == None) != True:
-            bounds = np.argwhere((self.energ_lo<low_energy)&
-                                 (self.energ_lo>high_energy))
+            #find average channel energy
+            centers = self._grid_bounds_to_midpoint(self.emin,self.emax)
+            #if center of channel lies in ignored energies, ignore channel
+            bounds = np.argwhere((centers<low_energy)&
+                                 (centers>high_energy))
             new_resp.emax        = new_resp.emax[bounds]
             new_resp.chans       = new_resp.chans[bounds]
             new_resp.emin        = new_resp.emin[bounds]
