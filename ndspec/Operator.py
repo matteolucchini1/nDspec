@@ -654,13 +654,13 @@ class nDspecOperator(object):
         grid_widths = self._grid_midpoint_to_widths(grid_midpoint,start_point)
         grid_lower_bounds = np.zeros(len(grid_midpoint))
         grid_upper_bounds = np.zeros(len(grid_midpoint))
-        grid_lower_bounds[0] = starting_point
+        grid_lower_bounds[0] = start_point
         
         for i in range(1,len(grid_midpoint)):
             grid_lower_bounds[i] = grid_midpoint[i-1] + 0.5*grid_widths[i-1]
             grid_upper_bounds[i-1] = grid_lower_bounds[i]
         
-        grid_upper_bounds[-1] = midpoint[-1] + 0.5*grid_widths[-1]
+        grid_upper_bounds[-1] = grid_midpoint[-1] + 0.5*grid_widths[-1]
         
         return grid_lower_bounds, grid_upper_bounds     
  
