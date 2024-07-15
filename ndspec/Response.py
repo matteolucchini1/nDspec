@@ -600,10 +600,10 @@ class ResponseMatrix(nDspecOperator):
             Higher bound of ignored energy . The default is None.
         low_energy : float, optional
             Lower bound of ignored energy . The default is None.
-        high_bin : int, optional
-            Ending index of ignored energy bin. The default is None.
-        low_bin : int, optional
-            Beginning index of ignored energy bin. The default is None.
+        high_chan : int, optional
+            Ending index of ignored energy channel. The default is None.
+        low_chan : int, optional
+            Beginning index of ignored energy channel. The default is None.
 
         Returns
         -------
@@ -612,8 +612,8 @@ class ResponseMatrix(nDspecOperator):
             self object, but ignoring specified energy channels.
 
         """
-        if ((high_chan == None & low_chan ==None) & 
-            (high_energy == None & low_energy ==None)):
+        if ((high_chan == None and low_chan ==None) & 
+            (high_energy == None and low_energy ==None)):
             raise ValueError("Specify ignored energy ranges or energy bins")
         
         if ((type(high_chan) != int and type(low_chan) != int) and 
@@ -623,23 +623,24 @@ class ResponseMatrix(nDspecOperator):
         if ((isinstance(high_energy, (np.floating, float, int)) != True)|
             (isinstance(low_energy, (np.floating, float, int)) != True)):
             raise TypeError("Energy bounds must be floats or integers")
-            
-        if (high_chan >= self.nchans)|(low_chan < 0):
-            raise ValueError("Indexes must be within energy channel ranges")
+        
+        if (high_chan != None and low_chan != None):
+            if (high_chan >= self.n_chans)|(low_chan < 0):
+                raise ValueError("Indexes must be within energy channel ranges")
         
         new_resp = copy.copy(self)
-        if (high_energy == None & low_energy == None) != True:
+        if (high_energy == None and low_energy == None) != True:
             #find average channel energy
             centers = self._grid_bounds_to_midpoint(self.emin,self.emax)
             #if center of channel lies in ignored energies, ignore channel
-            bounds = np.argwhere((centers<low_energy)&
+            bounds = np.argwhere((centers<low_energy)|
                                  (centers>high_energy))
             new_resp.emax        = new_resp.emax[bounds]
             new_resp.chans       = new_resp.chans[bounds]
             new_resp.emin        = new_resp.emin[bounds]
-            new_resp.nchans      = len(new_resp.chans)      
+            new_resp.n_chans      = len(new_resp.chans)      
             new_resp.resp_matrix = new_resp.resp_matrix[:,bounds]
-        elif (high_chan == None & low_chan == None) != True:
+        elif (high_chan == None and low_chan == None) != True:
             #specify new channels
             new_resp.chans       = np.concatenate([new_resp.chans[:low_chan],
                                                    new_resp.chans[high_chan:]])
@@ -647,7 +648,7 @@ class ResponseMatrix(nDspecOperator):
             #Update respective energy channels in response
             new_resp.emax        = new_resp.emax[new_resp.chans]
             new_resp.emin        = new_resp.emin[new_resp.chans]
-            new_resp.nchans      = len(new_resp.chans)        
+            new_resp.n_chans      = len(new_resp.chans)        
             new_resp.resp_matrix = new_resp.resp_matrix[:,new_resp.chans]
         elif high_chan != None or low_chan != None:
             if high_chan != None:
@@ -660,7 +661,7 @@ class ResponseMatrix(nDspecOperator):
             #Update respective energy channels in response
             new_resp.emax        = new_resp.emax[new_resp.chans]
             new_resp.emin        = new_resp.emin[new_resp.chans]
-            new_resp.nchans      = len(new_resp.chans)        
+            new_resp.n_chans      = len(new_resp.chans)        
             new_resp.resp_matrix = new_resp.resp_matrix[:,new_resp.chans]
         
         return new_resp
