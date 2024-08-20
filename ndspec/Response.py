@@ -638,7 +638,7 @@ class ResponseMatrix(nDspecOperator):
             new_resp.emax        = new_resp.emax[bounds]
             new_resp.chans       = new_resp.chans[bounds]
             new_resp.emin        = new_resp.emin[bounds]
-            new_resp.n_chans      = len(new_resp.chans)      
+            new_resp.nchans      = len(new_resp.chans)      
             new_resp.resp_matrix = new_resp.resp_matrix[:,bounds]
         elif (high_chan == None and low_chan == None) != True:
             #specify new channels
@@ -648,7 +648,7 @@ class ResponseMatrix(nDspecOperator):
             #Update respective energy channels in response
             new_resp.emax        = new_resp.emax[new_resp.chans]
             new_resp.emin        = new_resp.emin[new_resp.chans]
-            new_resp.n_chans      = len(new_resp.chans)        
+            new_resp.nchans      = len(new_resp.chans)        
             new_resp.resp_matrix = new_resp.resp_matrix[:,new_resp.chans]
         elif high_chan != None or low_chan != None:
             if high_chan != None:
@@ -661,7 +661,7 @@ class ResponseMatrix(nDspecOperator):
             #Update respective energy channels in response
             new_resp.emax        = new_resp.emax[new_resp.chans]
             new_resp.emin        = new_resp.emin[new_resp.chans]
-            new_resp.n_chans      = len(new_resp.chans)        
+            new_resp.nchans      = len(new_resp.chans)        
             new_resp.resp_matrix = new_resp.resp_matrix[:,new_resp.chans]
         
         return new_resp
