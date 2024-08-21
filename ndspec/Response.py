@@ -592,7 +592,9 @@ class ResponseMatrix(nDspecOperator):
         """
         Returns an adjusted response matrix that ignores selected chennels.
         Useful in the rare case where you don't have model outputs that cover
-        an entire instrument response.
+        an entire instrument response. If only one channel is given, it is 
+        assumed that a single channel will be ignored. Otherwise, both bounds
+        of ignored channels must be specified.
 
         Parameters
         ----------
@@ -641,7 +643,10 @@ class ResponseMatrix(nDspecOperator):
             new_resp.n_chans      = len(new_resp.chans)      
             new_resp.resp_matrix = new_resp.resp_matrix[:,bounds]
         elif (high_chan == None and low_chan == None) != True:
-            #specify new channels
+            #specify new channels by taking all channels below low_chan
+            #and all channels above high_chan and concatenating them together
+            #e.g. keep all bins below 3keV and above 4keV when ignoring
+            #3-4keV.
             new_resp.chans       = np.concatenate([new_resp.chans[:low_chan],
                                                    new_resp.chans[high_chan:]])
             new_resp.chans       = new_resp.chans[:low_chan]
@@ -655,9 +660,8 @@ class ResponseMatrix(nDspecOperator):
                 chan = high_chan
             else:
                 chan = low_chan
-            #specify new channels
-            new_resp.chans       = np.concatenate([new_resp.chans[:chan],
-                                                   new_resp.chans[chan+1:]])
+            #specify new channels by removing single selected channel 
+            new_resp.chans       = np.delete(new_resp.chans, chan)
             #Update respective energy channels in response
             new_resp.emax        = new_resp.emax[new_resp.chans]
             new_resp.emin        = new_resp.emin[new_resp.chans]
