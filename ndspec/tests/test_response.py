@@ -241,11 +241,11 @@ class TestResponse(object):
     def test_ignore_energy_channels(self):
         #check that ignore energy channels works for channel indexing
         new_response = self.response.ignore_channels(low_chan=1)
-        assert new_response.nchans == self.response.nchans-1
+        assert new_response.n_chans == self.response.n_chans-1
         new_response = self.response.ignore_channels(high_chan=1)
-        assert new_response.nchans == self.response.nchans-1
+        assert new_response.n_chans == self.response.n_chans-1
         new_response = self.response.ignore_channels(low_chan=1,high_chan=3)
-        assert new_response.nchans == self.response.nchans-2
+        assert new_response.n_chans == self.response.n_chans-2
         #check that ignore energy channels works for energy bounds
         new_response = self.response.ignore_channels(low_energy=0.1,
                                                      high_energy=2)
