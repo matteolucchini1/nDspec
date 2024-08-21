@@ -111,7 +111,8 @@ class ResponseMatrix(nDspecOperator):
             self.bounds = response["EBOUNDS"]
             #figure out the right table to use, and decide 
             #whether we are also loading the arf or not 
-            #redo this check some matrices are weird
+            #redo this check some matrices are weird          
+           
             if "MATRIX" in extnames:
                 h = response["MATRIX"]
                 self.has_arf = False
@@ -123,6 +124,8 @@ class ResponseMatrix(nDspecOperator):
             channel_info = self.bounds.data
             data = h.data
             hdr = h.header
+            if (hdr["TELESCOP"] == "ATHENA") or (hdr["TELESCOP"] == "XRiSM"):
+                raise AttributeError(hdr["TELESCOP"],"data not supported, aborting!")
             if hdr["HDUCLASS"] != "OGIP":
                 raise TypeError("File is not OGIP compliant")   
         
