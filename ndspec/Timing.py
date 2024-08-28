@@ -750,12 +750,13 @@ class CrossSpectrum(FourierProduct):
         if len(idx_ref[0]) == 0:
             raise ValueError("No full bins found within the reference band bounds")
                                 
-        if hasattr(self,"imp_resp"):
-            self.ref = np.reshape(np.sum(self.imp_resp[idx_ref,:],axis=1),
-                                 (self.n_times))
-        elif hasattr(self,"trans_func"):
+
+        if hasattr(self,"trans_func"):
             self.ref = np.reshape(np.sum(self.trans_func[idx_ref,:],axis=1),
-                                 (self.n_freqs))        
+                                 (self.n_freqs))  
+        elif hasattr(self,"imp_resp"):
+            self.ref = np.reshape(np.sum(self.imp_resp[idx_ref,:],axis=1),
+                                 (self.n_times))      
         else:
             raise AttributeError("Neither impulse response nor transfer function defined")  
             
@@ -859,6 +860,36 @@ class CrossSpectrum(FourierProduct):
                                (self.n_chans,self.n_freqs))
 
         return   
+
+    def transfer_from_irf(self,signal=None):
+        """   
+        This method computes and store the transfer function from a given 
+        impulse response provided by the user. This can either be already stored
+        by the setter method set_impulse (which is the default behavior), or it 
+        can be passed as argument of this method. 
+        
+        Parameters
+        ----------
+        signal: np.array(float,float), default=self.imp_resp 
+            An array of size (n_chans x n_times) containing the model impulse 
+            response function. 
+        """
+
+        if signal is None:
+            signal = self.imp_resp
+        else:
+            self.set_impulse(signal)        
+        
+        self.trans_func = []
+        
+        for index in range(self.n_chans):
+            ci_ft = self.transform(signal[index,:])
+            self.trans_func.append(ci_ft)               
+
+        self.trans_func = np.reshape(np.array(self.trans_func),
+                                    (self.n_chans,self.n_freqs))
+        
+        return
 
     #maybe throw in a wrapper like with transform 
     def cross_from_irf(self,signal=None,reference=None,power=None):

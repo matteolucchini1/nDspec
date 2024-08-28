@@ -206,33 +206,49 @@ def pivoting_pl(array1,array2,params):
     if params.ndim == 1:
         norm = params[0]
         pl_index = params[1]
-        gamma_nu = params[2]
-        phi_0 = params[3]
-        phi_slope = params[4]
-        nu_0 = params[5]
+        gamma_0 = params[2]
+        gamma_slope = params[3]
+        phi_0 = params[4]
+        phi_slope = params[5]
+        nu_0 = params[6]
         pivoting = np.zeros((len(energy),len(freqs)),dtype=complex)
         powerlaw_shape = norm*powerlaw(energy,np.array([norm,pl_index]))
-        phase = phi_0*powerlaw(freqs/nu_0,np.array([1.,phi_slope])) 
+        phase = phi_0 + np.log10(freqs/nu_0)*phi_slope
+        if phi_0 < 0:
+            phase[phase<-0.99*np.pi] = -0.99*np.pi
+        elif phi_0 > 0:
+            phase[phase>0.99*np.pi] = 0.99*np.pi
+        gamma = gamma_0 + np.log10(freqs/nu_0)*gamma_slope
+        gamma[gamma<0] = 0
+        #attempting new formalism for phi_0
+        #*powerlaw(freqs/nu_0,np.array([1.,phi_slope]))
+        #temp hack to avoid phase wrapping
+
         #the reshaping is to avoid for loops and to use matrix multiplication instead
-        piv_factor = 1 - gamma_nu*np.exp(1j*phase).reshape((1,len(freqs)))*np.log(energy).reshape((len(energy),1))
+        piv_factor = 1 - gamma*np.exp(1j*phase).reshape((1,len(freqs)))*np.log(energy).reshape((len(energy),1))
         pivoting = piv_factor*powerlaw_shape.reshape(len(energy),1)
     elif params.ndim == 2:
         norm = params[:,0][:,np.newaxis]
         pl_index = params[:,1][:,np.newaxis]
-        gamma_nu = params[:,2][:,np.newaxis]
-        phi_0 = params[:,3][:,np.newaxis]
-        phi_slope = params[:,4][:,np.newaxis]
-        nu_0 = params[:,5][:,np.newaxis]
+        gamma_0 = params[:,2][:,np.newaxis]
+        gamma_slope = params[:,4][:,np.newaxis]
+        phi_0 = params[:,4][:,np.newaxis]
+        phi_slope = params[:,5][:,np.newaxis]
+        nu_0 = params[:,6][:,np.newaxis]
         pivoting = np.zeros((len(energy),len(freqs)),dtype=complex)
         powerlaw_shape = norm*powerlaw(energy,
                                        np.concatenate([norm,pl_index],axis=1))
-        phase = phi_0*powerlaw(freqs/nu_0,
-                               np.concatenate([np.ones(phi_slope.shape),
-                                               phi_slope],axis=1)) 
+        #really not sure that this is correct 
+        phase = phi_0 + np.log10(freqs/nu_0)*np.concatenate(phi_slope,axis=1)
+        gamma = gamma_0 + np.log10(freqs/nu_0)*np.concatenate(gamma_slope,axis=1)
+        gamma[gamma<0] = 0
+        #phase = phi_0*powerlaw(freqs/nu_0,
+        #                       np.concatenate([np.ones(phi_slope.shape),
+        #                                       phi_slope],axis=1)) 
         #the reshaping is to avoid for loops and to use matrix multiplication instead
         log_energ = np.repeat(np.log(energy)[np.newaxis,:,np.newaxis],
                               params.shape[0],axis=0)
-        piv_factor = 1 - (gamma_nu*np.exp(1j*phase))[:,np.newaxis,:]*log_energ
+        piv_factor = 1 - (gamma*np.exp(1j*phase))[:,np.newaxis,:]*log_energ
         pivoting = piv_factor*powerlaw_shape[:,:,np.newaxis]
     else:
         raise TypeError("Params has too many dimensions, limit to 1 or 2 dimensions")      
