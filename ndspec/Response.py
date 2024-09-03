@@ -615,15 +615,25 @@ class ResponseMatrix(nDspecOperator):
             (n_chans,arbitrary), defined over the energy bounds of each channel 
             in the response. The y-axis is identical to the input.
         """
-
+        #reshaping the input array needed to treat a 1d array like a 2d one and
+        #use the same array operations later
+        if (array.size == self.n_chans):
+            array = array.reshape(self.n_chans,1)         
+        #reshaping the energy and channel arrays is necessary to get the right 
+        #dimensions when unfolding 2d arrays 
         energy_widths = self.energ_hi - self.energ_lo 
         unfold_matrix = energy_widths.reshape(self.n_energs,1)*self.resp_matrix
-        unfold_array = np.sum(unfold_matrix,axis=0).self((matrix.n_chans,1)) 
+        unfold_array = np.sum(unfold_matrix,axis=0).reshape(self.n_chans,1) 
         if units_in == "channel":
             unfold_model = array/unfold_array
         elif units_in == "kev":
-            channel_widths = (self.emax - self.emin).reshape((self.n_chans,1))
+            channel_widths = (self.emax - self.emin).reshape(self.n_chans,1)
             unfold_model = array/unfold_array*channel_widths 
         else:
             raise ValueError("Specify whether the input array is normalized per channel or per keV")
+        #if we had a 1d array as input, we convert back to a 1d array; otherwise 
+        #this confuses matplotlib and produces weird plots
+        if (unfold_model.size == self.n_chans):
+            unfold_model = unfold_model.reshape(self.n_chans)
+        
         return unfold_model
