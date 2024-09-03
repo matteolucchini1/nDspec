@@ -580,6 +580,50 @@ class ResponseMatrix(nDspecOperator):
         diag_resp = np.diag(np.ones(num))
         return diag_resp            
               
-    def unfold_response(self):    
-        print("TBD once the data+model side is complete")
+    def unfold_response(self,array,units_in="kev"):    
+        """
+        Unfolds an array through the instrument response. Note that plotting 
+        data in this fashion can be EXTREMELY misleading and should be done 
+        with care. In nDspec we define an unfolded model as:
+        unfolded(H) = counts(H)/exposure*sum(rmf*arf),
+        where H is a given bounds in energy channels, exposure is the exposure 
+        time of the observation, rmf*arf is the instrument response, and the sum 
+        is carried out every the energy bins of the response. Users also need to 
+        specify whether the input array is in units of counts/s/keV or 
+        counts/s/channel; if they do so correctly, the output of this method is 
+        in photon density - counts/s/keV/cm^2. Assuming 0 background, this 
+        definition of unfolding is identical to Isis, regardless of model 
+        choice, and Xspec, as long as the model is a constant in each energy 
+        bin. Converting to flux units - ie, energy/s/area, then requires 
+        multiplying the output of this method by H^2, identically to the 
+        "eeunfold" method in Xspec. 
+        Unlike Isis and Xspec, this method also supports unfolding two-d arrays,
+        e.g. cross spectra. 
+        
+        Parameters:
+        ----------             
+        array: np.array(int,int)
+            The input array to be unfolded, of size (n_energs,arbitrary). 
+            In the x-axis it needs to be defined over the instrument energy 
+            grid, in the y-axis it can be any size (e.g., over a grid of Fourier
+            frequencies).
+            
+        Returns: 
+        ---------- 
+        unfold_model: np.array(float,float)
+            The array unfolded through the instrument response, of size 
+            (n_chans,arbitrary), defined over the energy bounds of each channel 
+            in the response. The y-axis is identical to the input.
+        """
 
+        energy_widths = self.energ_hi - self.energ_lo 
+        unfold_matrix = energy_widths.reshape(self.n_energs,1)*self.resp_matrix
+        unfold_array = np.sum(unfold_matrix,axis=0).self((matrix.n_chans,1)) 
+        if units_in == "channel":
+            unfold_model = array/unfold_array
+        elif units_in == "kev":
+            channel_widths = (self.emax - self.emin).reshape((self.n_chans,1))
+            unfold_model = array/unfold_array*channel_widths 
+        else:
+            raise ValueError("Specify whether the input array is normalized per channel or per keV")
+        return unfold_model
