@@ -209,6 +209,9 @@ class Fit_Powerspectrum():
         else:
             return   
             
+#k now the spectrum
+#ok I need a method to ignore energy bins
+
 class Fit_TimeAvgSpectrum():
     def __init__(self):
         self.model = None
@@ -226,11 +229,11 @@ class Fit_TimeAvgSpectrum():
         pass
 
     #tbd: allow a mwl data setter too
-    def set_data(self,data,response):
+    def set_data(self,response,data):
         bounds_lo, bounds_hi, counts, error, exposure = load_pha(data,response)
         self.response = response.rebin_channels(bounds_lo,bounds_hi)
-        #this needs to keep track of the bin widths when i switch to 
-        #integrating models  in each energy bin
+        #this needs to keep track of the bin widths when i switch to integrating models 
+        #in each energy bin
         self.energs = 0.5*(self.response.energ_hi+self.response.energ_lo)
         self.energ_bounds = self.response.energ_hi-self.response.energ_lo
         self.emin = bounds_lo
@@ -243,11 +246,10 @@ class Fit_TimeAvgSpectrum():
         #here we keep track of which channels are noticed/ignored, by default
         #all are noticed
         self.ebounds_mask = np.full((self.response.n_chans), True)
-        #we also need to double load the data to store it in a hidden unmasked 
-        #ranges variable this is required in case users want to ignore/re-notice  
-        #energy formally we could call some of these directly e.g. from the 
-        #resposne, but storing this way makes the following methods far more 
-        #readable
+        #we also need to double load the data to store it in a hidden unmasked variable
+        #this is required in case users want to ignore/re-notice energy ranges
+        #formally we could call some of these directly e.g. from the resposne, but
+        #storing this way makes the following methods far more readable
         self._emin_unmasked = self.emin
         self._emax_unmasked = self.emax
         self._ebounds_unmasked = self.ebounds
@@ -330,8 +332,7 @@ class Fit_TimeAvgSpectrum():
         if energ is None:
             energ = self.energs
         if params is None:
-            eval = self.model.eval(self.model_params,energ=energ)* \
-                   self.energ_bounds
+            eval = self.model.eval(self.model_params,energ=energ)*self.energ_bounds
         else:
             eval = self.model.eval(params,energ=energ)*self.energ_bounds
         #by default we fold the model through the response when evaluating it
@@ -429,13 +430,14 @@ class Fit_TimeAvgSpectrum():
         else:
             return 
 
-    def plot_model(self,plot_data=True,plot_components=False,params=None,
-                        units="data",residuals="delchi",return_plot=False):
+    def plot_model(self,plot_data=True,plot_components=False,params=None,units="data",residuals="delchi",return_plot=False):
         #tbd: fold/unfold flag, get residuals in folded space always 
         energies = np.extract(self.ebounds_mask,self._ebounds_unmasked)
         xerror = 0.5*np.extract(self.ebounds_mask,self._ewidths_unmasked)       
         
         #first; get the model in the correct units
+        #need to be careful about the units here - although all this mess is solved by 
+        #going to the xspec convention for energy dependence...
         model_fold = self.eval_model(params=params,energ=self.energs)
         #model_fold = self.response.convolve_response(model_prefold)
         if units == "data":   
@@ -474,9 +476,9 @@ class Fit_TimeAvgSpectrum():
                 yerror = self.data_err
                 ylabel = "Folded counts/s/keV"
             elif units.count("unfold"):        
-                data = self.response.unfold_response(self._data_unmasked)*\
+                data = self.response.unfold_response(self._data_unmasked)* \
                        self._ebounds_unmasked**power
-                error = self.response.unfold_response(self._data_err_unmasked)*\
+                error = self.response.unfold_response(self._data_err_unmasked)* \
                         self._ebounds_unmasked**power  
                 data = np.extract(self.ebounds_mask,data)
                 yerror = np.extract(self.ebounds_mask,error)
@@ -499,7 +501,7 @@ class Fit_TimeAvgSpectrum():
             #we need to allocate a ModelResult object in order to retrieve the components
             comps = LM_result(model=self.model,params=self.model_params).eval_components(energ=self.energs)
             for key in comps.keys():
-                comp_folded = self.response.convolve_response(comps[key])
+                comp_folded = self.response.convolve_response(comps[key]*self.energ_bounds)
                 #do it better here
                 if units == "data":   
                     comp = np.extract(self.ebounds_mask,comp_folded)
@@ -517,12 +519,13 @@ class Fit_TimeAvgSpectrum():
         ax1.set_ylabel(ylabel)
 
         if plot_data is True:
+            ax1.set_ylim([0.85*np.min(data),1.15*np.max(data)])
             ax2.errorbar(energies,model_res,yerr=res_errors,
                          drawstyle="steps-mid",marker='o')
             if residuals == "delchi":
                 ax2.plot(energies,np.zeros(len(energies)),ls=":",lw=2,color='black')
             elif residuals == "ratio":
-                ax2.plot(energies,np.ones(len(energiess)),ls=":",lw=2,color='black')                
+                ax2.plot(energies,np.ones(len(energies)),ls=":",lw=2,color='black')                
             ax2.set_xlabel("Energy (keV)")
             ax2.set_ylabel(reslabel)
 
@@ -533,7 +536,103 @@ class Fit_TimeAvgSpectrum():
         else:
             return  
 
+class Fit_OneDCrossSpectrum():
+    def __init__(self):
+        self.model = None
+        self.model_params = None
+        self.likelihood = None
+        self.fit_result = None
+        self.data = None
+        self.data_err = None
+        self.energs = None
+        self.emin = None
+        self.emax = None
+        self.ebounds = None
+        self.ewidths = None
+        self.response = None
+        self.freqs = None 
+        self.times = None
+        self.powerspec = None
+        self.crossspec = None
+        self.units = None
+        self.supported_units = ["cartesian","polar","lags"]
+        pass
 
+    def set_units(self,units="cartesian"):
+        if units not in self.supported_units:
+            print("Unsopprted units for the cross spectrum")
+        else:
+            self.units = units
+    
+    def set_data(self,response,ref_band,sub_band,
+                 data,data_err=None,data_grid=None,
+                 event_args=None,time_res=None,seg_size=None,norm=None):
+        #will need to rebin this to only take the bounds in the reference and channel of interest, but it's fine for now 
+        self.response = response#.rebin_channels(bounds_lo,bounds_hi)
+        #this is iffy for NICER, recommend users to their own analysis with stingray to double check
+        if data.__module__ == "stingray.events":
+            events = EventList.read(data, "hea")
+            events_ref = events.filter_energy_range(ref_band)
+            events_sub = events.filter_energy_range(sub_band)
+            #get the cross spectrum
+            cs = AveragedCrossspectrum.from_events(events_sub,events_ref,
+                                                   segment_size=seg_size,dt=time_res,norm=norm)
+            self.freqs = cs.freq
+            if self.units == "lags":
+                self.data, self.data_err = cs.time_lag()   
+            else:
+                #get all the other things needed for the error bars: powr spectra for both sub bands, real/imaginary parts
+                #of the cross spectrum, and N = P(noise,subject) = 2*countrate(subject), if using absolute rms, or N = 2/countrate(reference)
+                #if using fractional rms
+                ps_sub = AveragedPowerspectrum.from_events(events_sub,
+                                                           segment_size=seg_size,
+                                                           dt=time_res,norm=norm)
+                ps_ref = AveragedPowerspectrum.from_events(events_ref,
+                                                           segment_size=seg_size,
+                                                           dt=time_res,norm=norm)
+                
+                # Calculate the mean count rates
+                ctrate_sub = get_average_ctrate(events_sub.time,events_sub.gti,seg_size)
+                ctrate_ref = get_average_ctrate(events_ref.time,events_ref.gti,seg_size)
+                # Calculate the Poisson noise levels
+                noise_sub = poisson_level(norm=norm, meanrate=ctrate_sub)
+                noise_ref = poisson_level(norm=norm, meanrate=ctrate_ref)
+                if norm == "frac":
+                    N = 2./noise_ref 
+                elif norm == "abs":
+                    N = 2.*noise_sub
+                else:
+                    print("Normalization is wrong")
+                    N = 1.
+                #tbd: sort out cartesian vs polar coords
+            if self.units == "cartesian":    
+                data_real = np.real(cs.power)
+                data_imag = np.imag(cs.power)                
+                error_real = np.sqrt((ps_sub.power*ps_ref.power+ \
+                                      np.real(cs.power)**2- \
+                                      np.imag(cs.power)**2)/(2.*N))
+                error_imag = np.sqrt((ps_sub.power*ps_ref.power- \
+                                      np.real(cs.power)**2+ \
+                                      np.imag(cs.power)**2)/(2.*N))
+                self.data = np.concatenate((data_real,data_imag))
+                self.data_err = np.concatenate((error_real,error_imag))
+            elif self.units == "polar":
+                data_mod = np.absolute(cs.power)
+                error_mod = np.sqrt(ps_sub.power*ps_ref.power/(2.*N))
+                data_phase, error_phase = cs.phase_lag()
+                self.data = np.concatenate((data_mod,data_phase))
+                self.data_err = np.concatenate((error_mod,error_phase))                                
+        else:
+            self.data = data
+            self.data_err = data_err
+            self.freqs = data_grid
+
+    #now a method to just plot the data to double check the stuff above
+    def plot_data(self,units=None):
+        if units is None:
+            units = self.units
+        data_bins = len(self.freqs)
+        
 def load_pha(path,response):
     '''
     This function loads xray spectra with astropy
@@ -577,7 +676,6 @@ def load_pha(path,response):
             group_start = np.where(grouping_data==1)[0]
             total_groups = len(group_start)
             counts_per_group = np.zeros(total_groups,dtype=int)
-           # sys_err_per_group = np.zeros(total_groups)
             bin_bounds_lo = np.zeros(total_groups)
             bin_bounds_hi = np.zeros(total_groups)
             avg_sys = np.zeros(total_groups)
@@ -602,4 +700,4 @@ def load_pha(path,response):
             spectrum_error = counts_err
         return bin_bounds_lo, bin_bounds_hi, counts_per_group, spectrum_error, exposure
         #bound_midpoint, bin_diff, counts_per_group, rebin_error contains the rebinned spectrum
-                    
+
