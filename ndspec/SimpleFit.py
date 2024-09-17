@@ -328,7 +328,6 @@ class Fit_TimeAvgSpectrum():
         self.model_params = params
     
     def eval_model(self,params=None,energ=None,fold=True):    
-        #this is fucked if we evaulate on a different energy grid
         if energ is None:
             energ = self.energs
         if params is None:
@@ -430,7 +429,8 @@ class Fit_TimeAvgSpectrum():
         else:
             return 
 
-    def plot_model(self,plot_data=True,plot_components=False,params=None,units="data",residuals="delchi",return_plot=False):
+    def plot_model(self,plot_data=True,plot_components=False,params=None,
+                   units="data",residuals="delchi",return_plot=False):
         #tbd: fold/unfold flag, get residuals in folded space always 
         energies = np.extract(self.ebounds_mask,self._ebounds_unmasked)
         xerror = 0.5*np.extract(self.ebounds_mask,self._ewidths_unmasked)       
@@ -523,9 +523,11 @@ class Fit_TimeAvgSpectrum():
             ax2.errorbar(energies,model_res,yerr=res_errors,
                          drawstyle="steps-mid",marker='o')
             if residuals == "delchi":
-                ax2.plot(energies,np.zeros(len(energies)),ls=":",lw=2,color='black')
+                ax2.plot(energies,np.zeros(len(energies)),
+                         ls=":",lw=2,color='black')
             elif residuals == "ratio":
-                ax2.plot(energies,np.ones(len(energies)),ls=":",lw=2,color='black')                
+                ax2.plot(energies,np.ones(len(energies)),
+                         ls=":",lw=2,color='black')                
             ax2.set_xlabel("Energy (keV)")
             ax2.set_ylabel(reslabel)
 
@@ -539,16 +541,17 @@ class Fit_TimeAvgSpectrum():
 class Fit_OneDCrossSpectrum():
     def __init__(self):
         self.model = None
+        self.model_type = None
         self.model_params = None
         self.likelihood = None
         self.fit_result = None
         self.data = None
         self.data_err = None
         self.energs = None
-        self.emin = None
-        self.emax = None
-        self.ebounds = None
-        self.ewidths = None
+        #self.emin = None
+        #self.emax = None
+        #self.ebounds = None
+        #self.ewidths = None
         self.response = None
         self.freqs = None 
         self.times = None
@@ -556,45 +559,49 @@ class Fit_OneDCrossSpectrum():
         self.crossspec = None
         self.units = None
         self.supported_units = ["cartesian","polar","lags"]
+        self.supported_models = ["cross","irf","transfer"]
         pass
 
     def set_units(self,units="cartesian"):
         if units not in self.supported_units:
-            print("Unsopprted units for the cross spectrum")
+            raise AttributeError("Unsopprted units for the cross spectrum")
         else:
             self.units = units
     
     def set_data(self,response,ref_band,sub_band,
-                 data,data_err=None,data_grid=None,
-                 event_args=None,time_res=None,seg_size=None,norm=None):
+                 time_res,seg_size,norm,
+                 data,data_err=None,data_grid=None):
         #will need to rebin this to only take the bounds in the reference and channel of interest, but it's fine for now 
         self.response = response#.rebin_channels(bounds_lo,bounds_hi)
-        #this is iffy for NICER, recommend users to their own analysis with stingray to double check
+        self.energ = 0.5*(self.response.energ_hi+self.response.energ_lo)
+        self.ewidths = self.response.energ_hi-self.response.energ_lo
+        #I might need the energy bins too
+        if self.units is None:
+            raise AttributeError("Cross spectrum units not defined")
         if data.__module__ == "stingray.events":
-            events = EventList.read(data, "hea")
             events_ref = events.filter_energy_range(ref_band)
             events_sub = events.filter_energy_range(sub_band)
             #get the cross spectrum
             cs = AveragedCrossspectrum.from_events(events_sub,events_ref,
                                                    segment_size=seg_size,dt=time_res,norm=norm)
             self.freqs = cs.freq
+            #set the time axis from the Fourier frequency axis
+            #this is needed for the ndspec objects
+            lc_length = cs.n*time_res
+            time_samples = int(lc_length/time_res)
+            self.times = np.linspace(time_res,lc_length,time_samples)
             if self.units == "lags":
                 self.data, self.data_err = cs.time_lag()   
             else:
-                #get all the other things needed for the error bars: powr spectra for both sub bands, real/imaginary parts
-                #of the cross spectrum, and N = P(noise,subject) = 2*countrate(subject), if using absolute rms, or N = 2/countrate(reference)
-                #if using fractional rms
+                #get all the things needed for the error bars
                 ps_sub = AveragedPowerspectrum.from_events(events_sub,
                                                            segment_size=seg_size,
                                                            dt=time_res,norm=norm)
                 ps_ref = AveragedPowerspectrum.from_events(events_ref,
                                                            segment_size=seg_size,
                                                            dt=time_res,norm=norm)
-                
-                # Calculate the mean count rates
                 ctrate_sub = get_average_ctrate(events_sub.time,events_sub.gti,seg_size)
                 ctrate_ref = get_average_ctrate(events_ref.time,events_ref.gti,seg_size)
-                # Calculate the Poisson noise levels
                 noise_sub = poisson_level(norm=norm, meanrate=ctrate_sub)
                 noise_ref = poisson_level(norm=norm, meanrate=ctrate_ref)
                 if norm == "frac":
@@ -604,7 +611,6 @@ class Fit_OneDCrossSpectrum():
                 else:
                     print("Normalization is wrong")
                     N = 1.
-                #tbd: sort out cartesian vs polar coords
             if self.units == "cartesian":    
                 data_real = np.real(cs.power)
                 data_imag = np.imag(cs.power)                
@@ -621,17 +627,124 @@ class Fit_OneDCrossSpectrum():
                 error_mod = np.sqrt(ps_sub.power*ps_ref.power/(2.*N))
                 data_phase, error_phase = cs.phase_lag()
                 self.data = np.concatenate((data_mod,data_phase))
-                self.data_err = np.concatenate((error_mod,error_phase))                                
+                self.data_err = np.concatenate((error_mod,error_phase))
         else:
             self.data = data
             self.data_err = data_err
             self.freqs = data_grid
+            #now revert the grid from frequency to time, and save in times
+            #this is needed to allocate the ndspec objects
+            time_res = 0.5/(self.freqs[-1]+self.freqs[0])
+            lc_length = (self.freqs.size+1)*2*time_res
+            time_samples = int(lc_length/time_res)
+            self.times = np.linspace(time_res,lc_length,time_samples)
 
-    #now a method to just plot the data to double check the stuff above
-    def plot_data(self,units=None):
-        if units is None:
-            units = self.units
+    def set_model(self,model,model_type="irf",params=None):
+        if model_type not in self.supported_models:
+            raise AttributeError("Unsopprted model type")  
+        self.model_type = model_type
+        self.crossspec = CrossSpectrum(self.times,freqs=self.freqs,energ=self.energs)
+        if self.model_type != "cross":
+            self.powerspec = PowerSpectrum(self.times)        
+        self.model = model 
+        if params is None:
+            self.model_params = self.model.make_params(verbose=True)
+        else:
+            self.model_params = params
+
+    '''
+    #need to generalize this
+    def reverb(energs,times,cross_spec,rev_norm,rev_temp,rise_slope,decay_slope,peak_time,temp_slope):
+        param_array = np.array([rev_norm,rev_temp,rise_slope,decay_slope,peak_time,temp_slope])
+        impulse_response = models.bbody_bkn(times,energs,param_array)
+        cross_spec.set_impulse(impulse_response)
+        cross_spec.transfer_from_irf()
+        model = np.transpose(cross_spec.trans_func)
+        return model
+
+    
+    def eval_model(self,params=None,energ=None,fold=True):  
+    #need to sort this out - go over all components and figure out which ones are
+    #time vs frequency domain, convert the time domain ones?
+    #or maybe just have a generic function that can take time domain stuff and turn it into frequencies
+    #then use that as a wrapper?
+        start = model.eval(params,energs=energ_grid,freqs=freq_grid,times=time_grid,cross_spec=cross)
+        #set the channel of interest, then obtain the cross spectrum
+        cross.set_transfer(np.transpose(start))
+        cross.set_reference_energ(ref_bounds)
+        cross.cross_from_transfer()
+        folded_cross = response.convolve_response(cross,units_in="rate",units_out="kev")
+        #finally get real+imaginary
+        folded_real = folded_cross.real_frequency(coi_bounds)
+        folded_imag = folded_cross.imag_frequency(coi_bounds)
+        folded = np.concatenate((folded_real, folded_imag)) 
+    return eval
+    '''
+    def set_params(self,params):
+        #not sure this makes sense
+        self.model_params = params
+   
+    def plot_data(self,return_plot=False):
         data_bins = len(self.freqs)
+
+        if self.units != "lags":
+            fig, ((ax1),(ax2)) = plt.subplots(1,2,figsize=(12.,5.))  
+            
+            ax1.errorbar(self.freqs,self.data[:data_bins]*self.freqs,
+                         yerr=self.data_err[:data_bins]*self.freqs,
+                         drawstyle="steps-mid",
+                         marker='o',
+                         zorder=2,
+                         color='C0')
+            ax1.set_xscale("log")
+            ax1.set_xlabel("Frequency (Hz)")
+            if self.units == "cartesian":
+                ylabel = "Real part$\\times$Freq"
+                ax1.axhline(0, ls="dotted",color='black')
+            else:
+                ylabel = "Modulus$\\times$Freq"
+                ax1.set_yscale("log")
+            ax1.set_ylabel(ylabel)
+            if self.units == "cartesian":
+                ylabel = "Imaginary part$\\times$Freq"
+                ax2.errorbar(self.freqs,self.data[data_bins:]*self.freqs,
+                             yerr=self.data_err[data_bins:]*self.freqs,
+                             drawstyle="steps-mid",
+                             marker='o',
+                             zorder=2,
+                             color='C0')
+            else:
+                ylabel = "Phase"
+                ax2.errorbar(self.freqs,self.data[data_bins:],
+                             yerr=self.data_err[data_bins:],
+                             drawstyle="steps-mid",
+                             marker='o',
+                             zorder=2,
+                             color='C0')
+            ax2.axhline(0, ls="dotted",color='black')
+            ax2.set_xscale("log")
+            ax2.set_xlabel("Frequency (Hz)")
+            ax2.set_ylabel(ylabel)
+        else:
+            ylabel = "Lag (s)"
+            fig, ((ax1)) = plt.subplots(1,1,figsize=(6.,4.5))         
+            ax1.errorbar(self.freqs,self.data,
+                         yerr=self.data_err,
+                         drawstyle="steps-mid",
+                         marker='o',
+                         zorder=2,
+                         color='C0')
+            ax1.axhline(0, ls="dotted",color='black')
+            ax1.set_ylabel(ylabel)
+            ax1.set_xlabel("Frequency (Hz)")         
+            ax1.set_xscale("log")
+        
+        plt.tight_layout()      
+        
+        if return_plot is True:
+            return fig 
+        else:
+            return 
         
 def load_pha(path,response):
     '''
