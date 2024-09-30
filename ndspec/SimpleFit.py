@@ -484,9 +484,9 @@ class Fit_TimeAvgSpectrum():
                 yerror = np.extract(self.ebounds_mask,error)
             
         if plot_data is False:
-            fig, (ax1) = plt.subplots(1,1,figsize=(7.5,6.))   
+            fig, (ax1) = plt.subplots(1,1,figsize=(6.,4.5))   
         else:
-            fig, (ax1,ax2) = plt.subplots(2,1,figsize=(7.5,7.5),
+            fig, (ax1,ax2) = plt.subplots(2,1,figsize=(6.,6.),
                                           sharex=True,
                                           gridspec_kw={'height_ratios': [2, 1]})
 
@@ -548,6 +548,8 @@ class Fit_OneDCrossSpectrum():
         self.data = None
         self.data_err = None
         self.energs = None
+        self.ref_band = None
+        self.sub_band = None
         #self.emin = None
         #self.emax = None
         #self.ebounds = None
@@ -562,6 +564,7 @@ class Fit_OneDCrossSpectrum():
         self.supported_models = ["cross","irf","transfer"]
         pass
 
+    #tbd: allow people to ignore frequency ranges
     def set_units(self,units="cartesian"):
         if units not in self.supported_units:
             raise AttributeError("Unsopprted units for the cross spectrum")
@@ -573,8 +576,10 @@ class Fit_OneDCrossSpectrum():
                  data,data_err=None,data_grid=None):
         #will need to rebin this to only take the bounds in the reference and channel of interest, but it's fine for now 
         self.response = response#.rebin_channels(bounds_lo,bounds_hi)
-        self.energ = 0.5*(self.response.energ_hi+self.response.energ_lo)
+        self.energs = 0.5*(self.response.energ_hi+self.response.energ_lo)
         self.ewidths = self.response.energ_hi-self.response.energ_lo
+        self.ref_band = ref_band
+        self.sub_band = sub_band
         #I might need the energy bins too
         if self.units is None:
             raise AttributeError("Cross spectrum units not defined")
@@ -651,39 +656,111 @@ class Fit_OneDCrossSpectrum():
             self.model_params = self.model.make_params(verbose=True)
         else:
             self.model_params = params
+        
+    def set_psd_weights(self,psd_weights):
+        if self.model_type != "cross":
+            self.crossspec.set_psd_weights(psd_weights)
+        else:
+            print("Power spectrum weight not needed")
 
-    '''
-    #need to generalize this
-    def reverb(energs,times,cross_spec,rev_norm,rev_temp,rise_slope,decay_slope,peak_time,temp_slope):
-        param_array = np.array([rev_norm,rev_temp,rise_slope,decay_slope,peak_time,temp_slope])
-        impulse_response = models.bbody_bkn(times,energs,param_array)
-        cross_spec.set_impulse(impulse_response)
-        cross_spec.transfer_from_irf()
-        model = np.transpose(cross_spec.trans_func)
-        return model
-
-    
-    def eval_model(self,params=None,energ=None,fold=True):  
-    #need to sort this out - go over all components and figure out which ones are
-    #time vs frequency domain, convert the time domain ones?
-    #or maybe just have a generic function that can take time domain stuff and turn it into frequencies
-    #then use that as a wrapper?
-        start = model.eval(params,energs=energ_grid,freqs=freq_grid,times=time_grid,cross_spec=cross)
-        #set the channel of interest, then obtain the cross spectrum
-        cross.set_transfer(np.transpose(start))
-        cross.set_reference_energ(ref_bounds)
-        cross.cross_from_transfer()
-        folded_cross = response.convolve_response(cross,units_in="rate",units_out="kev")
-        #finally get real+imaginary
-        folded_real = folded_cross.real_frequency(coi_bounds)
-        folded_imag = folded_cross.imag_frequency(coi_bounds)
-        folded = np.concatenate((folded_real, folded_imag)) 
-    return eval
-    '''
     def set_params(self,params):
         #not sure this makes sense
         self.model_params = params
-   
+    
+    def eval_model(self,params=None,ref_band=None,sub_band=None):
+        #set reference/subject bands
+        if ref_band is None:
+            ref_band = self.ref_band
+        if sub_band is None:
+            sub_band = self.sub_band
+        
+        #evaluate the model for the chosen parameters
+        #tbd: sort out the units with the energy bins
+        #this is weird if people pass models that are not energy dependnet (e.g. a bunch of Lorentzians. Urgh)
+        if params is None:
+            params= self.model_params
+#            model_eval = self.model.eval(self.model_params,freqs=self.freqs,energs=self.energs)#*self.energ_bounds
+#        else:
+        model_eval = self.model.eval(params,freqs=self.freqs,energs=self.energs)#*self.energ_bounds
+
+        #store the model in the cross spectrum, depending on the type
+        if self.model_type == "irf":
+            self.crossspec.set_impulse(np.transpose(model_eval))
+            self.crossspec.set_reference_energ(ref_band)
+            self.crossspec.cross_from_irf()
+        elif self.model_type == "transfer":
+            self.crossspec.set_transfer(np.transpose(model_eval))
+            self.crossspec.set_reference_energ(ref_band)
+            self.crossspec.cross_from_transfer()
+        else:
+            #tbd - ensure the units/axis are correct
+            self.crossspec.cross = np.transpose(model_eval)
+        
+        #fold the instrument response:
+        folded_eval = self.response.convolve_response(self.crossspec,units_in="rate",units_out="kev")
+
+        #depending on units, return the correct format
+        if self.units == "lags":
+            eval = folded_eval.lag_frequency(self.sub_band)
+        elif self.units == "cartesian":
+            real = folded_eval.real_frequency(self.sub_band)
+            imag = folded_eval.imag_frequency(self.sub_band)
+            eval = np.concatenate((real,imag))
+        elif self.units == "polar":
+            mod = folded_eval.mod_frequency(self.sub_band)
+            phase = folded_eval.phase_frequency(self.sub_band)
+            eval = np.concatenate((mod,phase))
+        else:
+            print("weird units raise proper error tbd")
+        return eval
+
+    def get_residuals(self,model,res_type):
+        model = self.eval_model()
+        if res_type == "ratio":
+            residuals = self.data/model
+            bars = self.data_err/model
+        elif res_type == "delchi":
+            residuals = (self.data-model)/self.data_err
+            bars = np.ones(len(self.data))
+        else:
+            #eventually a better likelihood will need to go here
+            print("can only return delta chi squared or ratio")
+        return residuals, bars
+
+    def print_fit_stat(self):
+        if self.likelihood is None:
+            res, err = self.get_residuals(model,"delchi")
+            chi_squared = np.sum(np.power(res.reshape(len(self.data)),2))
+            #this is wrong, it should be free parameters in model_pars only
+            #fix it when I can check lmfit docs online
+            n_pars = len(self.model_params)
+            dof = len(self.data) - n_pars
+            reduced_chisquared = chi_squared/dof
+            print("Goodness of fit metrics:")
+            print("Chi squared" + "{0: <13}".format(" ") + str(chi_squared))
+            print("Reduced chi squared" + "{0: <5}".format(" ") + str(reduced_chisquared))
+            print("Data bins:" + "{0: <14}".format(" ") + str(len(self.data)))
+            print("Free parameters:" + "{0: <8}".format(" ") + str(n_pars))
+            print("Degrees of freedom:" + "{0: <5}".format(" ") + str(dof))
+        else:
+            print("custom likelihood not supported yet")
+    
+    def _cross_minimizer(self,params):
+        if self.likelihood is None:
+            model = self.eval_model(params,ref_band=self.ref_band,sub_band=self.sub_band)
+            residuals = (self.data-model)/self.data_err
+        else:
+            raise TypeError("custom likelihood not implemented yet")
+        return residuals
+    
+    def fit_data(self,algorithm='leastsq'):
+        self.fit_result = minimize(self._cross_minimizer,self.model_params,
+                                   method=algorithm)
+        print(fit_report(self.fit_result,show_correl=False))
+        fit_params = self.fit_result.params
+        self.set_params(fit_params)
+        return    
+    
     def plot_data(self,return_plot=False):
         data_bins = len(self.freqs)
 
@@ -745,6 +822,58 @@ class Fit_OneDCrossSpectrum():
             return fig 
         else:
             return 
+
+    def plot_model(self,plot_data=True,params=None,residuals="delchi",return_plot=False):
+        data_bins = len(self.freqs) 
+        model = self.eval_model(params=params)
+
+        #if we're plotting data, also get the residuals
+        if plot_data is True:
+            model_res,res_errors = self.get_residuals(self.model,residuals)
+            if residuals == "delchi":
+                reslabel = "$\\Delta\\chi$"
+            else:
+                reslabel = "Data/model"     
+
+        if self.units != "lags":
+            fig, ((ax1),(ax2)) = plt.subplots(1,2,figsize=(12.,5.))  
+
+        else:
+            #if we're plotting the data, automatically also plot the residuals
+            if plot_data is True:
+                fig, (ax1,ax2) = plt.subplots(2,1,figsize=(6.,6.),
+                              sharex=True,
+                              gridspec_kw={'height_ratios': [2, 1]})
+                ax1.errorbar(self.freqs,self.data,
+                yerr=self.data_err,
+                drawstyle="steps-mid",
+                marker='o',
+                zorder=2)    
+                ax2.errorbar(self.freqs,model_res,
+                             yerr=res_errors,
+                             drawstyle="steps-mid",
+                             marker='o',
+                             zorder=2)  
+                ax2.set_xlabel("Frequency (Hz)")  
+                if residuals == "delchi":
+                    ax2.plot(self.freqs,np.zeros(len(self.freqs)),ls=":",lw=2,color='black')
+                elif residuals == "ratio":
+                    ax2.plot(self.freqs,np.ones(len(self.freqs)),ls=":",lw=2,color='black')   
+                ax2.set_ylabel(reslabel)
+            else:
+                ax1.set_xlabel("Frequency (Hz)")  
+            ylabel = "Lag (s)" 
+            ax1.errorbar(self.freqs,model,linewidth=3)
+            ax1.axhline(0, ls="dotted",color='black')
+            ax1.set_ylabel(ylabel)
+            ax1.set_xscale("log")
+
+        plt.tight_layout()    
+        
+        if return_plot is True:
+            return fig 
+        else:
+            return  
         
 def load_pha(path,response):
     '''
