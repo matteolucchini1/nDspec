@@ -73,18 +73,20 @@ class Fit_Powerspectrum():
 
     def print_fit_stat(self):
         if self.likelihood is None:
-            res, err = self.get_residuals(self.model.eval(self.model_params,
-                                                          freq=self.freqs),
-                                                          "delchi")
+            res, err = self.get_residuals(model,"delchi")
             chi_squared = np.sum(np.power(res.reshape(len(self.data)),2))
-            n_pars = len(self.model_params)
-            dof = len(self.data) - n_pars
+            freepars = 0
+            for key, value in self.model_params.items():
+                param = self.model_params[key]
+                if param.vary is True:
+                    freepars += 1
+            dof = len(self.data) - freepars
             reduced_chisquared = chi_squared/dof
             print("Goodness of fit metrics:")
             print("Chi squared" + "{0: <13}".format(" ") + str(chi_squared))
             print("Reduced chi squared" + "{0: <5}".format(" ") + str(reduced_chisquared))
             print("Data bins:" + "{0: <14}".format(" ") + str(len(self.data)))
-            print("Free parameters:" + "{0: <8}".format(" ") + str(n_pars))
+            print("Free parameters:" + "{0: <8}".format(" ") + str(freepars))
             print("Degrees of freedom:" + "{0: <5}".format(" ") + str(dof))
         else:
             print("custom likelihood not supported yet")
@@ -357,14 +359,18 @@ class Fit_TimeAvgSpectrum():
         if self.likelihood is None:
             res, err = self.get_residuals(model,"delchi")
             chi_squared = np.sum(np.power(res.reshape(len(self.data)),2))
-            n_pars = len(self.model_params)
-            dof = len(self.data) - n_pars
+            freepars = 0
+            for key, value in self.model_params.items():
+                param = self.model_params[key]
+                if param.vary is True:
+                    freepars += 1
+            dof = len(self.data) - freepars
             reduced_chisquared = chi_squared/dof
             print("Goodness of fit metrics:")
             print("Chi squared" + "{0: <13}".format(" ") + str(chi_squared))
             print("Reduced chi squared" + "{0: <5}".format(" ") + str(reduced_chisquared))
             print("Data bins:" + "{0: <14}".format(" ") + str(len(self.data)))
-            print("Free parameters:" + "{0: <8}".format(" ") + str(n_pars))
+            print("Free parameters:" + "{0: <8}".format(" ") + str(freepars))
             print("Degrees of freedom:" + "{0: <5}".format(" ") + str(dof))
         else:
             print("custom likelihood not supported yet")
@@ -731,16 +737,18 @@ class Fit_OneDCrossSpectrum():
         if self.likelihood is None:
             res, err = self.get_residuals(model,"delchi")
             chi_squared = np.sum(np.power(res.reshape(len(self.data)),2))
-            #this is wrong, it should be free parameters in model_pars only
-            #fix it when I can check lmfit docs online
-            n_pars = len(self.model_params)
-            dof = len(self.data) - n_pars
+            freepars = 0
+            for key, value in self.model_params.items():
+                param = self.model_params[key]
+                if param.vary is True:
+                    freepars += 1
+            dof = len(self.data) - freepars
             reduced_chisquared = chi_squared/dof
             print("Goodness of fit metrics:")
             print("Chi squared" + "{0: <13}".format(" ") + str(chi_squared))
             print("Reduced chi squared" + "{0: <5}".format(" ") + str(reduced_chisquared))
             print("Data bins:" + "{0: <14}".format(" ") + str(len(self.data)))
-            print("Free parameters:" + "{0: <8}".format(" ") + str(n_pars))
+            print("Free parameters:" + "{0: <8}".format(" ") + str(freepars))
             print("Degrees of freedom:" + "{0: <5}".format(" ") + str(dof))
         else:
             print("custom likelihood not supported yet")
