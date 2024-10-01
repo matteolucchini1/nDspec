@@ -836,8 +836,64 @@ class Fit_OneDCrossSpectrum():
                 reslabel = "Data/model"     
 
         if self.units != "lags":
-            fig, ((ax1),(ax2)) = plt.subplots(1,2,figsize=(12.,5.))  
-
+            if plot_data is True:
+                fig, ((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(12.,6.),
+                                                          sharex=True,
+                                                          gridspec_kw={'height_ratios': [2, 1]})  
+                ax1.errorbar(self.freqs,self.data[:data_bins]*self.freqs,
+                             yerr=self.data_err[:data_bins]*self.freqs,
+                             drawstyle="steps-mid",
+                             marker='o',
+                             zorder=2) 
+                ax3.errorbar(self.freqs,model_res[:data_bins],
+                             yerr=res_errors[:data_bins],
+                             drawstyle="steps-mid",
+                             marker='o',
+                             zorder=2)
+                ax3.set_xlabel("Frequency (Hz)") 
+                ax3.set_ylabel(reslabel)
+                ax4.errorbar(self.freqs,model_res[data_bins:],
+                             yerr=res_errors[data_bins:],
+                             drawstyle="steps-mid",
+                             marker='o',
+                             zorder=2)
+                ax4.set_ylabel(reslabel)
+                ax4.set_xlabel("Frequency (Hz)") 
+                if residuals == "delchi":
+                    ax3.plot(self.freqs,np.zeros(len(self.freqs)),ls=":",lw=2,color='black')
+                    ax4.plot(self.freqs,np.zeros(len(self.freqs)),ls=":",lw=2,color='black')
+                elif residuals == "ratio":
+                    ax3.plot(self.freqs,np.zeros(len(self.freqs)),ls=":",lw=2,color='black')                    
+                    ax4.plot(self.freqs,np.ones(len(self.freqs)),ls=":",lw=2,color='black')                   
+                if self.units == "polar":
+                    ax2.errorbar(self.freqs,self.data[data_bins:],
+                                 yerr=self.data_err[data_bins:],
+                                 drawstyle="steps-mid",
+                                 marker='o',
+                                 zorder=2)  
+                else:
+                    ax2.errorbar(self.freqs,self.data[data_bins:]*self.freqs,
+                                 yerr=self.data_err[data_bins:]*self.freqs,
+                                 drawstyle="steps-mid",
+                                 marker='o',
+                                 zorder=2)                     
+            else:
+                fig, ((ax1),(ax2)) = plt.subplots(1,2,figsize=(12.,5.))  
+                ax1.set_xlabel("Frequency (Hz)") 
+                ax2.set_xlabel("Frequency (Hz)")  
+            ax1.plot(self.freqs,model[:data_bins]*self.freqs,linewidth=3,zorder=3)
+            ax1.set_xscale("log")
+            ax1.set_yscale("log")
+            if self.units == "polar":
+                ax1.set_ylabel("Modulus$\\times$Freq")
+                ax2.set_ylabel("Phase")
+                ax2.plot(self.freqs,model[data_bins:],linewidth=3,zorder=3)
+            else:
+                ax1.set_ylabel("Real part$\\times$Freq")
+                ax2.set_ylabel("Imaginary part$\\times$Freq")
+                ax2.plot(self.freqs,model[data_bins:]*self.freqs,linewidth=3,zorder=3)
+            ax2.plot(self.freqs,np.zeros(len(self.freqs)),ls=":",lw=2,color='black')
+            ax2.set_xscale("log")
         else:
             #if we're plotting the data, automatically also plot the residuals
             if plot_data is True:
@@ -845,10 +901,10 @@ class Fit_OneDCrossSpectrum():
                               sharex=True,
                               gridspec_kw={'height_ratios': [2, 1]})
                 ax1.errorbar(self.freqs,self.data,
-                yerr=self.data_err,
-                drawstyle="steps-mid",
-                marker='o',
-                zorder=2)    
+                             yerr=self.data_err,
+                             drawstyle="steps-mid",
+                             marker='o',
+                             zorder=2)    
                 ax2.errorbar(self.freqs,model_res,
                              yerr=res_errors,
                              drawstyle="steps-mid",
@@ -861,9 +917,11 @@ class Fit_OneDCrossSpectrum():
                     ax2.plot(self.freqs,np.ones(len(self.freqs)),ls=":",lw=2,color='black')   
                 ax2.set_ylabel(reslabel)
             else:
+                fig, (ax1) = plt.subplots(1,1,figsize=(6.,4.5),sharex=True,
+                                          gridspec_kw={'height_ratios': [2, 1]})
                 ax1.set_xlabel("Frequency (Hz)")  
             ylabel = "Lag (s)" 
-            ax1.errorbar(self.freqs,model,linewidth=3)
+            ax1.errorbar(self.freqs,model,linewidth=3,zorder=3)
             ax1.axhline(0, ls="dotted",color='black')
             ax1.set_ylabel(ylabel)
             ax1.set_xscale("log")
