@@ -435,8 +435,8 @@ class ResponseMatrix(nDspecOperator):
             "kev" normalizations returns a model in units of counts/s/kev, 
             "channel" instead returns a model in units of counts/s/channel.
         
-        Returns
-        ---------- 
+        Returns:
+        -------- 
         conv_model, np.array(float,float) or CrossSpectrum
             Either a) a 2-d array of size (n_chans x arbitrary length), 
             containing the input model as a function of energy channel and a 

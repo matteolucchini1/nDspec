@@ -16,6 +16,50 @@ from lmfit import fit_report, minimize
 from lmfit.model import ModelResult as LM_result
 
 class Fit_Powerspectrum():
+    """
+    Least-chi squared fitter class for a powerspectrum, defined as the product 
+    between a Fourier-transformed lightcurve and its complex conjugate. 
+    
+    Given an array of Fourier frequencies, a power spectrum, its error and a 
+    model (defined in Fourier space), this class handles fitting internally 
+    using the lmfit library.    
+    
+    Poisson noise in the data is not accounted for explicitely. Users should 
+    either pass noise-subtracted data, or include a constant component in the 
+    model definition (see below).   
+        
+    Attributes
+    ----------
+    model: lmfit.CompositeModel 
+        A lmfit CompositeModel object, which contains a wrapper to the model 
+        component(s) one wants to fit to the data. 
+   
+    model_params: lmfit.Parameters 
+        A lmfit Parameters object, which contains the parameters for the model 
+        components.
+   
+    likelihood: None
+        Work in progress; currently the software defaults to chi squared 
+        likelihood
+   
+    fit_result: lmfit.MinimizeResult
+        A lmfit MinimizeResult, which stores the result (including best-fitting 
+        parameter values, fit statistics etc) of a fit after it has been run.         
+   
+    data: np.array(float)
+        An array of float containing the power spectrum to be fitted. Users can 
+        choose whatever units they prefer (e.g. fractional vs absolute 
+        normalization), as long as it is a power (rather than the more commonly
+        plotted power*frequency). 
+   
+    data_err: np.array(float)
+        The uncertainty on the power stored in data. 
+   
+    freqs: np.array(float)
+        The Fourier frequency over which both the data and model are defined, 
+        in units of Hz.           
+    """ 
+
     def __init__(self):
         self.model = None
         self.model_params = None
@@ -27,6 +71,28 @@ class Fit_Powerspectrum():
         pass
     
     def set_data(self,data,data_err=None,data_grid=None):
+        """
+        This method is used to pass the data users want to fit. The input can
+        be either three arrays including the power, its erorr, and the Fourier 
+        frequency grid, or a Stingray Powerspectrum object, in which case the 
+        error and frequency array are handled automatically.
+        
+        Parameters:
+        -----------           
+        data: np.array(float) or stingray.powerspectrum
+            The power spectrum to be fitted, either as a numpy array or a 
+            stingray object 
+            
+        data_err: np.array(float), default: None 
+            The error on the power spectrum. If passnig a stingray object, this 
+            is not necessary and is therefore ignored
+            
+        data_grid: np.array(float), default: None 
+            The Fourier frequency grid over which the data (and model) are 
+            defined. If passnig a stingray object, this is not necessary and is 
+            therefore ignored      
+        """
+        
         if data.__module__ == "stingray.powerspectrum":
             self.data = data.power
             self.data_err = data.power_err
@@ -37,6 +103,21 @@ class Fit_Powerspectrum():
             self.freqs = data_grid
 
     def set_model(self,model,params=None):
+        """
+        This method is used to pass the model users want to fit to the data. 
+        Optionally it is also possible to pass the initial parameter values of 
+        the model. 
+        
+        Parameters:
+        -----------            
+        model: lmfit.CompositeModel 
+            The lmfit wrapper of the model one wants to fit to the data. 
+            
+        params: lmfit.Parameters, default: None 
+            The parameter values from which to start evalauting the model during
+            the fit.  
+        """
+    
         #this should be an lmfit model object
         self.model = model 
         if params is None:
@@ -45,26 +126,83 @@ class Fit_Powerspectrum():
             self.model_params = params
 
     def set_params(self,params):
-        #not sure this makes sense
+        """
+        This method is used to set the model parameter names and values. It can
+        be used both to initialize a fit, and to test different parameter values 
+        before actually running the minimization algorithm.
+        
+        Parameters:
+        -----------                       
+        params: lmfit.Parameters
+            The parameter values from which to start evalauting the model during
+            the fit.  
+        """
         self.model_params = params
     
     def eval_model(self,params=None,freq=None):
-        #this is a reasonable start for the wrapper in the future, may also be 
-        #worth to build this into the minimizer
+        """
+        This method is used to evaluate and return the model values for a given 
+        set of parameters,  over a given Fourier frequency grid. By default it  
+        will evaluate the model over the data Fourier frequency grid and using  
+        the values stored internally in the model_params attribute, but passing 
+        a different grid/set of parameters is also possible.         
+        
+        Parameters:
+        -----------                         
+        params: lmfit.Parameters, default None
+            The parameter values to use in evaluating the model. If none are 
+            provided, the model_params attribute is used.
+            
+        freq: np.array(float), default None
+            The the Fourier frequencies over which to evaluted the model. If 
+            none are provided, the same frequencies over which the data is 
+            defined are used. 
+            
+        Returns:
+        --------
+        model: np.array(float)
+            The model evaluated over the given Fourier frequency array, for the 
+            given input parameters.   
+        """
         if freq is None:
             freq = self.freqs
         if params is None:
-            eval = self.model.eval(self.model_params,freq=freq)
+            model = self.model.eval(self.model_params,freq=freq)
         else:
-            eval = self.model.eval(params,freq=freq)
-        return eval
+            model = self.model.eval(params,freq=freq)
+        return model
          
-    def get_residuals(self,model,res_type):
+    def get_residuals(self,model_vals,res_type):
+        """
+        This methods return the residuals (either as data/model, or as 
+        contribution to the total chi squared) of the input model, given the 
+        parameters set in model_parameters, with respect to the data. 
+        
+        Parameters:
+        -----------
+        model_vals: np.array(float)
+            An array of model values to be compared against the data.
+            
+        res_type: string 
+            If set to "ratio", the method returns the residuals defined as 
+            data/model. If set to "delchi", it returns the contribution of 
+            each Frequency bin to the total chi squared.
+            
+        Returns:
+        --------
+        residuals: np.array(float)
+            An array of the same size as the data, containing the model 
+            residuals in each bin.
+            
+        bars: np.array(float)
+            An array of the same size as the data, containing the one sigma 
+            range for each contribution to the residuals.           
+        """
         if res_type == "ratio":
-            residuals = self.data/model
-            bars = self.data_err/model
+            residuals = self.data/model_vals
+            bars = self.data_err/model_vals
         elif res_type == "delchi":
-            residuals = (self.data-model)/self.data_err
+            residuals = (self.data-model_vals)/self.data_err
             bars = np.ones(len(self.data))
         else:
             #eventually a better likelihood will need to go here
@@ -73,7 +211,7 @@ class Fit_Powerspectrum():
 
     def print_fit_stat(self):
         if self.likelihood is None:
-            res, err = self.get_residuals(model,"delchi")
+            res, err = self.get_residuals(self.model,"delchi")
             chi_squared = np.sum(np.power(res.reshape(len(self.data)),2))
             freepars = 0
             for key, value in self.model_params.items():
@@ -210,9 +348,6 @@ class Fit_Powerspectrum():
             return fig 
         else:
             return   
-            
-#k now the spectrum
-#ok I need a method to ignore energy bins
 
 class Fit_TimeAvgSpectrum():
     def __init__(self):
@@ -437,7 +572,6 @@ class Fit_TimeAvgSpectrum():
 
     def plot_model(self,plot_data=True,plot_components=False,params=None,
                    units="data",residuals="delchi",return_plot=False):
-        #tbd: fold/unfold flag, get residuals in folded space always 
         energies = np.extract(self.ebounds_mask,self._ebounds_unmasked)
         xerror = 0.5*np.extract(self.ebounds_mask,self._ewidths_unmasked)       
         
@@ -945,6 +1079,8 @@ def load_pha(path,response):
     '''
     This function loads xray spectra with astropy
     '''
+    from astropy.io import fits
+    
     with fits.open(path,filemap=False) as spectrum:
         extnames = np.array([h.name for h in spectrum])
         spectrum_data = spectrum['SPECTRUM'].data
@@ -1009,3 +1145,15 @@ def load_pha(path,response):
         return bin_bounds_lo, bin_bounds_hi, counts_per_group, spectrum_error, exposure
         #bound_midpoint, bin_diff, counts_per_group, rebin_error contains the rebinned spectrum
 
+def loadr_lc(path):
+    from astropy.io import fits
+
+    with fits.open(path,filemap=False) as lightcurve:
+        extnames = np.array([h.name for h in lightcurve])
+        lightcurve_data = lightcurve['RATE'].data
+        time_bins = lightcurve_data['TIME']
+        counts = lightcurve_data['RATE']
+        gti_data = lightcurve['GTI'].data
+        gti = [gti_data['START']-gti_data['START'][0],gti_data['STOP']-gti_data['START'][0]]
+
+    return time_bins, counts, gti
