@@ -101,6 +101,7 @@ class Fit_Powerspectrum():
             self.data = data
             self.data_err = data_err
             self.freqs = data_grid
+        return
 
     def set_model(self,model,params=None):
         """
@@ -124,6 +125,7 @@ class Fit_Powerspectrum():
             self.model_params = self.model.make_params(verbose=True)
         else:
             self.model_params = params
+        return 
 
     def set_params(self,params):
         """
@@ -139,6 +141,7 @@ class Fit_Powerspectrum():
         """
         
         self.model_params = params
+        return 
     
     def eval_model(self,params=None,freq=None):
         """
@@ -238,6 +241,7 @@ class Fit_Powerspectrum():
             print("Degrees of freedom:" + "{0: <5}".format(" ") + str(dof))
         else:
             print("custom likelihood not supported yet")
+        return 
     
     def _psd_minimizer(self,params):
         """
@@ -463,6 +467,93 @@ class Fit_Powerspectrum():
             return   
 
 class Fit_TimeAvgSpectrum():
+    """
+    Least-chi squared fitter class for a time averaged spectrum, defined as the  
+    count rate as a function of photon channel energy bound. 
+    
+    Given an instrument response, a count rate spectrum, its error and a 
+    model (defined in energy space), this class handles fitting internally 
+    using the lmfit library.    
+        
+    Attributes
+    ----------
+    model: lmfit.CompositeModel 
+        A lmfit CompositeModel object, which contains a wrapper to the model 
+        component(s) one wants to fit to the data. 
+   
+    model_params: lmfit.Parameters 
+        A lmfit Parameters object, which contains the parameters for the model 
+        components.
+   
+    likelihood: None
+        Work in progress; currently the software defaults to chi squared 
+        likelihood
+   
+    fit_result: lmfit.MinimizeResult
+        A lmfit MinimizeResult, which stores the result (including best-fitting 
+        parameter values, fit statistics etc) of a fit after it has been run.         
+   
+    data: np.array(float)
+        An array of float containing the time-averaged spectrum to be fitted. It 
+        should be defined in detector space, in units of counts/s/keV. Contains 
+        exclusively the energy channels noticed during the fit.
+   
+    data_err: np.array(float)
+        The uncertainty on the spectrum stored in data. Contains exclusively the
+        energy channels noticed during the fit.
+
+    response: nDspec.ResponseMatrix
+        The instrument response matrix corresponding to the spectrum to be 
+        fitted. It is required to define the energy grids over which model and
+        data are defined. 
+   
+    energs: np.array(float)
+        The array of physical photon energies over which the model is computed. 
+        Defined as the middle of each bin in the energy range stored in the 
+        instrument response provided.    
+        
+    energ_bounds: np.array(float)
+        The array of energy bin widths, for each bin over which the model is 
+        computed. Defined as the difference between the uppoer and lower bounds 
+        of the energy bins stored in the insrument response provided. 
+        
+    emin: np.array(float)
+        The array of lower bounds for the instrument energy channels, as stored 
+        in the instrument response provided. Only contains the channels that are 
+        noticed during the fit.
+        
+    emax: np.array(float)
+        The array of upper bounds for the instrument energy channels, as stored 
+        in the instrument response provided. Only contains the channels that are 
+        noticed during the fit.
+        
+    ebounds: np.array(float) 
+        The array of energy channel bin centers for the instrument energy
+        channels,  as stored in the instrument response provided. Only contains 
+        the channels that are noticed during the fit.
+
+    ewidths: np.array(float) 
+        The array of energy channel bin widths for the instrument energy
+        channels,  as stored in the instrument response provided. Only contains 
+        the channels that are noticed during the fit.
+        
+    ebounds_mask: np.array(bool)
+        The array of instrument energy channels that are either ignored or 
+        noticed during the fit. A given channel i is noticed if ebounds_mask[i]
+        is True, and ignored if it is false.
+        
+    _emin_unmasked, _emax_unmasked, _ebounds_unmasked, _ewidths_unmasked: np.array(float)
+        The array of every lower bound, upper bound, channel center and channel 
+        widths stored in the response, regardless of which ones are ignored or 
+        noticed during the fit. Used exclusively to facilitate book-keeping 
+        internal to the class. 
+        
+    _data_unmasked, _data_err_unmasked: np.array(float)
+        The array of every cout rate and relative error contained in the 
+        spectrum, regardless of which ones are ignored or noticed during the 
+        fit. Used exclusively to facilitate book-keeping internal to the class. 
+    """ 
+
     def __init__(self):
         self.model = None
         self.model_params = None
@@ -470,16 +561,34 @@ class Fit_TimeAvgSpectrum():
         self.fit_result = None
         self.data = None
         self.data_err = None
+        self.response = None
         self.energs = None
+        self.ewidths = None
         self.emin = None
         self.emax = None
         self.ebounds = None
-        self.ewidths = None
-        self.response = None
         pass
 
-    #tbd: allow a mwl data setter too
     def set_data(self,response,data):
+        """
+        This method sets the data to be fitted, its error, and the  energy and 
+        channel grids given an input spectrum and its associated response matrix. 
+        
+        If the file provided was grouped with heatools, the method loads the 
+        grouped data and adjusts the channel grid automatically.
+        
+        Parameters:
+        -----------
+        response: nDspec.ResponseMatrix
+            An instrument response (including both rmf and arf) loaded into a 
+            nDspec ResponseMatrix object. 
+        
+        data: str 
+            A string pointing to the path of an X-ray spectrum file, stored in 
+            a type 1 OGIP-formatted file (such as a pha file produced by a
+            typical instrument reduction pipeline).
+        """
+    
         bounds_lo, bounds_hi, counts, error, exposure = load_pha(data,response)
         self.response = response.rebin_channels(bounds_lo,bounds_hi)
         #this needs to keep track of the bin widths when i switch to integrating models 
@@ -490,35 +599,33 @@ class Fit_TimeAvgSpectrum():
         self.emax = bounds_hi
         self.ebounds = 0.5*(self.emax+self.emin)
         self.ewidths = bounds_hi - bounds_lo
-        #this load the spectrum in units of counts/s/keV
+        #this loads the spectrum in units of counts/s/keV
         self.data = counts/exposure/self.ewidths
         self.data_err = error/exposure/self.ewidths
         #here we keep track of which channels are noticed/ignored, by default
         #all are noticed
         self.ebounds_mask = np.full((self.response.n_chans), True)
-        #we also need to double load the data to store it in a hidden unmasked variable
-        #this is required in case users want to ignore/re-notice energy ranges
-        #formally we could call some of these directly e.g. from the resposne, but
-        #storing this way makes the following methods far more readable
         self._emin_unmasked = self.emin
         self._emax_unmasked = self.emax
         self._ebounds_unmasked = self.ebounds
         self._ewidths_unmasked = self.ewidths
         self._data_unmasked = self.data
         self._data_err_unmasked = self.data_err
+        return 
 
     def ignore_energies(self,bound_lo,bound_hi):
         """
-        Adjusts the data arrays stored such that they (and the fit)
-        ignore selected channels  based on their energy bounds.
+        Adjusts the data arrays stored such that they (and the fit) ignore 
+        selected channels based on their energy bounds.
 
-        Parameters
-        ----------
+        Parameters:
+        -----------
         bound_lo : float
-            Lower bound of ignored energy interval
-        bound_hi : float,
-            Higher bound of ignored energy interval     
+            Lower bound of ignored energy interval.
+        bound_hi : float
+            Higher bound of ignored energy interval .    
         """
+        
         if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
             (isinstance(bound_hi, (np.floating, float, int)) != True)):
             raise TypeError("Energy bounds must be floats or integers")
@@ -534,20 +641,22 @@ class Fit_TimeAvgSpectrum():
         self.ewidths = np.extract(self.ebounds_mask,self._ewidths_unmasked)
         self.data = np.extract(self.ebounds_mask,self._data_unmasked)
         self.data_err = np.extract(self.ebounds_mask,self._data_err_unmasked)
+        return 
         
     def notice_energies(self,bound_lo,bound_hi):
         """
-        Adjusts the data arrays stored such that they (and the fit)
-        notice selected (previously ignore) channels  based on their energy 
+        Adjusts the data arrays stored such that they (and the fit) notice
+        selected (previously ignore) channels  based on their energy 
         bounds.
 
-        Parameters
-        ----------
+        Parameters:
+        -----------
         bound_lo : float
-            Lower bound of ignored energy interval
+            Lower bound of ignored energy interval.
         bound_hi : float,
-            Higher bound of ignored energy interval     
+            Higher bound of ignored energy interval.     
         """
+        
         if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
             (isinstance(bound_hi, (np.floating, float, int)) != True)):
             raise TypeError("Energy bounds must be floats or integers")
@@ -563,7 +672,8 @@ class Fit_TimeAvgSpectrum():
         self.ebounds = np.extract(self.ebounds_mask,self._ebounds_unmasked)
         self.ewidths = np.extract(self.ebounds_mask,self._ewidths_unmasked)
         self.data = np.extract(self.ebounds_mask,self._data_unmasked)
-        self.data_err = np.extract(self.ebounds_mask,self._data_err_unmasked)    
+        self.data_err = np.extract(self.ebounds_mask,self._data_err_unmasked)   
+        return 
     
     def set_model(self,model,params=None):
         #this should be an lmfit model object
@@ -572,6 +682,7 @@ class Fit_TimeAvgSpectrum():
             self.model_params = self.model.make_params(verbose=True)
         else:
             self.model_params = params
+        return 
 
     def set_params(self,params):
         #not sure this makes sense
@@ -622,6 +733,7 @@ class Fit_TimeAvgSpectrum():
             print("Degrees of freedom:" + "{0: <5}".format(" ") + str(dof))
         else:
             print("custom likelihood not supported yet")
+        return 
 
     def _spectrum_minimizer(self,params):
         if self.likelihood is None:
