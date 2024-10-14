@@ -116,7 +116,8 @@ class Fit_Powerspectrum():
             
         params: lmfit.Parameters, default: None 
             The parameter values from which to start evalauting the model during
-            the fit.  
+            the fit. If it is not provided, all model parameters will default 
+            to 0, set to be free, and have no minimum or maximum bound. 
         """
     
         #this should be an lmfit model object
@@ -200,7 +201,7 @@ class Fit_Powerspectrum():
             residuals in each bin.
             
         bars: np.array(float)
-            An array of the same size as the data, containing the one sigma 
+            An array of the same size as the residuals, containing the one sigma 
             range for each contribution to the residuals.           
         """
         
@@ -575,7 +576,8 @@ class Fit_TimeAvgSpectrum():
         channel grids given an input spectrum and its associated response matrix. 
         
         If the file provided was grouped with heatools, the method loads the 
-        grouped data and adjusts the channel grid automatically.
+        grouped data and adjusts the channel grid automatically. The data is 
+        assumed to be background-subtracted (or to have negligible background).
         
         Parameters:
         -----------
@@ -676,7 +678,23 @@ class Fit_TimeAvgSpectrum():
         return 
     
     def set_model(self,model,params=None):
-        #this should be an lmfit model object
+        """
+        This method is used to pass the model users want to fit to the data. 
+        Optionally it is also possible to pass the initial parameter values of 
+        the model. 
+        
+        Parameters:
+        -----------            
+        model: lmfit.CompositeModel 
+            The lmfit wrapper of the model one wants to fit to the data. The 
+            output of the model must be in units of photons/keV/cm^2/s.            
+            
+        params: lmfit.Parameters, default: None 
+            The parameter values from which to start evalauting the model during
+            the fit. If it is not provided, all model parameters will default 
+            to 0, set to be free, and have no minimum or maximum bound. 
+        """
+        
         self.model = model 
         if params is None:
             self.model_params = self.model.make_params(verbose=True)
@@ -685,22 +703,90 @@ class Fit_TimeAvgSpectrum():
         return 
 
     def set_params(self,params):
-        #not sure this makes sense
+        """
+        This method is used to set the model parameter names and values. It can
+        be used both to initialize a fit, and to test different parameter values 
+        before actually running the minimization algorithm.
+        
+        Parameters:
+        -----------                       
+        params: lmfit.Parameters
+            The parameter values from which to start evalauting the model during
+            the fit.  
+        """
+        
         self.model_params = params
+        return 
     
     def eval_model(self,params=None,energ=None,fold=True):    
+        """
+        This method is used to evaluate and return the model values for a given 
+        set of parameters,  over a given model energy grid. By default it  
+        will evaluate the model over the energy grid defined in the response,
+        using the parameters values stored internally in the model_params 
+        attribute, without folding the model through the response.        
+        
+        Parameters:
+        -----------                         
+        params: lmfit.Parameters, default None
+            The parameter values to use in evaluating the model. If none are 
+            provided, the model_params attribute is used.
+            
+        energ: np.array(float), default None
+            The the photon energies over which to evaluted the model. If 
+            none are provided, the same grid contained in the instrument response  
+            is used. 
+            
+        fold: bool, default True
+            A boolean switch to choose whether to fold the evaluated model 
+            through the instrument response or not. Not that in order for the 
+            model to be folded, the energy grid over which it is defined MUST 
+            be identical to that stored in the response matrix/class.
+            
+        Returns:
+        --------
+        model: np.array(float)
+            The model evaluated over the given energy grid, for the given input 
+            parameters.  
+        """    
+    
         if energ is None:
             energ = self.energs
         if params is None:
-            eval = self.model.eval(self.model_params,energ=energ)*self.energ_bounds
+            model = self.model.eval(self.model_params,energ=energ)*self.energ_bounds
         else:
-            eval = self.model.eval(params,energ=energ)*self.energ_bounds
-        #by default we fold the model through the response when evaluating it
+            model = self.model.eval(params,energ=energ)*self.energ_bounds
         if fold is True:
-            eval = self.response.convolve_response(eval)  
-        return eval
+            model = self.response.convolve_response(model)  
+        return model
 
-    def get_residuals(self,model,res_type):
+    def get_residuals(self,model,res_type):    
+        """
+        This methods return the residuals (either as data/model, or as 
+        contribution to the total chi squared) of the input model, given the 
+        parameters set in model_parameters, with respect to the data. 
+        
+        Parameters:
+        -----------
+        model_vals: np.array(float)
+            An array of model values to be compared against the data.
+            
+        res_type: string 
+            If set to "ratio", the method returns the residuals defined as 
+            data/model. If set to "delchi", it returns the contribution of 
+            each energy channel to the total chi squared.
+            
+        Returns:
+        --------
+        residuals: np.array(float)
+            An array of the same size as the data, containing the model 
+            residuals in each channel.
+            
+        bars: np.array(float)
+            An array of the same size as the residuals, containing the one sigma 
+            range for each contribution to the residuals.           
+        """
+        
         model = self.eval_model()
         model = np.extract(self.ebounds_mask,model)
         if res_type == "ratio":
@@ -715,6 +801,13 @@ class Fit_TimeAvgSpectrum():
         return residuals, bars
 
     def print_fit_stat(self):
+        """
+        This method compares the model defined by the user, using the last set
+        of parameters to have been set in the class, to the data stored. It then
+        prints the chi-squared goodness-of-fit to terminal, along with the 
+        number of data bins, free parameters and degrees of freedom. 
+        """
+        
         if self.likelihood is None:
             res, err = self.get_residuals(model,"delchi")
             chi_squared = np.sum(np.power(res.reshape(len(self.data)),2))
@@ -736,6 +829,25 @@ class Fit_TimeAvgSpectrum():
         return 
 
     def _spectrum_minimizer(self,params):
+        """
+        This method is used exclusively when running a minimization algorithm.
+        It evaluates the model for an input set of parameters, and then returns 
+        the residuals in units of contribution to the total chi squared 
+        statistic.
+        
+        Parameters:
+        -----------                         
+        params: lmfit.Parameters
+            The parameter values to use in evaluating the model. These will vary 
+            as the fit runs.
+            
+        Returns:
+        --------
+        residuals: np.array(float)
+            An array of the same size as the data, containing the model 
+            residuals in each bin.            
+        """
+    
         if self.likelihood is None:
             model = self.eval_model(params,energ=self.energs)
             convolve = np.extract(self.ebounds_mask,model)
@@ -745,6 +857,22 @@ class Fit_TimeAvgSpectrum():
         return residuals
 
     def fit_data(self,algorithm='leastsq'):
+        """
+        This method attempts to minimize the residuals of the model with respect 
+        to the data defined by the user. The fit always starts from the set of 
+        parameters defined with .set_params(). Once the algorithm has completed 
+        its run, it prints to terminal the best-fitting parameters, fit 
+        statistics, and simple selection criteria (reduced chi-squared, Akaike
+        information criterion, and Bayesian informatino criterion). 
+        
+        Parameters:
+        -----------
+        algorithm: str, default="leastsq"
+            The fitting algorithm to be used in the minimization. The possible 
+            choices are detailed on the LMFit documentation page:
+            https://lmfit.github.io/lmfit-py/fitting.html#fit-methods-table.
+        """
+        
         self.fit_result = minimize(self._spectrum_minimizer,self.model_params,
                                    method=algorithm)
         print(fit_report(self.fit_result,show_correl=False))
@@ -752,8 +880,47 @@ class Fit_TimeAvgSpectrum():
         self.set_params(fit_params)
         return
 
-    #need to track the units stuff is defined in better
     def plot_data(self,units="data",return_plot=False):
+        """
+        This method plots the spectrum loaded by the user as a function of 
+        energy. It is possible to plot both in detector and ``unfolded'' space, 
+        with the caveat that unfolding data is EXTREMELY dangerous and should
+        be interpreted with care (or not at all). 
+        
+        The definition of unfolded data is subjective; nDspec adopts the same 
+        convention as ISIS, and defines an unfolded count spectrum Uf(h) as a 
+        function of energy channel h as :
+        Uf(h) = C(h)/sum(R(E)),
+        where C(h) is the detector space spectrum, R(E) is the instrument response 
+        and sum denotes the sum over energy bins. This definition has the 
+        advantage of being model-independent and is analogous to the Xspec 
+        (model-dependent) definition of unfolding data when the model is a 
+        constant. 
+        
+        It is also possible to return the figure object, for instance in order 
+        to save it to file.
+        
+        Parameters:
+        -----------
+        units: str, default="data"
+            The units to use for the y axis. units="data", the detector, plots 
+            the data in detector space in units of counts/s/keV. units="unfold" 
+            instead plots unfolded data and follows the Xspec convention for the 
+            y axis - the y axis is in units of counts/s/keV/cm^2, times one 
+            additional factor "keV" for each "e" that appears in the string. 
+            For instance, units="eeunfold" plots units of kev^2 counts/s/keV/cm^2,
+            i.e. units of nuFnu. 
+            
+        return_plot: bool, default=False
+            A boolean to decide whether to return the figure objected containing 
+            the plot or not.
+            
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
+        """
+    
         energies = np.extract(self.ebounds_mask,self._ebounds_unmasked)
         xerror = 0.5*np.extract(self.ebounds_mask,self._ewidths_unmasked)   
         
@@ -797,6 +964,64 @@ class Fit_TimeAvgSpectrum():
 
     def plot_model(self,plot_data=True,plot_components=False,params=None,
                    units="data",residuals="delchi",return_plot=False):
+        """
+        This method plots the model defined by the user as a function of 
+        energy, as well as (optionally) its components, and the data plus model
+        residuals. It is possible to plot both in detector and ``unfolded'' space, 
+        with the caveat that unfolding data is EXTREMELY dangerous and should
+        be interpreted with care (or not at all). 
+        
+        The definition of unfolded data is subjective; nDspec adopts the same 
+        convention as ISIS, and defines an unfolded count spectrum Uf(h) as a 
+        function of energy channel h as :
+        Uf(h) = C(h)/sum(R(E)),
+        where C(h) is the detector space spectrum, R(E) is the instrument response 
+        and sum denotes the sum over energy bins. This definition has the 
+        advantage of being model-independent and is analogous to the Xspec 
+        (model-dependent) definition of unfolding data when the model is a 
+        constant. 
+        
+        It is also possible to return the figure object, for instance in order 
+        to save it to file.
+        
+        Parameters:
+        -----------
+        plot_data: bool, default=True
+            If true, both model and data are plotted; if false, just the model. 
+            
+        plot_components: bool, default=False 
+            If true, the model components are overplotted; if false, they are 
+            not. Only additive model components will display their values 
+            correctly. 
+            
+        params: lmfit.parameters, default=None 
+            The parameters to be used to evaluate the model. If False, the set 
+            of parameters stored in the class is used 
+        
+        units: str, default="data"
+            The units to use for the y axis. units="data", the detector, plots 
+            the data in detector space in units of counts/s/keV. units="unfold" 
+            instead plots unfolded data and follows the Xspec convention for the 
+            y axis - the y axis is in units of counts/s/keV/cm^2, times one 
+            additional factor "keV" for each "e" that appears in the string. 
+            For instance, units="eeunfold" plots units of kev^2 counts/s/keV/cm^2,
+            i.e. units of nuFnu. 
+            
+        residuals: str, default="delchi"
+            The units to use for the residuals. If residuals="delchi", the plot 
+            shows the residuals in units of data-model/error; if residuals="ratio",
+            the plot instead uses units of data/model.
+            
+        return_plot: bool, default=False
+            A boolean to decide whether to return the figure objected containing 
+            the plot or not.
+            
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
+        """           
+                                     
         energies = np.extract(self.ebounds_mask,self._ebounds_unmasked)
         xerror = 0.5*np.extract(self.ebounds_mask,self._ewidths_unmasked)       
         
@@ -810,7 +1035,7 @@ class Fit_TimeAvgSpectrum():
             ylabel = "Folded counts/s/keV"
         elif units.count("unfold"):
             power = units.count("e")
-            #the reason for folding and hten unfolding the model is that 
+            #the reason for folding and then unfolding the model is that 
             #this is actually what happens to the data when we 'unfold' it - 
             #by definition it has gone from the physical space to the detector space
             #during an observation, and then we (arbitrarily) define the operation of
