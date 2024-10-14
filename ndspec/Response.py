@@ -183,8 +183,7 @@ class ResponseMatrix(nDspecOperator):
             The instrument response matrix, loaded in an array of dimensions
             (n_energs x n_chans). The elements that are not present in the 
             response file are hard-coded to 0.
-        """
-        
+        """        
         #start with an empty matrix - we need to figure out 
         #which elements from the FITS file are not zero. These are the only 
         #values reported in the FITS file, where the matrix has format 
@@ -378,6 +377,7 @@ class ResponseMatrix(nDspecOperator):
             A ResponseMatrix object containing the same response loaded in the 
             self object, but rebinned over the energy axis to the input grid.
         """    
+        
         warnings.warn("WARNING: rebinning a response in energy is dangerous, use at your own risk!",
                       UserWarning)    
         

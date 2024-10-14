@@ -404,6 +404,7 @@ class nDspecOperator(object):
             closest elements of the fixed "rebin_grid" to the initial input 
             "rebin_grid".
         """
+        
         indexes = np.digitize(rebin_grid,start_grid)-1
         diff_hi = np.abs(rebin_grid-start_grid[indexes])
         diff_lo = np.abs(rebin_grid-start_grid[indexes-1])

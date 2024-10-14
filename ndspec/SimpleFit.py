@@ -137,6 +137,7 @@ class Fit_Powerspectrum():
             The parameter values from which to start evalauting the model during
             the fit.  
         """
+        
         self.model_params = params
     
     def eval_model(self,params=None,freq=None):
@@ -164,6 +165,7 @@ class Fit_Powerspectrum():
             The model evaluated over the given Fourier frequency array, for the 
             given input parameters.   
         """
+        
         if freq is None:
             freq = self.freqs
         if params is None:
@@ -198,6 +200,7 @@ class Fit_Powerspectrum():
             An array of the same size as the data, containing the one sigma 
             range for each contribution to the residuals.           
         """
+        
         if res_type == "ratio":
             residuals = self.data/model_vals
             bars = self.data_err/model_vals
@@ -210,6 +213,13 @@ class Fit_Powerspectrum():
         return residuals, bars
 
     def print_fit_stat(self):
+        """
+        This method compares the model defined by the user, using the last set
+        of parameters to have been set in the class, to the data stored. It then
+        prints the chi-squared goodness-of-fit to terminal, along with the 
+        number of data bins, free parameters and degrees of freedom. 
+        """
+    
         if self.likelihood is None:
             res, err = self.get_residuals(self.model,"delchi")
             chi_squared = np.sum(np.power(res.reshape(len(self.data)),2))
@@ -230,6 +240,25 @@ class Fit_Powerspectrum():
             print("custom likelihood not supported yet")
     
     def _psd_minimizer(self,params):
+        """
+        This method is used exclusively when running a minimization algorithm.
+        It evaluates the model for an input set of parameters, and then returns 
+        the residuals in units of contribution to the total chi squared 
+        statistic.
+        
+        Parameters:
+        -----------                         
+        params: lmfit.Parameters
+            The parameter values to use in evaluating the model. These will vary 
+            as the fit runs.
+            
+        Returns:
+        --------
+        residuals: np.array(float)
+            An array of the same size as the data, containing the model 
+            residuals in each bin.            
+        """
+        
         if self.likelihood is None:
             model = self.model.eval(params,freq=self.freqs)
             residuals = (self.data-model)/self.data_err
@@ -238,6 +267,22 @@ class Fit_Powerspectrum():
         return residuals
 
     def fit_data(self,algorithm='leastsq'):
+        """
+        This method attempts to minimize the residuals of the model with respect 
+        to the data defined by the user. The fit always starts from the set of 
+        parameters defined with .set_params(). Once the algorithm has completed 
+        its run, it prints to terminal the best-fitting parameters, fit 
+        statistics, and simple selection criteria (reduced chi-squared, Akaike
+        information criterion, and Bayesian informatino criterion). 
+        
+        Parameters:
+        -----------
+        algorithm: str, default="leastsq"
+            The fitting algorithm to be used in the minimization. The possible 
+            choices are detailed on the LMFit documentation page:
+            https://lmfit.github.io/lmfit-py/fitting.html#fit-methods-table.
+        """
+        
         self.fit_result = minimize(self._psd_minimizer,self.model_params,
                                    method=algorithm)
         print(fit_report(self.fit_result,show_correl=False))
@@ -246,6 +291,31 @@ class Fit_Powerspectrum():
         return
     
     def plot_data(self,units="fpower",return_plot=False):
+        """
+        This method plots the powerspectrum loaded by the user as a function of 
+        Fourier frequency. It is possible to plot both units of power, and power 
+        times frequency, depending on user input. 
+        
+        It is also possible to return the figure object, for instance in order 
+        to save it to file.
+        
+        Parameters:
+        -----------
+        units: str, default="fpower"
+            The units to use for the y axis. units="fpower", the default, plots 
+            the data in units of power*frequency. units="power" instead plots 
+            the data in units of power. 
+            
+        return_plot: bool, default=False
+            A boolean to decide whether to return the figure objected containing 
+            the plot or not.
+            
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
+        """
+        
         fig, ((ax1)) = plt.subplots(1,1,figsize=(6.,4.5))   
         
         if units == 'power':
@@ -274,6 +344,49 @@ class Fit_Powerspectrum():
         
     def plot_model(self,plot_data=True,plot_components=False,params=None,
                    units="fpower",residuals="delchi",return_plot=False):
+        """
+        This method plots the model defined by the user as a function of 
+        Fourier frequency, as well as (optionally) its components, and the data
+        plus model residuals. It is possible to plot both units of power, and 
+        power times frequency, depending on user input. 
+        
+        It is also possible to return the figure object, for instance in order 
+        to save it to file.
+        
+        Parameters:
+        -----------
+        plot_data: bool, default=True
+            If true, both model and data are plotted; if false, just the model. 
+            
+        plot_components: bool, default=False 
+            If true, the model components are overplotted; if false, they are 
+            not. Only additive model components will display their values 
+            correctly. 
+            
+        params: lmfit.parameters, default=None 
+            The parameters to be used to evaluate the model. If False, the set 
+            of parameters stored in the class is used 
+        
+        units: str, default="fpower"
+            The units to use for the y axis. units="fpower", the default, plots 
+            the data in units of power*frequency. units="power" instead plots 
+            the data in units of power. 
+            
+        residuals: str, default="delchi"
+            The units to use for the residuals. If residuals="delchi", the plot 
+            shows the residuals in units of data-model/error; if residuals="ratio",
+            the plot instead uses units of data/model.
+            
+        return_plot: bool, default=False
+            A boolean to decide whether to return the figure objected containing 
+            the plot or not.
+            
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
+        """
+        
         if params is None:
             model = self.eval_model(params=self.params)
         else:

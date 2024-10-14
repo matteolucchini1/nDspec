@@ -156,8 +156,7 @@ class FourierProduct(nDspecOperator):
             The updated frequency array, which can then be assigned to the
             "freqs" method. 
             
-        """
-        
+        """        
         #if the Fourier transforms were computed with fft but we are rebinning 
         #a spectrum, we need to update the frequency array and its size;
         #otherwise, if no rebinning is done and we are just setting the 
@@ -242,8 +241,7 @@ class FourierProduct(nDspecOperator):
         -------
         positive_bins : `slice`
             Slice object encoding the positive frequency bins.
-        """
-        
+        """        
         # The zeroth bin is 0 Hz. We usually don't include it, but
         # if the user wants it, we do.
         minbin = 1
@@ -1179,6 +1177,7 @@ class CrossSpectrum(FourierProduct):
             interest and the reference band provided by the user, as a function  
             of Fourier frequency.
         """
+        
         real_spectrum = np.real(self._oned_cross(int_bounds,ref_bounds))
         real_spectrum = np.reshape(real_spectrum,self.n_freqs)
         
@@ -1456,10 +1455,8 @@ class CrossSpectrum(FourierProduct):
         nu_max = freq_bounds[1]       
         lag_spectrum = self.phase_energy(freq_bounds)/(2.*np.pi*(nu_max-nu_min))
         
-        return lag_spectrum
-        
+        return lag_spectrum        
 
-    #tbd: add setting to return the ax objects instead so I can combine plots
     def plot_cross_1d(self,form="polar",return_plot=False):
         """   
         This method plots the a one-dimensional cross spectrum as a function of  
