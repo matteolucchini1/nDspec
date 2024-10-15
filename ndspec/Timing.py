@@ -123,8 +123,7 @@ class FourierProduct(nDspecOperator):
         #add safeguard for sinc method with freq array undefined
         self.freqs = self._set_frequencies(freqs)     
         if (self.method == 'sinc') or (self.method == 'sinc_cumul'):
-            self.irf_sinc_arr = self._sinc_decomp()
-        
+            self.irf_sinc_arr = self._sinc_decomp()        
         pass
        
     def _set_frequencies(self,freqs=0,rebin=False):
@@ -178,7 +177,6 @@ class FourierProduct(nDspecOperator):
             new_freqs = freqs            
         else:
             raise AttributeError("Fourier transform method not recognized")
-        
         return new_freqs
    
     def _compute_fft(self,input_array):
@@ -209,8 +207,7 @@ class FourierProduct(nDspecOperator):
             warnings.warn("FFT normalisation nan, setting it to unity",
                            UserWarning)
             norm = 1  
-        transform = fft(input_array)[fgt0]/norm        
-        
+        transform = fft(input_array)[fgt0]/norm             
         return transform
 
     def _positive_fft_bins(self,include_zero=False):
@@ -249,8 +246,7 @@ class FourierProduct(nDspecOperator):
             minbin = 0            
         
         if self.n_times % 2 == 0:
-            return slice(minbin, self.n_times // 2)                
-        
+            return slice(minbin, self.n_times // 2)                        
         return slice(minbin, (self.n_times + 1) // 2)
 
     def _sinc_decomp(self):
@@ -280,8 +276,7 @@ class FourierProduct(nDspecOperator):
                  np.sinc(deltau.reshape((len(deltau),1))* \
                          self.freqs.reshape((1,self.n_freqs)))* \
                          np.exp(-2*np.pi*self.freqs.reshape((1,self.n_freqs))* \
-                         self.times.reshape((len(deltau),1))*1j)
-        
+                         self.times.reshape((len(deltau),1))*1j)        
         return decomp 
     
     def _compute_sinc(self,input_array):
@@ -306,8 +301,7 @@ class FourierProduct(nDspecOperator):
         
         if hasattr(self,"irf_sinc_arr") is False:
             raise AttributeError("Sinc base not defined")
-        transform = np.matmul(input_array,self.irf_sinc_arr)        
-        
+        transform = np.matmul(input_array,self.irf_sinc_arr)                
         return transform
 
     def _compute_sinc_cumul(self,input_array):
@@ -333,8 +327,7 @@ class FourierProduct(nDspecOperator):
         if hasattr(self,"irf_sinc_arr") is False:
             raise AttributeError("Sinc base not defined")
         transform = np.cumsum(np.matmul(input_array.reshape(1,self.n_times),
-                                        self.irf_sinc_arr),axis=1)
-        
+                                        self.irf_sinc_arr),axis=1)        
         return transform 
         
     def transform(self,input_array):
@@ -360,8 +353,7 @@ class FourierProduct(nDspecOperator):
         elif (self.method =='sinc_cumul'):
             transform = self._compute_sinc_cumul(input_array)
         else:
-            raise AttributeError("Fourier transform method not recognized")
-        
+            raise AttributeError("Fourier transform method not recognized")        
         return transform 
 
     
@@ -446,8 +438,7 @@ class PowerSpectrum(FourierProduct):
             raise TypeError("Input signal size different from time array")
         
         transform = self.transform(signal)
-        self.power_spec = np.multiply(transform,np.conj(transform))        
-        
+        self.power_spec = np.multiply(transform,np.conj(transform))                
         return 
 
     def rebin_frequency(self,new_grid,use_log=True):
@@ -472,8 +463,7 @@ class PowerSpectrum(FourierProduct):
         
         new_power = self._interpolate(self.power_spec,self.freqs,new_grid,use_log)
         self.freqs = self._set_frequencies(new_grid,rebin=True)
-        self.power_spec = new_power        
-        
+        self.power_spec = new_power                
         return 
     
     def plot_psd(self,units='Power*freq',return_plot=False):
@@ -667,8 +657,7 @@ class CrossSpectrum(FourierProduct):
         else:                    
             if (len(input_power)) != self.n_freqs:
                 raise TypeError("Input PSD array size different from frequency array")        
-            self.power_spec = input_power
-        
+            self.power_spec = input_power       
         return
 
     def set_impulse(self,signal):
@@ -691,8 +680,7 @@ class CrossSpectrum(FourierProduct):
         self.imp_resp = signal
         #reshaping ensures the correct irf input format for a 1d cross spectrum        
         if self.n_chans == 1:
-            self.imp_resp = np.reshape(self.imp_resp,(1,self.n_times))
-        
+            self.imp_resp = np.reshape(self.imp_resp,(1,self.n_times))        
         return
 
     def set_transfer(self,signal):
@@ -716,8 +704,7 @@ class CrossSpectrum(FourierProduct):
         #reshaping ensures  the correct transfer function input format for a 1d 
         #cross spectrum        
         if self.n_chans == 1:
-            self.trans_func = np.reshape(self.trans_func,(1,self.n_freqs))
-        
+            self.trans_func = np.reshape(self.trans_func,(1,self.n_freqs))        
         return
 
     def set_reference_energ(self,ref_bounds,correct_ref=True):
@@ -759,7 +746,6 @@ class CrossSpectrum(FourierProduct):
             raise AttributeError("Neither impulse response nor transfer function defined")  
             
         self.correct_ref = correct_ref
-
         return 
 
     def set_reference_lc(self,input_lc,correct_ref=False):
@@ -787,8 +773,7 @@ class CrossSpectrum(FourierProduct):
             raise TypeError("Reference array is not the same size as frequency array")
         
         self.ref = input_lc
-        self.correct_ref = correct_ref
-        
+        self.correct_ref = correct_ref        
         return
     
     def cross_from_transfer(self,transfer=None,ref_ft=None,power=None):
@@ -856,7 +841,6 @@ class CrossSpectrum(FourierProduct):
         #1d and 2d cases
         self.cross = np.reshape(np.array(self.cross),
                                (self.n_chans,self.n_freqs))
-
         return   
 
     def transfer_from_irf(self,signal=None):
@@ -885,8 +869,7 @@ class CrossSpectrum(FourierProduct):
             self.trans_func.append(ci_ft)               
 
         self.trans_func = np.reshape(np.array(self.trans_func),
-                                    (self.n_chans,self.n_freqs))
-        
+                                    (self.n_chans,self.n_freqs))        
         return
 
     #maybe throw in a wrapper like with transform 
@@ -958,8 +941,7 @@ class CrossSpectrum(FourierProduct):
         self.cross = np.reshape(np.array(self.cross),
                                (self.n_chans,self.n_freqs))
         self.trans_func = np.reshape(np.array(self.trans_func),
-                                    (self.n_chans,self.n_freqs))
-        
+                                    (self.n_chans,self.n_freqs))        
         return
 
     def rebin_frequency(self,new_grid):
@@ -991,8 +973,7 @@ class CrossSpectrum(FourierProduct):
         self.power_spec = new_power
         self.cross = np.reshape(np.array(new_cross),(self.n_chans,self.n_freqs))
         self.trans_func = np.reshape(np.array(new_trans),(self.n_chans,
-                                                          self.n_freqs)) 
-        
+                                                          self.n_freqs))         
         return
     
     def real(self):
@@ -1010,8 +991,7 @@ class CrossSpectrum(FourierProduct):
         if not hasattr(self,"cross"):
             raise AttributeError("Cross spectrum not computed")
         
-        real = np.real(self.cross)
-        
+        real = np.real(self.cross)        
         return real
 
     def imag(self):
@@ -1029,8 +1009,7 @@ class CrossSpectrum(FourierProduct):
         if not hasattr(self,"cross"):
             raise AttributeError("Cross spectrum not computed")
 
-        imag = np.imag(self.cross)
-        
+        imag = np.imag(self.cross)       
         return imag
 
     def mod(self):
@@ -1048,8 +1027,7 @@ class CrossSpectrum(FourierProduct):
         if not hasattr(self,"cross"):
             raise AttributeError("Cross spectrum not computed")
         
-        mod = np.absolute(self.cross)
-        
+        mod = np.absolute(self.cross)        
         return mod 
 
     def phase(self):
@@ -1067,8 +1045,7 @@ class CrossSpectrum(FourierProduct):
         if not hasattr(self,"cross"):
             raise AttributeError("Cross spectrum not computed")
         
-        phase = np.angle(self.cross)
-        
+        phase = np.angle(self.cross)        
         return phase
 
     def lag(self):
@@ -1084,8 +1061,7 @@ class CrossSpectrum(FourierProduct):
         """
         
         lag_conv = 2.*np.pi*self.freqs
-        lags = self.phase()/lag_conv
-        
+        lags = self.phase()/lag_conv        
         return lags 
 
     def _oned_cross(self,int_bounds,ref_bounds=None):
@@ -1144,8 +1120,7 @@ class CrossSpectrum(FourierProduct):
                 raise ValueError("No bins found within the reference band bounds")                                              
             ref = np.sum(self.trans_func[idx_ref,:],axis=1)                                         
             ch_int = np.sum(self.trans_func[idx_int,:],axis=1)
-            cross = self.power_spec*np.multiply(ch_int,np.conj(ref))
-        
+            cross = self.power_spec*np.multiply(ch_int,np.conj(ref))        
         return cross
 
     def real_frequency(self,int_bounds,ref_bounds=None):
@@ -1179,8 +1154,7 @@ class CrossSpectrum(FourierProduct):
         """
         
         real_spectrum = np.real(self._oned_cross(int_bounds,ref_bounds))
-        real_spectrum = np.reshape(real_spectrum,self.n_freqs)
-        
+        real_spectrum = np.reshape(real_spectrum,self.n_freqs)       
         return real_spectrum
     
     def imag_frequency(self,int_bounds,ref_bounds=None):
@@ -1214,8 +1188,7 @@ class CrossSpectrum(FourierProduct):
         """
         
         imag_spectrum = np.imag(self._oned_cross(int_bounds,ref_bounds))
-        imag_spectrum = np.reshape(imag_spectrum,self.n_freqs)
-        
+        imag_spectrum = np.reshape(imag_spectrum,self.n_freqs)        
         return imag_spectrum
     
     def mod_frequency(self,int_bounds,ref_bounds=None):
@@ -1247,8 +1220,7 @@ class CrossSpectrum(FourierProduct):
         """
         
         mod_spectrum = np.absolute(self._oned_cross(int_bounds,ref_bounds))
-        mod_spectrum = np.reshape(mod_spectrum,self.n_freqs)
-        
+        mod_spectrum = np.reshape(mod_spectrum,self.n_freqs)       
         return mod_spectrum
     
     def phase_frequency(self,int_bounds,ref_bounds=None):
@@ -1281,8 +1253,7 @@ class CrossSpectrum(FourierProduct):
         """
         
         phase_spectrum = np.angle(self._oned_cross(int_bounds,ref_bounds))
-        phase_spectrum = np.reshape(phase_spectrum,self.n_freqs)
-        
+        phase_spectrum = np.reshape(phase_spectrum,self.n_freqs)       
         return phase_spectrum
     
     def lag_frequency(self,int_bounds,ref_bounds=None):        
@@ -1316,8 +1287,7 @@ class CrossSpectrum(FourierProduct):
         """
         
         lag_spectrum = self.phase_frequency(int_bounds,ref_bounds)/ \
-                       (2.*np.pi*self.freqs)
-               
+                       (2.*np.pi*self.freqs)               
         return lag_spectrum
         
     def real_energy(self,freq_bounds):
@@ -1344,8 +1314,7 @@ class CrossSpectrum(FourierProduct):
         integrated_resp = self._integrate_range(self.cross,self.freqs,
                                                 nu_min,nu_max,axis=1)
         real_spectrum = np.real(integrated_resp/(nu_max-nu_min))
-        real_spectrum = np.reshape(real_spectrum,self.n_chans)
-        
+        real_spectrum = np.reshape(real_spectrum,self.n_chans)        
         return real_spectrum
 
     def imag_energy(self,freq_bounds):
@@ -1372,8 +1341,7 @@ class CrossSpectrum(FourierProduct):
         integrated_resp = self._integrate_range(self.cross,self.freqs,
                                                 nu_min,nu_max,axis=1)
         imag_spectrum = np.imag(integrated_resp/(nu_max-nu_min))
-        imag_spectrum = np.reshape(imag_spectrum,self.n_chans)
-        
+        imag_spectrum = np.reshape(imag_spectrum,self.n_chans)        
         return imag_spectrum
     
     def mod_energy(self,freq_bounds):
@@ -1400,8 +1368,7 @@ class CrossSpectrum(FourierProduct):
         integrated_resp = self._integrate_range(self.cross,self.freqs,
                                                 nu_min,nu_max,axis=1)
         mod_spectrum = np.absolute(integrated_resp/(nu_max-nu_min))
-        mod_spectrum = np.reshape(mod_spectrum,self.n_chans)
-        
+        mod_spectrum = np.reshape(mod_spectrum,self.n_chans)        
         return mod_spectrum
     
     def phase_energy(self,freq_bounds):
@@ -1428,8 +1395,7 @@ class CrossSpectrum(FourierProduct):
         integrated_resp = self._integrate_range(self.cross,self.freqs,
                                                 nu_min,nu_max,axis=1)
         phase_spectrum = np.angle(integrated_resp/(nu_max-nu_min))
-        phase_spectrum = np.reshape(phase_spectrum,self.n_chans)
-        
+        phase_spectrum = np.reshape(phase_spectrum,self.n_chans)        
         return phase_spectrum
     
     def lag_energy(self,freq_bounds):
@@ -1453,8 +1419,7 @@ class CrossSpectrum(FourierProduct):
 
         nu_min = freq_bounds[0]
         nu_max = freq_bounds[1]       
-        lag_spectrum = self.phase_energy(freq_bounds)/(2.*np.pi*(nu_max-nu_min))
-        
+        lag_spectrum = self.phase_energy(freq_bounds)/(2.*np.pi*(nu_max-nu_min))        
         return lag_spectrum        
 
     def plot_cross_1d(self,form="polar",return_plot=False):

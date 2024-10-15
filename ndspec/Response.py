@@ -214,8 +214,7 @@ class ResponseMatrix(nDspecOperator):
                 else:
                     for l in range(f_chan[j],n_chan[j]+f_chan[j]):
                         resp_matrix[j][l] = resp_matrix[j][l] + matrix[j][i]  
-                        i = i + 1        
-        
+                        i = i + 1                
         return resp_matrix
     
     def load_arf(self,filepath):       
@@ -261,8 +260,7 @@ class ResponseMatrix(nDspecOperator):
         for k in range(self.n_chans):
             for j in range(self.n_energs):
                 self.resp_matrix[j][k] = self.resp_matrix[j][k]* \
-                                         self.specresp[j]*self.exposure
-        
+                                         self.specresp[j]*self.exposure      
         print("Arf loaded")
         return 
         
@@ -293,7 +291,6 @@ class ResponseMatrix(nDspecOperator):
 
         # get the corresponding value
         tlmin = int(list(hdr.items())[tlmin_idx][1])
-
         return tlmin
     
     #tbd: in the tutorial add an example of trying to rebin in energy rather 
@@ -350,7 +347,6 @@ class ResponseMatrix(nDspecOperator):
         bin_resp.n_chans = len(new_bounds_lo)
         bin_resp.chans = np.linspace(0,bin_resp.n_chans-1,bin_resp.n_chans)
         bin_resp.resp_matrix = rebinned_response
-
         return bin_resp
 
     def rebin_energies(self,factor):
@@ -400,7 +396,6 @@ class ResponseMatrix(nDspecOperator):
         bin_resp.energ_hi = new_bounds_hi
         bin_resp.n_energs = len(new_bounds_lo)
         bin_resp.resp_matrix = rebinned_response
-
         return bin_resp
 
     def convolve_response(self,model_input,units_in="xspec",units_out="kev"):
@@ -486,8 +481,7 @@ class ResponseMatrix(nDspecOperator):
         if isinstance(model_input,CrossSpectrum):
             output_model.cross = conv_model
         else:
-            output_model = conv_model
-                
+            output_model = conv_model                
         return output_model
 
     def plot_response(self,plot_type="channel",return_plot=False):
@@ -634,6 +628,5 @@ class ResponseMatrix(nDspecOperator):
         #if we had a 1d array as input, we convert back to a 1d array; otherwise 
         #this confuses matplotlib and produces weird plots
         if (unfold_model.size == self.n_chans):
-            unfold_model = unfold_model.reshape(self.n_chans)
-        
+            unfold_model = unfold_model.reshape(self.n_chans)        
         return unfold_model

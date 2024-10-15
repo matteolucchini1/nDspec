@@ -30,8 +30,7 @@ class nDspecOperator(object):
         elif method == 'int':
             rebin_array = self._rebin_int(array,start_grid,rebin_grid,renorm)
         else:
-            raise ValueError("Rebinning method not recognized")
-            
+            raise ValueError("Rebinning method not recognized")            
         return rebin_array
         
     def _rebin_weighted(self,array,start_grid,rebin_grid):
@@ -101,8 +100,7 @@ class nDspecOperator(object):
             else:
                 #if instead the new grid is finer than the old one, interpolating is 
                 #safe (because really we are interpolating over a constant)
-                rebin_array[i] = array_interp(rebin_grid_center[i])            
-            
+                rebin_array[i] = array_interp(rebin_grid_center[i])                        
         return rebin_array    
         
     def _rebin_sum(self,array,start_grid,rebin_grid,renorm=False):
@@ -173,8 +171,7 @@ class nDspecOperator(object):
                 rebin_array[i] = rebin_array[i] + array[k] 
                 counter = counter + 1
             if (renorm == True):
-                rebin_array[i] = rebin_array[i]/counter                    
-            
+                rebin_array[i] = rebin_array[i]/counter                              
         return rebin_array         
             
     def _rebin_int(self,array,start_grid,rebin_grid,renorm=False):
@@ -241,8 +238,7 @@ class nDspecOperator(object):
                 rebin_array[i] = rebin_array[i] + array[k] 
                 counter = counter + 1
             if (renorm == True):
-                rebin_array[i] = rebin_array[i]/counter             
-            
+                rebin_array[i] = rebin_array[i]/counter                        
         return rebin_array
 
     def _interpolate(self,array,old_grid,new_grid,use_log=True,grid_tol=1e-4):
@@ -302,8 +298,7 @@ class nDspecOperator(object):
             interp_array = np.power(10.,interp_obj(new_grid))
         else:
             interp_obj = interp1d(old_grid,array)
-            interp_array = interp_obj(new_grid)
-        
+            interp_array = interp_obj(new_grid)        
         return interp_array
 
     def _integrate_range(self,signal,array,arr_min,arr_max,axis):
@@ -352,8 +347,7 @@ class nDspecOperator(object):
         elif (axis == 1):
             integral =  np.trapz(signal[:,arr_range],x=array[arr_range])
         else:
-            raise ValueError("Incorrect axis specified")
-        
+            raise ValueError("Incorrect axis specified")        
         return integral
 
     def _integer_slice(self,grid,factor):
@@ -415,7 +409,6 @@ class nDspecOperator(object):
                 aligned_grid[i] = start_grid[indexes[i]]
             else:
                 aligned_grid[i] = start_grid[indexes[i]-1] 
-
         return aligned_grid
 
     def _grid_bounds_to_range(self,grid_lower_bounds,grid_upper_bounds):
@@ -460,8 +453,7 @@ class nDspecOperator(object):
                         is not True):
             raise TypeError("Lower and upper grid bounds do not match")         
         
-        grid_range = grid_lower_bounds.append(grid_upper_bounds[-1]) 
-        
+        grid_range = grid_lower_bounds.append(grid_upper_bounds[-1])         
         return grid_range
     
     def _grid_bounds_to_widths(self,grid_lower_bounds,grid_upper_bounds):
@@ -508,8 +500,7 @@ class nDspecOperator(object):
         #For convenience, the bin widths are computed starting from the midpoint 
         #of the grid itself, computed through a different class method 
         grid_widths = np.diff(self._grid_bounds_to_midpoint(grid_lower_bounds,
-                                                            grid_upper_bounds))
-        
+                                                            grid_upper_bounds))       
         return np.diff(grid_widths)
 
     def _grid_bounds_to_midpoint(self,grid_lower_bounds,grid_upper_bounds):
@@ -553,8 +544,7 @@ class nDspecOperator(object):
                         is not True):
             raise TypeError("Lower and upper grid bounds do not match")    
         
-        grid_midpoint = 0.5*(grid_lower_bounds+grid_upper_bounds)
-        
+        grid_midpoint = 0.5*(grid_lower_bounds+grid_upper_bounds)        
         return grid_midpoint
 
     def _grid_midpoint_to_widths(self,grid_midpoint,start_point):
@@ -603,8 +593,7 @@ class nDspecOperator(object):
         
         for i in range(1,len(grid_midpoint)):
             bound = grid_midpoint[i-1] + 0.5*grid_widths[i-1]
-            grid_widths[i] = 2*(grid_midpoint[i] - bound)            
-        
+            grid_widths[i] = 2*(grid_midpoint[i] - bound)                   
         return grid_widths
    
     def _grid_midpoint_to_bounds(self,grid_midpoint,start_point):
@@ -661,8 +650,7 @@ class nDspecOperator(object):
             grid_lower_bounds[i] = grid_midpoint[i-1] + 0.5*grid_widths[i-1]
             grid_upper_bounds[i-1] = grid_lower_bounds[i]
         
-        grid_upper_bounds[-1] = midpoint[-1] + 0.5*grid_widths[-1]
-        
+        grid_upper_bounds[-1] = midpoint[-1] + 0.5*grid_widths[-1]        
         return grid_lower_bounds, grid_upper_bounds     
  
 #tbd: widths to midpoint, widths to bounds     
@@ -703,6 +691,5 @@ class nDspecOperator(object):
             index_lo = np.digitize(new_lo[i],self.emin)
             index_hi = np.digitize(new_hi[i],self.emax)
             return_lo[i] = index_lo
-            return_hi[i] = index_hi
-        
+            return_hi[i] = index_hi        
         return return_lo,return_hi          

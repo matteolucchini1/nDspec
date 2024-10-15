@@ -84,12 +84,12 @@ class Fit_Powerspectrum():
             stingray object 
             
         data_err: np.array(float), default: None 
-            The error on the power spectrum. If passnig a stingray object, this 
+            The error on the power spectrum. If passing a stingray object, this 
             is not necessary and is therefore ignored
             
         data_grid: np.array(float), default: None 
             The Fourier frequency grid over which the data (and model) are 
-            defined. If passnig a stingray object, this is not necessary and is 
+            defined. If passing a stingray object, this is not necessary and is 
             therefore ignored      
         """
         
@@ -1129,6 +1129,94 @@ class Fit_TimeAvgSpectrum():
             return  
 
 class Fit_OneDCrossSpectrum():
+    """
+    Least-chi squared fitter class for a one dimensional cross spectrum between
+    two energy bands, defined as the product between the Fourier transform of 
+    a subjet band lightcurve, and the complex conjugate of the transform of a 
+    reference lightcurve. 
+    
+    Given an array of Fourier frequencies, a cross spectrum, its error and a 
+    model (defined in Fourier space), this class handles fitting internally 
+    using the lmfit library. The model can be defined for the cross spectrum 
+    expicitely, or it can be an impulse response (or transfer) function which 
+    can then be converted into a cross spectrum. In the latter case, users also 
+    need to specify a form for the power spectrum.    
+    
+    Poisson noise in the data is not accounted for explicitely. Users should 
+    either pass noise-subtracted data, or include a constant component in the 
+    model definition (see below).   
+        
+    Attributes
+    ----------
+    model: lmfit.CompositeModel 
+        A lmfit CompositeModel object, which contains a wrapper to the model 
+        component(s) one wants to fit to the data. 
+        
+    model_type: str,
+   
+    model_params: lmfit.Parameters 
+        A lmfit Parameters object, which contains the parameters for the model 
+        components.
+   
+    likelihood: None
+        Work in progress; currently the software defaults to chi squared 
+        likelihood
+   
+    fit_result: lmfit.MinimizeResult
+        A lmfit MinimizeResult, which stores the result (including best-fitting 
+        parameter values, fit statistics etc) of a fit after it has been run.         
+   
+    data: np.array(float)
+        An array of float containing the cross spectrum to be fitted. Users can 
+        pass data in polar coordinates (modulus and phase), cartesian coordinates
+        (real and imaginary), or purely time lags (lags). 
+   
+    data_err: np.array(float)
+        The uncertainty on the cross spectrum stored in data. 
+   
+    freqs: np.array(float)
+        The Fourier frequency over which both the data and model are defined, 
+        in units of Hz.   
+        
+    response: nDspec.ResponseMatrix
+        The instrument response matrix corresponding to the spectrum to be 
+        fitted. It is required to define the energy grids over which model and
+        data are defined. 
+   
+    energs: np.array(float)
+        The array of physical photon energies over which the model is computed. 
+        Defined as the middle of each bin in the energy range stored in the 
+        instrument response provided.   
+        
+    ref_band: list[float,float]
+        The energy range for the reference band, in keV.
+        
+    sub_band: list[float,float]
+        The energy range for the subject band, in keV. 
+        
+    _times: np.array(float)
+        The array of time stamps corresponding to the Fourier frequency grid. 
+        Used exclusively for internal book keeping. 
+        
+    powerspec: nDspec.PowerSpectrum
+        A nDspec PowerSpectrum object used to calculate the model cross spectrum 
+        from an impulse response or transfer function. 
+        
+    crossspec: nDspec.CrossSpectrum
+        A nDspec CrossSpectrum object used to store the model cross-spectrum 
+        values and convert to whatever units are appropriate (e.g. lags, 
+        phase/modulus, etc). 
+        
+    units: str
+        A string specifying whether the units of both the data and model are 
+        cartesian (real and imaginary parts), polar (modulus and phase), or 
+        just Fourier lags (converted from the phase). 
+        
+    _supported_units, _supported_models: str
+        A list of strings specifying the data and model units, or the type of
+        model. Required for internal book keeping. 
+    """ 
+
     def __init__(self):
         self.model = None
         self.model_type = None
@@ -1137,6 +1225,7 @@ class Fit_OneDCrossSpectrum():
         self.fit_result = None
         self.data = None
         self.data_err = None
+        self.response = None
         self.energs = None
         self.ref_band = None
         self.sub_band = None
@@ -1144,26 +1233,89 @@ class Fit_OneDCrossSpectrum():
         #self.emax = None
         #self.ebounds = None
         #self.ewidths = None
-        self.response = None
         self.freqs = None 
-        self.times = None
+        self._times = None
         self.powerspec = None
         self.crossspec = None
         self.units = None
-        self.supported_units = ["cartesian","polar","lags"]
-        self.supported_models = ["cross","irf","transfer"]
+        self._supported_units = ["cartesian","polar","lags"]
+        self._supported_models = ["cross","irf","transfer"]
         pass
 
     #tbd: allow people to ignore frequency ranges
     def set_units(self,units="cartesian"):
-        if units not in self.supported_units:
+        """
+        This method is used to specify which units will be used for the data and 
+        model. The supported units are cartesian (real and imaginary parts), polar 
+        (modulus and phase), or lags (which take the phase and convert to a time).
+        
+        Parameters:
+        -----------                         
+        units: str, default="cartesian"
+            The units to be used for data and model. Supported units are 
+            cartesian, polar and lags.                
+        """
+    
+        if units not in self._supported_units:
             raise AttributeError("Unsopprted units for the cross spectrum")
         else:
             self.units = units
+        return 
     
-    def set_data(self,response,ref_band,sub_band,
-                 time_res,seg_size,norm,
+    def set_data(self,response,ref_band,sub_band,time_res,seg_size,norm,
                  data,data_err=None,data_grid=None):
+        """
+        This method is used to pass the data users want to fit. The user needs 
+        to specify an instrument response, reference and subject bands, the time 
+        resolution and lightcurve segment size used to build the data, as well 
+        as the desired normalization (if the cross spectrum is built with stingray, 
+        see below). 
+        
+        The data can be passed as a stingray.events object, in which case the
+        method will calculate the errors and renormalize the data automatically.
+        Alternatively, users can explicitely pass arrays with the cross spectrum,
+        its error, and the Fourier frequency grid. In this case, the data is 
+        assumed to already have been re-normalized to the users' preferred units.
+        
+        Parameters:
+        -----------
+        response: nDspec.ResponseMatrix
+            The instrument response matrix corresponding to the spectrum to be 
+            fitted. It is required to define the energy grids over which model and
+            data are defined. 
+            
+        ref_band: list[float,float]
+            The energy range for the reference band, in keV.
+            
+        sub_band: list[float,float]
+            The energy range for the subject band, in keV. 
+            
+        time_res: float 
+            The time resolution of the lightcurves used to build the cross 
+            spectrum.
+            
+        seg_size: float 
+            The lightcurve segment duration used to build the cross spectrum.
+            
+        norm: str
+            The normalization of the cross spectrum built from the provided 
+            stingray event file. Can be either "abs" for absolute-rms normalization,
+            or "frac" for fractional rms normalization. 
+                   
+        data: np.array(float) or stingray.powerspectrum
+            The power spectrum to be fitted, either as a numpy array or a 
+            stingray event file object.
+            
+        data_err: np.array(float), default: None 
+            The error on the cross spectrum. If passing a stingray object, this 
+            is not necessary and is therefore ignored.
+            
+        data_grid: np.array(float), default: None 
+            The Fourier frequency grid over which the data (and model) are 
+            defined. If passing a stingray object, this is not necessary and is 
+            therefore ignored.      
+        """
+        
         #will need to rebin this to only take the bounds in the reference and channel of interest, but it's fine for now 
         self.response = response#.rebin_channels(bounds_lo,bounds_hi)
         self.energs = 0.5*(self.response.energ_hi+self.response.energ_lo)
@@ -1184,7 +1336,7 @@ class Fit_OneDCrossSpectrum():
             #this is needed for the ndspec objects
             lc_length = cs.n*time_res
             time_samples = int(lc_length/time_res)
-            self.times = np.linspace(time_res,lc_length,time_samples)
+            self._times = np.linspace(time_res,lc_length,time_samples)
             if self.units == "lags":
                 self.data, self.data_err = cs.time_lag()   
             else:
@@ -1232,45 +1384,125 @@ class Fit_OneDCrossSpectrum():
             time_res = 0.5/(self.freqs[-1]+self.freqs[0])
             lc_length = (self.freqs.size+1)*2*time_res
             time_samples = int(lc_length/time_res)
-            self.times = np.linspace(time_res,lc_length,time_samples)
+            self._times = np.linspace(time_res,lc_length,time_samples)
+        return 
 
     def set_model(self,model,model_type="irf",params=None):
-        if model_type not in self.supported_models:
+                """
+        This method is used to pass the model users want to fit to the data. 
+        Optionally it is also possible to pass the initial parameter values of 
+        the model and the type of model.
+        
+        Three types of models are currently supported. "cross" is used for models
+        expclitely for the cross spectrum. "irf" is used for models of impulse 
+        response functions, defined in the time domain. "transfer" is used for 
+        models of transfer functions, defined as the Fourier transform of an 
+        impulse response function. In the latter two cases, users also need to 
+        supply an input power spectrum with the set_psd_weights method. 
+        
+        Parameters:
+        -----------            
+        model: lmfit.CompositeModel 
+            The lmfit wrapper of the model one wants to fit to the data. 
+            
+        model_type: str, default: "irf"
+            The type of model defined for the data. "cross" applies directly 
+            to the cross spectrum, "irf" defines a time-domain impulse response 
+            function, "transfer" defines a Fourier-domain transfer function.           
+            
+        params: lmfit.Parameters, default: None 
+            The parameter values from which to start evalauting the model during
+            the fit. If it is not provided, all model parameters will default 
+            to 0, set to be free, and have no minimum or maximum bound. 
+        """
+        
+        if model_type not in self._supported_models:
             raise AttributeError("Unsopprted model type")  
         self.model_type = model_type
-        self.crossspec = CrossSpectrum(self.times,freqs=self.freqs,energ=self.energs)
+        self.crossspec = CrossSpectrum(self._times,freqs=self.freqs,energ=self.energs)
         if self.model_type != "cross":
-            self.powerspec = PowerSpectrum(self.times)        
+            self.powerspec = PowerSpectrum(self._times)        
         self.model = model 
         if params is None:
             self.model_params = self.model.make_params(verbose=True)
         else:
             self.model_params = params
+        return 
         
     def set_psd_weights(self,psd_weights):
+        """  
+        This method sets the weighing power spectrum used to convert a model 
+        impulse response or transfer function into a cross spectrum. 
+        
+        Parameters
+        ----------
+        input_power: np.array(float) or PowerSpectrum
+            Either an array of size (n_freqs) that is to be used as the weighing  
+            power spectrum when computing the cross spectrum, or an nDspec 
+            PowerSpectrum object. Both have to be defined over the same Fourier 
+            frequency array as the data. 
+        """
+        
         if self.model_type != "cross":
             self.crossspec.set_psd_weights(psd_weights)
         else:
             print("Power spectrum weight not needed")
+        return 
 
     def set_params(self,params):
-        #not sure this makes sense
+        """
+        This method is used to set the model parameter names and values. It can
+        be used both to initialize a fit, and to test different parameter values 
+        before actually running the minimization algorithm.
+        
+        Parameters:
+        -----------                       
+        params: lmfit.Parameters
+            The parameter values from which to start evalauting the model during
+            the fit.  
+        """
         self.model_params = params
+        return 
     
     def eval_model(self,params=None,ref_band=None,sub_band=None):
-        #set reference/subject bands
+        """
+        This method is used to evaluate and return the model values for a given 
+        set of parameters, over the input energy/frequency grids, for a user-provided
+        combination of reference and subject bands. By default it use the reference 
+        and subject bands defined when loading the data, using the parameters 
+        values stored internally in the model_params attribute.       
+        
+        Parameters:
+        -----------                         
+        params: lmfit.Parameters, default None
+            The parameter values to use in evaluating the model. If none are 
+            provided, the model_params attribute is used.
+            
+        ref_band: list[float,float]
+            The energy range for the reference band, in keV.
+            
+        sub_band: list[float,float]
+            The energy range for the subject band, in keV. 
+            
+        Returns:
+        --------
+        model: np.array(float)
+            The model evaluated for the given input parameters. If the units are 
+            cartesian or polar, the size of the array is twice that of the Fourier 
+            frequency array, and it contains (real, imaginary) or (modulus, phase) 
+            parts of the cross spectrum, respectively. If the units are lags, 
+            the size of the array is identical to the Fourier frequency grid, 
+            and each bin contains the time lag in that bin.  
+        """        
+        
         if ref_band is None:
             ref_band = self.ref_band
         if sub_band is None:
             sub_band = self.sub_band
         
         #evaluate the model for the chosen parameters
-        #tbd: sort out the units with the energy bins
-        #this is weird if people pass models that are not energy dependnet (e.g. a bunch of Lorentzians. Urgh)
         if params is None:
             params= self.model_params
-#            model_eval = self.model.eval(self.model_params,freqs=self.freqs,energs=self.energs)#*self.energ_bounds
-#        else:
         model_eval = self.model.eval(params,freqs=self.freqs,energs=self.energs)#*self.energ_bounds
 
         #store the model in the cross spectrum, depending on the type
@@ -1283,7 +1515,7 @@ class Fit_OneDCrossSpectrum():
             self.crossspec.set_reference_energ(ref_band)
             self.crossspec.cross_from_transfer()
         else:
-            #tbd - ensure the units/axis are correct
+            #transposing is required to ensure the units are correct 
             self.crossspec.cross = np.transpose(model_eval)
         
         #fold the instrument response:
@@ -1291,20 +1523,46 @@ class Fit_OneDCrossSpectrum():
 
         #depending on units, return the correct format
         if self.units == "lags":
-            eval = folded_eval.lag_frequency(self.sub_band)
+            model = folded_eval.lag_frequency(self.sub_band)
         elif self.units == "cartesian":
             real = folded_eval.real_frequency(self.sub_band)
             imag = folded_eval.imag_frequency(self.sub_band)
-            eval = np.concatenate((real,imag))
+            model = np.concatenate((real,imag))
         elif self.units == "polar":
             mod = folded_eval.mod_frequency(self.sub_band)
             phase = folded_eval.phase_frequency(self.sub_band)
-            eval = np.concatenate((mod,phase))
+            model = np.concatenate((mod,phase))
         else:
             print("weird units raise proper error tbd")
-        return eval
+        return model
 
     def get_residuals(self,model,res_type):
+        """
+        This methods return the residuals (either as data/model, or as 
+        contribution to the total chi squared) of the input model, given the 
+        parameters set in model_parameters, with respect to the data. 
+        
+        Parameters:
+        -----------
+        model_vals: np.array(float)
+            An array of model values to be compared against the data.
+            
+        res_type: string 
+            If set to "ratio", the method returns the residuals defined as 
+            data/model. If set to "delchi", it returns the contribution of 
+            each energy channel to the total chi squared.
+            
+        Returns:
+        --------
+        residuals: np.array(float)
+            An array of the same size as the data, containing the model 
+            residuals in each channel.
+            
+        bars: np.array(float)
+            An array of the same size as the residuals, containing the one sigma 
+            range for each contribution to the residuals.           
+        """
+        
         model = self.eval_model()
         if res_type == "ratio":
             residuals = self.data/model
@@ -1318,6 +1576,13 @@ class Fit_OneDCrossSpectrum():
         return residuals, bars
 
     def print_fit_stat(self):
+        """
+        This method compares the model defined by the user, using the last set
+        of parameters to have been set in the class, to the data stored. It then
+        prints the chi-squared goodness-of-fit to terminal, along with the 
+        number of data bins, free parameters and degrees of freedom. 
+        """
+    
         if self.likelihood is None:
             res, err = self.get_residuals(model,"delchi")
             chi_squared = np.sum(np.power(res.reshape(len(self.data)),2))
@@ -1336,8 +1601,33 @@ class Fit_OneDCrossSpectrum():
             print("Degrees of freedom:" + "{0: <5}".format(" ") + str(dof))
         else:
             print("custom likelihood not supported yet")
+        return 
     
     def _cross_minimizer(self,params):
+        """
+        This method is used exclusively when running a minimization algorithm.
+        It evaluates the model for an input set of parameters, and then returns 
+        the residuals in units of contribution to the total chi squared 
+        statistic.
+        
+        Parameters:
+        -----------                         
+        params: lmfit.Parameters
+            The parameter values to use in evaluating the model. These will vary 
+            as the fit runs.
+            
+        Returns:
+        --------
+        residuals: np.array(float)
+            An array containing the model residuals in each frequency bin. If 
+            the units are  cartesian or polar, the size of the array is twice
+            that of the Fourier  frequency array, and it contains (real, imaginary) 
+            or (modulus, phase) parts of the cross spectrum, respectively. If 
+            the units are lags,  the size of the array is identical to the 
+            Fourier frequency grid,  and each bin contains the time lag in that 
+            bin.             
+        """
+    
         if self.likelihood is None:
             model = self.eval_model(params,ref_band=self.ref_band,sub_band=self.sub_band)
             residuals = (self.data-model)/self.data_err
@@ -1346,6 +1636,22 @@ class Fit_OneDCrossSpectrum():
         return residuals
     
     def fit_data(self,algorithm='leastsq'):
+        """
+        This method attempts to minimize the residuals of the model with respect 
+        to the data defined by the user. The fit always starts from the set of 
+        parameters defined with .set_params(). Once the algorithm has completed 
+        its run, it prints to terminal the best-fitting parameters, fit 
+        statistics, and simple selection criteria (reduced chi-squared, Akaike
+        information criterion, and Bayesian informatino criterion). 
+        
+        Parameters:
+        -----------
+        algorithm: str, default="leastsq"
+            The fitting algorithm to be used in the minimization. The possible 
+            choices are detailed on the LMFit documentation page:
+            https://lmfit.github.io/lmfit-py/fitting.html#fit-methods-table.
+        """
+    
         self.fit_result = minimize(self._cross_minimizer,self.model_params,
                                    method=algorithm)
         print(fit_report(self.fit_result,show_correl=False))
@@ -1354,6 +1660,26 @@ class Fit_OneDCrossSpectrum():
         return    
     
     def plot_data(self,return_plot=False):
+        """
+        This method plots the cross spectrum loaded by the user as a function of 
+        Fourier frequency. The units used to plot the data are the same as those
+        used to define the data. 
+        
+        It is also possible to return the figure object, for instance in order 
+        to save it to file.
+        
+        Parameters:
+        -----------           
+        return_plot: bool, default=False
+            A boolean to decide whether to return the figure objected containing 
+            the plot or not.
+            
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
+        """
+    
         data_bins = len(self.freqs)
 
         if self.units != "lags":
@@ -1416,6 +1742,44 @@ class Fit_OneDCrossSpectrum():
             return 
 
     def plot_model(self,plot_data=True,params=None,residuals="delchi",return_plot=False):
+        """
+        This method plots the model defined by the user as a function of 
+        Fourier frequency, as well as (optionally) its components, and the data
+        plus model residuals. The units used to plot the data are the same as 
+        those used to define the data.
+        
+        It is also possible to return the figure object, for instance in order 
+        to save it to file.
+        
+        Parameters:
+        -----------
+        plot_data: bool, default=True
+            If true, both model and data are plotted; if false, just the model. 
+            
+        plot_components: bool, default=False 
+            If true, the model components are overplotted; if false, they are 
+            not. Only additive model components will display their values 
+            correctly. 
+            
+        params: lmfit.parameters, default=None 
+            The parameters to be used to evaluate the model. If False, the set 
+            of parameters stored in the class is used 
+            
+        residuals: str, default="delchi"
+            The units to use for the residuals. If residuals="delchi", the plot 
+            shows the residuals in units of data-model/error; if residuals="ratio",
+            the plot instead uses units of data/model.
+            
+        return_plot: bool, default=False
+            A boolean to decide whether to return the figure objected containing 
+            the plot or not.
+            
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
+        """
+    
         data_bins = len(self.freqs) 
         model = self.eval_model(params=params)
 
@@ -1596,6 +1960,9 @@ def load_pha(path,response):
         #bound_midpoint, bin_diff, counts_per_group, rebin_error contains the rebinned spectrum
 
 def loadr_lc(path):
+    '''
+    This function loads xray lightcurves with astropy
+    '''
     from astropy.io import fits
 
     with fits.open(path,filemap=False) as lightcurve:
