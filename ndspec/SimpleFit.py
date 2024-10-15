@@ -1891,7 +1891,41 @@ class Fit_OneDCrossSpectrum():
         
 def load_pha(path,response):
     '''
-    This function loads xray spectra with astropy
+    This function loads an X-ray spectrum , given an input path to an OGIP-compatible
+    file and a nDspec ResponseMatrix object to be applied to the spectrum. 
+  
+    
+    Parameters:
+    -----------
+    path: str 
+        A string pointing to the spectrum file to be loaded 
+        
+    response: nDspec.ResponseMatrix 
+        The instrument response matrix, loaded in nDspec, corresponding to the 
+        spectrum to be loaded 
+        
+    Returns:
+    --------
+    bin_bounds_lo: np.array(float)
+        An array of lower energy channel bounds, in keV, as contained in the 
+        input file. If the spectrum was grouped, this contains the lower bounds 
+        of the spectrum after rebinning.
+        
+    bin_bounds_hi: np.array(float)
+        An array of upper energy channel bounds, in keV, as contained in the 
+        input file. If the spectrum was grouped, this contains the lower bounds 
+        of the spectrum after rebinning.
+        
+    counts_per_group: np.array(float)
+        The total number of photon counts in each energy channel. If the spectrum 
+        was grouped, this contains the counts in each channel after rebinning. 
+        
+    spectrum_error: np.array(float)
+        The error on the counts in each group, including both Poisson and (if
+        present) systematic errors
+        
+    exposure: float
+        The exposure time contained in the spectrum file.        
     '''
     from astropy.io import fits
     
@@ -1957,11 +1991,28 @@ def load_pha(path,response):
             counts_per_group = counts
             spectrum_error = counts_err
         return bin_bounds_lo, bin_bounds_hi, counts_per_group, spectrum_error, exposure
-        #bound_midpoint, bin_diff, counts_per_group, rebin_error contains the rebinned spectrum
 
 def loadr_lc(path):
     '''
-    This function loads xray lightcurves with astropy
+    This function loads an X-ray lightcurve, given an input path to an 
+    OGIP-compatible file.
+    
+    Parameters:
+    -----------
+    path: str 
+        A string pointing to the lightcurve file to be loaded 
+   
+    Returns:
+    --------
+    time_bins: np.array(float)
+        An array of time stamps covered by the lightcurve 
+        
+    counts: np.array(float) 
+        An array of counts rates (defined in counts per second) contained in the 
+        lightcurve 
+        
+    gti: list([float,float])
+        A list of good time intervals over which the lightcurve is defined. 
     '''
     from astropy.io import fits
 
