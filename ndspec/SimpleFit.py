@@ -15,7 +15,7 @@ colorscale = pl.cm.PuRd(np.linspace(0.,1.,5))
 from lmfit import fit_report, minimize
 from lmfit.model import ModelResult as LM_result
 
-class Fit_Powerspectrum():
+class FitPowerSpectrum():
     """
     Least-chi squared fitter class for a powerspectrum, defined as the product 
     between a Fourier-transformed lightcurve and its complex conjugate. 
@@ -467,7 +467,7 @@ class Fit_Powerspectrum():
         else:
             return   
 
-class Fit_TimeAvgSpectrum():
+class FitTimeAvgSpectrum():
     """
     Least-chi squared fitter class for a time averaged spectrum, defined as the  
     count rate as a function of photon channel energy bound. 
@@ -564,9 +564,10 @@ class Fit_TimeAvgSpectrum():
         self.data_err = None
         self.response = None
         self.energs = None
-        self.ewidths = None
+        self.energ_bounds = None
         self.emin = None
         self.emax = None
+        self.ewidths = None
         self.ebounds = None
         pass
 
@@ -809,7 +810,7 @@ class Fit_TimeAvgSpectrum():
         """
         
         if self.likelihood is None:
-            res, err = self.get_residuals(model,"delchi")
+            res, err = self.get_residuals(self.model,"delchi")
             chi_squared = np.sum(np.power(res.reshape(len(self.data)),2))
             freepars = 0
             for key, value in self.model_params.items():
@@ -1128,7 +1129,7 @@ class Fit_TimeAvgSpectrum():
         else:
             return  
 
-class Fit_OneDCrossSpectrum():
+class FitOneDCrossSpectrum():
     """
     Least-chi squared fitter class for a one dimensional cross spectrum between
     two energy bands, defined as the product between the Fourier transform of 
@@ -1229,10 +1230,6 @@ class Fit_OneDCrossSpectrum():
         self.energs = None
         self.ref_band = None
         self.sub_band = None
-        #self.emin = None
-        #self.emax = None
-        #self.ebounds = None
-        #self.ewidths = None
         self.freqs = None 
         self._times = None
         self.powerspec = None
@@ -1319,7 +1316,6 @@ class Fit_OneDCrossSpectrum():
         #will need to rebin this to only take the bounds in the reference and channel of interest, but it's fine for now 
         self.response = response#.rebin_channels(bounds_lo,bounds_hi)
         self.energs = 0.5*(self.response.energ_hi+self.response.energ_lo)
-        self.ewidths = self.response.energ_hi-self.response.energ_lo
         self.ref_band = ref_band
         self.sub_band = sub_band
         #I might need the energy bins too
@@ -1388,7 +1384,7 @@ class Fit_OneDCrossSpectrum():
         return 
 
     def set_model(self,model,model_type="irf",params=None):
-                """
+        """
         This method is used to pass the model users want to fit to the data. 
         Optionally it is also possible to pass the initial parameter values of 
         the model and the type of model.
@@ -1503,7 +1499,7 @@ class Fit_OneDCrossSpectrum():
         #evaluate the model for the chosen parameters
         if params is None:
             params= self.model_params
-        model_eval = self.model.eval(params,freqs=self.freqs,energs=self.energs)#*self.energ_bounds
+        model_eval = self.model.eval(params,freqs=self.freqs,energs=self.energs)
 
         #store the model in the cross spectrum, depending on the type
         if self.model_type == "irf":
@@ -1819,7 +1815,7 @@ class Fit_OneDCrossSpectrum():
                     ax3.plot(self.freqs,np.zeros(len(self.freqs)),ls=":",lw=2,color='black')
                     ax4.plot(self.freqs,np.zeros(len(self.freqs)),ls=":",lw=2,color='black')
                 elif residuals == "ratio":
-                    ax3.plot(self.freqs,np.zeros(len(self.freqs)),ls=":",lw=2,color='black')                    
+                    ax3.plot(self.freqs,np.ones(len(self.freqs)),ls=":",lw=2,color='black')                    
                     ax4.plot(self.freqs,np.ones(len(self.freqs)),ls=":",lw=2,color='black')                   
                 if self.units == "polar":
                     ax2.errorbar(self.freqs,self.data[data_bins:],
@@ -1888,6 +1884,727 @@ class Fit_OneDCrossSpectrum():
             return fig 
         else:
             return  
+
+class FitTwoDCrossSpectrum():
+    def __init__(self):
+        self.model = None
+        self.model_type = None
+        self.model_params = None
+        self.likelihood = None
+        self.fit_result = None
+        self.data = None
+        self.data_err = None
+        self.response = None
+        self.energs = None
+        self.energ_bounds = None
+        self.emin = None
+        self.emax = None
+        self.ebounds = None
+        self.ewidths = None
+        self.ref_band = None
+        self.freqs = None 
+        self._times = None
+        self.powerspec = None
+        self.crossspec = None
+        self.units = None
+        self._supported_units = ["cartesian","polar","lags"]
+        self._supported_models = ["irf","transfer"]
+        self.renorm_phase = False
+        self.renorm_modulus = False
+        #we also need to double load the data to store it in a hidden unmasked variable
+        #this is required in case users want to ignore/re-notice energy ranges
+        #formally we could call some of these directly e.g. from the resposne, but
+        #storing this way makes the following methods far more readable
+        self._emin_unmasked = self.emin
+        self._emax_unmasked = self.emax
+        self._ebounds_unmasked = self.ebounds
+        self._ewidths_unmasked = self.ewidths
+        self._data_unmasked = self.data
+        self._data_err_unmasked = self.data_err
+        self._all_chans = None
+        self._all_bins = None
+        self.n_freqs = None
+        self.n_chans = None
+        self.n_bins = None
+        pass
+
+    def set_units(self,units="cartesian"):    
+        if units not in self._supported_units:
+            raise AttributeError("Unsopprted units for the cross spectrum")
+        else:
+            self.units = units
+        return 
+
+    def set_data(self,response,ref_band,time_res,seg_size,
+                 data,data_err,channel_bounds,freq_bounds):  
+        bounds_lo = channel_bounds[:-1]
+        bounds_hi = channel_bounds[1:]                
+        self.response = response.rebin_channels(bounds_lo,bounds_hi)
+        self.energs = 0.5*(self.response.energ_hi+self.response.energ_lo)
+        self.energ_bounds = self.response.energ_hi-self.response.energ_lo
+        self.emin = self.response.emin
+        self.emax = self.response.emax
+        self.ebounds = 0.5*(self.emin+self.emax)
+        self.ewidths = self.emax-self.emin
+        self.ref_band = ref_band
+        self.freq_bounds = freq_bounds
+        self.data = data
+        self.data_err = data_err
+        freqs = fftfreq(int(seg_size/time_res),time_res)
+        self.freqs = freqs[freqs>0]
+        #now revert the grid from frequency to time, and save in times
+        #this is needed to allocate the ndspec objects - TBD check this works 
+        #for many resolutions
+        lc_length = (self.freqs.size+1)*2*time_res
+        time_samples = int(lc_length/time_res)
+        self._times = np.linspace(time_res,lc_length,time_samples)
+        self._emin_unmasked = self.emin
+        self._emax_unmasked = self.emax
+        self._ebounds_unmasked = self.ebounds
+        self._ewidths_unmasked = self.ewidths
+        self._data_unmasked = self.data
+        self._data_err_unmasked = self.data_err
+        #mask to track noticed/ignored energy channels
+        self.ebounds_mask = np.full((self.response.n_chans), True)
+        self.n_freqs = self.freq_bounds.size-1
+        self._all_chans = self._ebounds_unmasked.size
+        self._all_bins = self.n_freqs*self._all_chans
+        self.n_chans = self._all_chans
+        self.n_bins = self._all_bins
+        return 
+
+    def ignore_energies(self,bound_lo,bound_hi):
+        if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
+            (isinstance(bound_hi, (np.floating, float, int)) != True)):
+            raise TypeError("Energy bounds must be floats or integers")
+        
+
+        #if bounds of channel lie in ignored energies, ignore channel
+        self.ebounds_mask = ((self._emin_unmasked<bound_lo)|
+                             (self._emax_unmasked>bound_hi))&self.ebounds_mask
+       
+        #take the unmasked arrays and keep only the bounds we want
+        self.emin = np.extract(self.ebounds_mask,self._emin_unmasked)
+        self.emax = np.extract(self.ebounds_mask,self._emax_unmasked)
+        self.ebounds = np.extract(self.ebounds_mask,self._ebounds_unmasked)
+        self.ewidths = np.extract(self.ebounds_mask,self._ewidths_unmasked)   
+        self.n_chans = self.ebounds_mask[self.ebounds_mask==True].size
+        self.n_bins = self.n_chans*self.n_freqs
+        
+        if self.units != "lags":
+            data_filter_first_dim = self._filter_2d_by_mask(self._data_unmasked[:self._all_bins],self.ebounds_mask)
+            error_filter_first_dim = self._filter_2d_by_mask(self._data_err_unmasked[:self._all_bins],self.ebounds_mask)              
+            data_filter_second_dim = self._filter_2d_by_mask(self._data_unmasked[self._all_bins:],self.ebounds_mask)
+            error_filter_second_dim = self._filter_2d_by_mask(self._data_err_unmasked[self._all_bins:],self.ebounds_mask)                
+            self.data = np.append(data_filter_first_dim,data_filter_second_dim)
+            self.data_err = np.append(error_filter_first_dim,error_filter_second_dim)              
+        else:
+            self.data = model = self._filter_2d_by_mask(self._data_unmasked,self.ebounds_mask)
+            self.data_err = model = self._filter_2d_by_mask(self._data_err_unmasked,self.ebounds_mask)
+        return
+   
+    def notice_energies(self,bound_lo,bound_hi):
+        if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
+            (isinstance(bound_hi, (np.floating, float, int)) != True)):
+            raise TypeError("Energy bounds must be floats or integers")        
+              
+        #if bounds of channel lie in noticed energies, noitce channel
+        self.ebounds_mask = self.ebounds_mask|np.logical_not(
+                            (self._emin_unmasked<bound_lo)|
+                            (self._emax_unmasked>bound_hi))
+
+        #take the unmasked arrays and keep only the bounds we want
+        self.emin = np.extract(self.ebounds_mask,self._emin_unmasked)
+        self.emax = np.extract(self.ebounds_mask,self._emax_unmasked)
+        self.ebounds = np.extract(self.ebounds_mask,self._ebounds_unmasked)
+        self.ewidths = np.extract(self.ebounds_mask,self._ewidths_unmasked)   
+        self.n_chans = self.ebounds_mask[self.ebounds_mask==True].size
+        self.n_bins = self.n_chans*self.n_freqs
+
+        if self.units != "lags":
+            data_filter_first_dim = self._filter_2d_by_mask(self._data_unmasked[:self._all_bins],self.ebounds_mask)
+            error_filter_first_dim = self._filter_2d_by_mask(self._data_err_unmasked[:self._all_bins],self.ebounds_mask)              
+            data_filter_second_dim = self._filter_2d_by_mask(self._data_unmasked[self._all_bins:],self.ebounds_mask)
+            error_filter_second_dim = self._filter_2d_by_mask(self._data_err_unmasked[self._all_bins:],self.ebounds_mask)                
+            self.data = np.append(data_filter_first_dim,data_filter_second_dim)
+            self.data_err = np.append(error_filter_first_dim,error_filter_second_dim)              
+        else:
+            self.data = model = self._filter_2d_by_mask(self._data_unmasked,self.ebounds_mask)
+            self.data_err = model = self._filter_2d_by_mask(self._data_err_unmasked,self.ebounds_mask)
+        return
+
+    def _filter_2d_by_mask(self,arr,mask):
+        arr_reshape = arr.reshape((self.n_freqs,self._all_chans))
+        filtered_array = [] 
+        for i in range(self.n_freqs):
+            extract_row = np.extract(self.ebounds_mask,arr_reshape[i,:])
+            filtered_array = np.append(filtered_array,extract_row)                    
+        return filtered_array
+    
+    def set_model(self,model,model_type="irf",params=None):        
+        if model_type not in self._supported_models:
+            raise AttributeError("Unsopprted model type")  
+        self.model_type = model_type
+        self.crossspec = CrossSpectrum(self._times,freqs=self.freqs,energ=self.energs)
+        if self.model_type != "cross":
+            self.powerspec = PowerSpectrum(self._times)        
+        self.model = model 
+        if params is None:
+            self.model_params = self.model.make_params(verbose=True)
+        else:
+            self.model_params = params
+        return 
+
+    def set_psd_weights(self,psd_weights):       
+        if self.model_type != "cross":
+            self.crossspec.set_psd_weights(psd_weights)
+        else:
+            print("Power spectrum weight not needed")
+        return 
+
+    def set_params(self,params):
+        self.model_params = params
+        return 
+
+    def renorm_phases(self,value):
+        self.renorm_phase = value
+        if self.renorm_phase is True:
+            self.phase_renorm_model = LM_Model(self._renorm_phase)
+            phase_pars = LM_Parameters()
+            for index in range(self.n_freqs):   
+                phase_pars.add('phase_renorm_'+str(index+1), value=0,min=-0.2,max=0.2,vary=True)            
+            self.model_params = self.model_params + phase_pars
+        return
+        
+    def _renorm_phase(self,array,renorm):
+        return array + renorm
+
+    def renorm_mods(self,value):
+        self.renorm_modulus = value
+        if self. renorm_modulus is True:
+            self.mod_renorm_model = LM_Model(self._renorm_modulus)
+            mods_pars = LM_Parameters()
+            for index in range(self.n_freqs):   
+                mods_pars.add('mods_renorm_'+str(index+1), value=1,min=0,max=1e5,vary=True)            
+            self.model_params = self.model_params + mods_pars            
+        return
+
+    def _renorm_modulus(self,array,renorm):
+        return renorm*array
+    
+    def eval_model(self,params=None,ref_band=None):       
+        if ref_band is None:
+            ref_band = self.ref_band
+        
+        #evaluate the model for the chosen parameters
+        if params is None:
+            params= self.model_params
+        model_eval = self.model.eval(params,freqs=self.freqs,energs=self.energs,times=self._times)
+
+        #store the model in the cross spectrum, depending on the type
+        if self.model_type == "irf":
+            self.crossspec.set_impulse(np.transpose(model_eval))
+            self.crossspec.set_reference_energ(ref_band)
+            self.crossspec.cross_from_irf()
+        elif self.model_type == "transfer":
+            self.crossspec.set_transfer(np.transpose(model_eval))
+            self.crossspec.set_reference_energ(ref_band)
+            self.crossspec.cross_from_transfer()
+        else:
+            #transposing is required to ensure the units are correct 
+            self.crossspec.cross = np.transpose(model_eval)
+        
+        #fold the instrument response:
+        folded_eval = self.response.convolve_response(self.crossspec,units_in="rate",units_out="channel")            
+        
+        #depending on units, return the correct format
+        model = []
+        if self.units == "lags":   
+            for i in range(self.n_freqs):
+                f_mean = 0.5*(self.freq_bounds[1:]+self.freq_bounds[:-1])
+                if self.renorm_phase is True:
+                    par_key = 'phase_renorm_'+str(i+1)
+                    phase_pars = LM_Parameters()
+                    phase_pars.add('renorm',value=params[par_key].value,
+                                   min=params[par_key].min,max=params[par_key].max,
+                                   vary=params[par_key].vary)
+                    
+                    phase_model = folded_eval.phase_energy([self.freq_bounds[i],self.freq_bounds[i+1]])
+                    model_eval = self.phase_renorm_model.eval(phase_pars,array=phase_model)/(2*np.pi*f_mean[i])  
+                else:
+                    model_eval = folded_eval.lag_energy([self.freq_bounds[i],self.freq_bounds[i+1]])
+                model = np.append(model,model_eval)
+        elif self.units == "cartesian":
+            real = []
+            imag = [] 
+            for i in range(self.n_freqs):
+                real_eval = folded_eval.real_energy([self.freq_bounds[i],self.freq_bounds[i+1]])
+                imag_eval = folded_eval.imag_energy([self.freq_bounds[i],self.freq_bounds[i+1]])
+                if self.renorm_modulus is True:
+                    par_key = 'mods_renorm_'+str(i+1)
+                    mods_pars = LM_Parameters()
+                    mods_pars.add('renorm',value=params[par_key].value,
+                                   min=params[par_key].min,max=params[par_key].max,
+                                   vary=params[par_key].vary)                                       
+                    real_eval = self.mod_renorm_model.eval(mods_pars,array=real_eval)                                     
+                    imag_eval = self.mod_renorm_model.eval(mods_pars,array=imag_eval)
+                if self.renorm_phase is True:
+                    par_key = 'phase_renorm_'+str(i+1)
+                    angle = self.model_params[par_key].value
+                    real_eval = np.cos(angle)*real_eval - np.sin(angle)*imag_eval
+                    imag_eval = np.cos(angle)*imag_eval + np.sin(angle)*real_eval
+                real = np.append(real,real_eval)
+                imag = np.append(imag,imag_eval)
+            model = np.concatenate((real,imag))
+        elif self.units == "polar":
+            mod = []
+            phase = []
+            for i in range(self.n_freqs):
+                mod_model = folded_eval.mod_energy([self.freq_bounds[i],self.freq_bounds[i+1]])
+                phase_model = folded_eval.phase_energy([self.freq_bounds[i],self.freq_bounds[i+1]])
+                if self.renorm_modulus is True:
+                    par_key = 'mods_renorm_'+str(i+1)
+                    mods_pars = LM_Parameters()
+                    mods_pars.add('renorm',value=params[par_key].value,
+                                   min=params[par_key].min,max=params[par_key].max,
+                                   vary=params[par_key].vary)             
+                    mod_model = self.mod_renorm_model.eval(mods_pars,array=mod_model)                     
+                if self.renorm_phase is True:                    
+                    par_key = 'phase_renorm_'+str(i+1)
+                    phase_pars = LM_Parameters()
+                    phase_pars.add('renorm',value=params[par_key].value,
+                                   min=params[par_key].min,max=params[par_key].max,
+                                   vary=params[par_key].vary)
+                    phase_model = self.phase_renorm_model.eval(phase_pars,array=phase_model)                   
+                mod = np.append(mod,mod_model)
+                phase = np.append(phase,phase_model)
+            model = np.concatenate((mod,phase))
+        else:
+            print("weird units raise proper error tbd")
+
+        #tbd: only do this if some elements in ebounds_mask are False
+        if self.units != "lags":
+            model_first_dim = self._filter_2d_by_mask(model[:self._all_bins],self.ebounds_mask)
+            model_second_dim = self._filter_2d_by_mask(model[self._all_bins:],self.ebounds_mask)
+            model = np.append(model_first_dim,model_second_dim)
+        else:
+            model = self._filter_2d_by_mask(model,self.ebounds_mask)
+            
+        return model
+
+    def get_residuals(self,model,res_type):
+        model = self.eval_model()
+        if res_type == "ratio":
+            residuals = self.data/model
+            bars = self.data_err/model
+        elif res_type == "delchi":
+            residuals = (self.data-model)/self.data_err
+            bars = np.ones(len(self.data))
+        else:
+            #eventually a better likelihood will need to go here
+            print("can only return delta chi squared or ratio")
+        return residuals, bars
+
+    def print_fit_stat(self):
+        if self.likelihood is None:
+            res, err = self.get_residuals(model,"delchi")
+            chi_squared = np.sum(np.power(res.reshape(len(self.data)),2))
+            freepars = 0
+            for key, value in self.model_params.items():
+                param = self.model_params[key]
+                if param.vary is True:
+                    freepars += 1
+            dof = self.n_bins - freepars
+            reduced_chisquared = chi_squared/dof
+            print("Goodness of fit metrics:")
+            print("Chi squared" + "{0: <13}".format(" ") + str(chi_squared))
+            print("Reduced chi squared" + "{0: <5}".format(" ") + str(reduced_chisquared))
+            print("Data bins:" + "{0: <14}".format(" ") + str(self.n_bins))
+            print("Free parameters:" + "{0: <8}".format(" ") + str(freepars))
+            print("Degrees of freedom:" + "{0: <5}".format(" ") + str(dof))
+        else:
+            print("custom likelihood not supported yet")
+        return 
+
+    def _cross_minimizer(self,params):
+        if self.likelihood is None:
+            model = self.eval_model(params,ref_band=self.ref_band)
+            #tbd mask here
+            residuals = (self.data-model)/self.data_err
+        else:
+            raise TypeError("custom likelihood not implemented yet")
+        return residuals
+
+    def fit_data(self,algorithm='leastsq'):
+        self.fit_result = minimize(self._cross_minimizer,self.model_params,
+                                   method=algorithm)
+        print(fit_report(self.fit_result,show_correl=False))
+        fit_params = self.fit_result.params
+        self.set_params(fit_params)
+        return    
+
+    #tbd: have a way to call a range of frequencies only 
+    def plot_data_1d(self,return_plot=False):
+        if self.units != "lags":
+            fig, ((ax1),(ax2)) = plt.subplots(1,2,figsize=(12.,5.))  
+            ax2.hlines(0,self.ebounds[0],self.ebounds[-1],
+                       color='black',ls=':',zorder=3)
+            if self.units == "cartesian":
+                left_label = "Real part"
+                right_label = "Imaginary part"                
+            elif self.units == "polar":
+                left_label = "Modulus"
+                right_label = "Phase"                            
+            for i in range(self.n_freqs):
+                ax1.errorbar(self.ebounds,self.data[i*self.n_chans:(i+1)*self.n_chans],
+                             yerr=self.data_err[i*self.n_chans:(i+1)*self.n_chans],
+                             drawstyle="steps-mid",marker='o',
+                             label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")
+                ax2.errorbar(self.ebounds,self.data[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
+                             yerr=self.data_err[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
+                             drawstyle="steps-mid",marker='o',
+                             label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")    
+            ax1.set_yscale("log")
+            ax1.set_xscale("log")
+            ax1.set_xlabel("Energy (keV)")
+            ax1.set_ylabel(left_label)
+            ax2.set_xscale("log")
+            ax2.set_xlabel("Energy (keV)")
+            ax2.set_ylabel(right_label)
+            ax2.legend(loc="best",ncol=2)
+        else:            
+            fig, ((ax1)) = plt.subplots(1,1,figsize=(6.,4.5)) 
+            ax1.hlines(0,self.ebounds[0],self.ebounds[-1],
+                       color='black',ls=':',zorder=3)
+            for i in range(self.n_freqs):
+                ax1.errorbar(self.ebounds,self.data[i*self.n_chans:(i+1)*self.n_chans],
+                             yerr=self.data_err[i*self.n_chans:(i+1)*self.n_chans],
+                             drawstyle="steps-mid",marker='o',
+                             label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")
+            ax1.set_xscale("log")
+            ax1.legend(loc="best",ncol=2)
+            ax1.set_ylabel("Lag (s)")
+            ax1.set_xlabel("Energy (keV)")
+        
+        fig.tight_layout()            
+        if return_plot is True:
+            return fig
+        else:
+            return 
+
+    def plot_data_2d(self,return_plot=False):
+        freq_intervals = 0.5*(self.freq_bounds[1:]+self.freq_bounds[:-1])
+        if self.units != "lags":
+            left_data = np.transpose(self.data[:self.n_bins].reshape((self.n_freqs,self.n_chans)))
+            right_data = np.transpose(self.data[self.n_bins:].reshape((self.n_freqs,self.n_chans)))
+            fig, ((ax1),(ax2)) = plt.subplots(1,2,figsize=(12.,5.)) 
+            if self.units == "polar":
+                left_plot = ax1.pcolormesh(freq_intervals,self.ebounds,np.log10(left_data),cmap="viridis",
+                                      shading='auto',linewidth=0)
+                color_min = np.min([np.min(right_data),-0.01])
+                color_max = np.max([np.max(right_data),0.01])
+                phase_norm = TwoSlopeNorm(vmin=color_min,vcenter=0,vmax=color_max) 
+                right_plot = ax2.pcolormesh(freq_intervals,self.ebounds,right_data,cmap="BrBG",
+                      shading='auto',linewidth=0,norm=phase_norm)
+
+                ax1.set_title("log10(Modulus)")
+                ax2.set_title("Phase")
+            else:
+                left_plot = ax1.pcolormesh(freq_intervals,self.ebounds,np.log10(left_data),cmap="viridis",
+                                      shading='auto',linewidth=0)
+                right_plot = ax2.pcolormesh(freq_intervals,self.ebounds,right_data,cmap="cividis",
+                      shading='auto',linewidth=0)
+                ax1.set_title("Real part")
+                ax2.set_title("Imaginary part")                
+            fig.colorbar(left_plot, ax=ax1)
+            fig.colorbar(right_plot, ax=ax2)
+            ax1.set_xscale("log")
+            ax1.set_yscale("log")
+            ax1.set_xlabel("Frequency (Hz)")
+            ax1.set_ylabel("Energy (keV)")
+
+            ax2.set_xscale("log")
+            ax2.set_yscale("log")
+            ax2.set_xlabel("Frequency (Hz)")
+            ax2.set_ylabel("Energy (keV)")
+        else:
+            plot_data = np.transpose(self.data.reshape((self.n_freqs,self.n_chans)))
+            fig, ((ax1)) = plt.subplots(1,1,figsize=(6.,4.5))
+            color_min = np.min([np.min(plot_data),-0.01])
+            color_max = np.max([np.max(plot_data),0.01])
+            lag_norm = TwoSlopeNorm(vmin=color_min,vcenter=0,vmax=color_max) 
+            lag_plot = ax1.pcolormesh(freq_intervals,self.ebounds,plot_data,cmap="BrBG",
+                  shading='auto',linewidth=0,norm=lag_norm)
+            ax1.set_title("Lag (s)")                
+            fig.colorbar(lag_plot, ax=ax1)
+            ax1.set_xscale("log")
+            ax1.set_yscale("log")
+            ax1.set_xlabel("Frequency (Hz)")
+            ax1.set_ylabel("Energy (keV)")
+        
+        fig.tight_layout()
+        if return_plot is True:
+            return fig
+        else:
+            return      
+
+    def plot_model_1d(self,plot_data=True,params=None,residuals="delchi",return_plot=False):
+        model = self.eval_model(params=params)
+        #if we're plotting data, also get the residuals
+        if plot_data is True:
+            model_res,res_errors = self.get_residuals(self.model,residuals)
+            if residuals == "delchi":
+                reslabel = "$\\Delta\\chi$"
+            else:
+                reslabel = "Data/model"
+
+        if self.units != "lags":
+            if plot_data is True:
+                fig, ((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(12.,6.),
+                                                          sharex=True,
+                                                          gridspec_kw={'height_ratios': [2, 1]})      
+                ax2.hlines(0,self.ebounds[0],self.ebounds[-1],
+                       color='black',ls=':',zorder=3)
+                for i in range(self.n_freqs):
+                    col="C"+str(i)
+                    ax1.errorbar(self.ebounds,self.data[i*self.n_chans:(i+1)*self.n_chans],
+                                 yerr=self.data_err[i*self.n_chans:(i+1)*self.n_chans],
+                                 drawstyle="steps-mid",marker='o',color=col,
+                                 label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")
+                    ax2.errorbar(self.ebounds,self.data[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
+                                 yerr=self.data_err[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
+                                 drawstyle="steps-mid",marker='o',color=col,
+                                 label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")
+                    ax3.errorbar(self.ebounds,model_res[i*self.n_chans:(i+1)*self.n_chans],
+                                 yerr=res_errors[i*self.n_chans:(i+1)*self.n_chans],
+                                 drawstyle="steps-mid",
+                                 marker='o',color=col,
+                                 zorder=2)
+                    ax4.errorbar(self.ebounds,model_res[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
+                                 yerr=res_errors[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
+                                 drawstyle="steps-mid",
+                                 marker='o',color=col,
+                                 zorder=2)
+                    ax1.plot(self.ebounds,model[i*self.n_chans:(i+1)*self.n_chans],linewidth=3,zorder=3)
+                    ax2.plot(self.ebounds,model[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
+                             linewidth=3,zorder=3)
+                
+                ax1.set_xscale("log")
+                ax1.set_yscale("log")  
+                ax2.legend(loc="best",ncol=2)
+                ax2.set_xscale("log")
+                ax3.set_xscale("log")
+                ax3.set_xlabel("Energy (kev)") 
+                ax3.set_ylabel(reslabel)  
+                ax4.set_xlabel("Energy (kev)") 
+                ax4.set_ylabel(reslabel)
+                ax4.legend(loc='best')
+                if self.units == "polar":
+                    ax1.set_ylabel("Modulus")
+                    ax2.set_ylabel("Phase")
+                else:
+                    ax1.set_ylabel("Real part")
+                    ax2.set_ylabel("Imaginary part")
+                if residuals == "delchi":
+                    ax3.plot(self.ebounds,np.zeros(self.n_chans),ls=":",lw=2,color='black',zorder=4)
+                    ax4.plot(self.ebounds,np.zeros(self.n_chans),ls=":",lw=2,color='black',zorder=4)
+                elif residuals == "ratio":
+                    ax3.plot(self.ebounds,np.ones(self.n_chans),ls=":",lw=2,color='black',zorder=4)                    
+                    ax4.plot(self.ebounds,np.ones(self.n_chans),ls=":",lw=2,color='black',zorder=4)  
+            else:
+                fig, ((ax1),(ax2)) = plt.subplots(1,2,figsize=(12.,5.))  
+                for i in range(self.n_freqs):
+                    col="C"+str(i)
+                    ax1.plot(self.ebounds,model[i*self.n_chans:(i+1)*self.n_chans],
+                             linewidth=3,color=col,zorder=3)
+                    ax2.plot(self.ebounds,model[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
+                             linewidth=3,color=col,zorder=3,
+                             label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")    
+                ax2.plot(self.ebounds,np.zeros(self.n_chans),ls=":",lw=2,color='black',zorder=4)
+                ax2.legend(loc="best",ncol=2)
+                ax1.set_xscale("log")
+                ax2.set_xscale("log")
+                ax1.set_xlabel("Energy (kev)") 
+                ax2.set_xlabel("Energy (kev)") 
+                if self.units == "polar":
+                    ax1.set_ylabel("Modulus")
+                    ax2.set_ylabel("Phase")
+                else:
+                    ax1.set_ylabel("Real part")
+                    ax2.set_ylabel("Imaginary part")
+        else:
+            if plot_data is True:            
+                fig, (ax1,ax2) = plt.subplots(2,1,figsize=(6.,6.),sharex=True,
+                                              gridspec_kw={'height_ratios': [2, 1]})
+                ax1.hlines(0,self.ebounds[0],self.ebounds[-1],
+                           color='black',ls=':',zorder=4)
+                for i in range(self.n_freqs):
+                    col="C"+str(i)
+                    ax1.errorbar(self.ebounds,self.data[i*self.n_chans:(i+1)*self.n_chans],
+                                 yerr=self.data_err[i*self.n_chans:(i+1)*self.n_chans],
+                                 drawstyle="steps-mid",marker='o',color=col,zorder=2,
+                                 label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")            
+                    ax1.plot(self.ebounds,model[i*self.n_chans:(i+1)*self.n_chans],
+                             linewidth=3,color=col,zorder=3) 
+                    ax2.errorbar(self.ebounds,model_res[i*self.n_chans:(i+1)*self.n_chans],
+                                 yerr=res_errors[i*self.n_chans:(i+1)*self.n_chans],
+                                 drawstyle="steps-mid",marker='o',color=col,zorder=2)
+                if residuals == "delchi":
+                    ax2.plot(self.ebounds,np.zeros(self.n_chans),ls=":",lw=2,color='black')                
+                elif residuals == "ratio":
+                    ax2.plot(self.ebounds,np.ones(self.n_chans),ls=":",lw=2,color='black')    
+                ax1.set_ylabel("Lag (s)")
+                ax1.set_xscale("log")
+                ax2.set_ylabel(reslabel)
+                ax1.legend(loc="best",ncol=2)
+                ax2.set_xlabel("Energy (kev)")   
+                ax2.set_xscale("log")
+            else:
+                fig, ((ax1)) = plt.subplots(1,1,figsize=(6.,4.5)) 
+                ax1.hlines(0,self.ebounds[0],self.ebounds[-1],
+                           color='black',ls=':',zorder=4)
+                for i in range(self.n_freqs):
+                    col="C"+str(i)
+                    ax1.plot(self.ebounds,model[i*self.n_chans:(i+1)*self.n_chans],
+                             drawstyle="steps-mid",marker='o',color=col,
+                             label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")
+                ax1.set_xscale("log")
+                ax1.legend(loc="best",ncol=2)
+                ax1.set_ylabel("Lag (s)")
+                ax1.set_xlabel("Energy (keV)")                
+        
+        fig.tight_layout()
+        if return_plot is True:
+            return fig
+        else:
+            return 
+
+    def plot_model_2d(self,params=None,use_phase=False,residuals="delchi",return_plot=False,):
+        freq_intervals = 0.5*(self.freq_bounds[1:]+self.freq_bounds[:-1])
+        model = self.eval_model(params=params)
+        model_res,_ = self.get_residuals(self.model,residuals)
+
+        if self.units != "lags":
+            if self.units == "polar":
+                left_title = "Modulus"
+                mid_title = "Phase"
+            else:
+                left_title = "Real"
+                mid_title = "Imaginary" 
+            data_reformat = np.transpose(self.data[:self.n_bins].reshape((self.n_freqs,self.n_chans)))
+            model_reformat = np.transpose(model[:self.n_bins].reshape((self.n_freqs,self.n_chans)))
+            plot_info = [data_reformat,model_reformat]
+            scale_min = np.min(self.data[:self.n_bins])
+            scale_max = np.max(self.data[:self.n_bins])
+
+            fig, axs = plt.subplots(2, 3, figsize=(15.,6.), sharex=True) 
+            for row in range(2):
+                ax = axs[row][0]
+                left_plot = ax.pcolormesh(freq_intervals,self.ebounds,plot_info[row],cmap="viridis",
+                                            shading='auto',rasterized=True,vmin=scale_min,vmax=scale_max)
+                ax.set_xscale("log")
+                ax.set_yscale("log")
+                ax.set_ylabel("Energy (keV)")
+            axs[0][0].set_title(left_title)
+            ax.set_xlabel("Frequency (Hz)")
+            fig.subplots_adjust(wspace=0.075)
+            cbar = fig.colorbar(left_plot, ax=axs[0:2,0],aspect = 40)
+            cbar.formatter.set_powerlimits((0, 0))
+            
+            data_reformat = np.transpose(self.data[self.n_bins:].reshape((self.n_freqs,self.n_chans)))
+            model_reformat = np.transpose(model[self.n_bins:].reshape((self.n_freqs,self.n_chans)))
+            plot_info = [data_reformat,model_reformat]
+            scale_min = np.min(self.data[self.n_bins:])
+            scale_max = np.max(self.data[self.n_bins:])
+
+            for row in range(2):
+                ax = axs[row][1]
+                mid_plot = ax.pcolormesh(freq_intervals,self.ebounds,plot_info[row],cmap="cividis",
+                                            shading='auto',rasterized=True,vmin=scale_min,vmax=scale_max)
+                ax.set_xscale("log")
+                ax.set_yscale("log")
+                ax.set_yticklabels([])
+            axs[0][1].set_title(mid_title)
+            ax.set_xlabel("Frequency (Hz)")
+            cbar = fig.colorbar(mid_plot, ax=axs[0:2,1],aspect = 40)
+            cbar.formatter.set_powerlimits((0, 0))
+
+            top_res = np.transpose(model_res[self.n_bins:].reshape((self.n_freqs,self.n_chans)))
+            bot_res = np.transpose(model_res[:self.n_bins].reshape((self.n_freqs,self.n_chans)))
+            plot_info = [top_res,bot_res]
+
+            for row in range(2):
+                ax = axs[row][2]
+                res_min = np.min(np.append(plot_info[row].reshape(self.n_bins),-0.1))
+                res_max = np.max(np.append(plot_info[row].reshape(self.n_bins),0.1))
+                res_norm = TwoSlopeNorm(vmin=res_min,vcenter=0,vmax=res_max) 
+                mid_plot = ax.pcolormesh(freq_intervals,self.ebounds,plot_info[row],cmap="BrBG",
+                                            shading='auto',rasterized=True,norm=res_norm)
+                ax.set_xscale("log")
+                ax.set_yscale("log")
+                ax.set_yticklabels([])
+                cbar = fig.colorbar(mid_plot, ax=ax)
+                cbar.formatter.set_powerlimits((0, 0))
+            axs[0][2].set_title(mid_title+" residuals")
+            axs[1][2].set_title(left_title+" residuals")
+            ax.set_xlabel("Frequency (Hz)")
+        
+        else:
+            fig, ((ax1),(ax2),(ax3)) = plt.subplots(1, 3, figsize=(15.,4.), sharex=True)             
+            plot_data = np.transpose(self.data.reshape((self.n_freqs,self.n_chans)))
+            if use_phase is True:
+                plot_data = plot_data*(2.*np.pi*freq_intervals)
+            color_min = np.min([np.min(plot_data),-0.01])
+            color_max = np.max([np.max(plot_data),0.01])
+            lag_norm = TwoSlopeNorm(vmin=color_min,vcenter=0,vmax=color_max) 
+            data_plot = ax1.pcolormesh(freq_intervals,self.ebounds,plot_data,cmap="BrBG",
+                                        shading='auto',linewidth=0,norm=lag_norm)
+            
+            ax1.set_title("Data")                
+            fig.colorbar(data_plot, ax=ax1)
+            
+            plot_model = np.transpose(model.reshape((self.n_freqs,self.n_chans)))
+            if use_phase is True:
+                plot_model = plot_model*(2.*np.pi*freq_intervals)
+            lag_norm = TwoSlopeNorm(vmin=color_min,vcenter=0,vmax=color_max) 
+            model_plot = ax2.pcolormesh(freq_intervals,self.ebounds,plot_model,cmap="BrBG",
+                                        shading='auto',linewidth=0,norm=lag_norm)
+            ax2.set_title("Model")                
+            fig.colorbar(model_plot, ax=ax2)
+
+            
+            plot_res = np.transpose(model_res.reshape((self.n_freqs,self.n_chans)))
+            res_min = np.min([np.min(plot_res),-1])
+            res_max = np.max([np.max(plot_res),1])
+            res_norm = TwoSlopeNorm(vmin=res_min,vcenter=0,vmax=res_max) 
+            res_plot = ax3.pcolormesh(freq_intervals,self.ebounds,plot_res,cmap="BrBG",
+                                        shading='auto',linewidth=0,norm=res_norm)
+
+            ax3.set_title("Residuals")                
+            fig.colorbar(res_plot, ax=ax3)
+            
+            ax1.set_xscale("log")
+            ax1.set_yscale("log")
+            ax1.set_xlabel("Frequency (Hz)")
+            ax1.set_ylabel("Energy (keV)")
+            
+            ax2.set_xscale("log")
+            ax2.set_yscale("log")
+            ax2.set_yticklabels([])
+            ax2.set_xlabel("Frequency (Hz)")
+            
+            ax3.set_xscale("log")
+            ax3.set_yscale("log")
+            ax3.set_yticklabels([])
+            ax3.set_xlabel("Frequency (Hz)")
+        if return_plot is True:
+            return fig
+        else:
+            return 
+
+#tbd: plots for all the data in 1d, all the data in 2d, individual spectra in 1d
+#same for data+model too
+
         
 def load_pha(path,response):
     '''
@@ -1992,7 +2709,7 @@ def load_pha(path,response):
             spectrum_error = counts_err
         return bin_bounds_lo, bin_bounds_hi, counts_per_group, spectrum_error, exposure
 
-def loadr_lc(path):
+def load_lc(path):
     '''
     This function loads an X-ray lightcurve, given an input path to an 
     OGIP-compatible file.
@@ -2022,6 +2739,11 @@ def loadr_lc(path):
         time_bins = lightcurve_data['TIME']
         counts = lightcurve_data['RATE']
         gti_data = lightcurve['GTI'].data
-        gti = [gti_data['START']-gti_data['START'][0],gti_data['STOP']-gti_data['START'][0]]
+        #convert from astropy to numpy - this is annoying
+        #for 2d arrays hence the horror below
+        gti = np.zeros((len(gti_data),2))
+        for i in range(len(gti_data)):
+            gti[i][0] = gti_data[i][0]-gti_data[0][0]
+            gti[i][1] = gti_data[i][1]-gti_data[0][0]
 
     return time_bins, counts, gti

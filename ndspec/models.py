@@ -94,7 +94,20 @@ def bbody(array, params):
     renorm = 8.0525*norm/np.power(temp,4.)
     planck = np.exp(array/temp)-1.
     model = renorm*np.power(array,2.)/planck
-    return model 
+    return model
+    
+def varbbody(array, params):
+    if params.ndim == 1:
+        #boltzkamnn constant in kev
+        norm = params[0]
+        temp = params[1]
+    elif params.ndim == 2:
+        norm = params[:,0][:,np.newaxis]
+        temp = params[:,1][:,np.newaxis]
+    renorm = 2.013*norm/np.power(temp,5.)
+    planck = np.exp(array/temp)-1.
+    model = renorm*np.power(array,3.)/planck**2
+    return model     
     
 def gauss_fred(array1,array2,params,return_full=False):
     times = array1
@@ -270,8 +283,8 @@ def bbody_fred(array1,array2,params,return_full=False):
         fred_pulse = np.zeros((len(energy),len(times)))
         model_profile = np.zeros(len(energy))
         pulse_profile = np.zeros(len(times))
-        for i in range(len(times)):
-            fred_pulse[:,i] = bbody(energy,np.array([norm,temp_profile[i]]))*fred_profile[i]
+        for i in range(len(times)): 
+            fred_pulse[:,i] = varbbody(energy,np.array([norm,temp_profile[i]]))*fred_profile[i]
         model_profile = np.sum(fred_pulse,axis=1)
         pulse_profile = np.sum(fred_pulse,axis=0)
     elif params.ndim == 2:
@@ -292,7 +305,7 @@ def bbody_fred(array1,array2,params,return_full=False):
         for j in range(params.shape[0]):
             for i in range(len(times)):
                 par = np.array([norm[j,0],temp_profile[j,i]])
-                fred_pulse[j,:,i] = norm[j,0]*gaussian(energy,par)*fred_profile[j,i]    
+                fred_pulse[j,:,i] = norm[j,0]*varbbody(energy,par)*fred_profile[j,i]    
             model_profile[j] = np.sum(fred_pulse[j],axis=1)
             pulse_profile[j] = np.sum(fred_pulse[j],axis=0)
     else:
@@ -318,7 +331,7 @@ def bbody_bkn(array1,array2,params,return_full=False):
         model_profile = np.zeros(len(energy))
         pulse_profile = np.zeros(len(times))
         for i in range(len(times)):
-            brk_pulse[:,i] = bbody(energy,np.array([norm,temp_profile[i]]))*bkn_profile[i]
+            brk_pulse[:,i] = varbbody(energy,np.array([norm,temp_profile[i]]))*bkn_profile[i]
         model_profile = np.sum(brk_pulse,axis=1)
         pulse_profile = np.sum(brk_pulse,axis=0)
     elif params.ndim == 2:
@@ -339,7 +352,7 @@ def bbody_bkn(array1,array2,params,return_full=False):
         for j in range(params.shape[0]):
             for i in range(len(times)):
                 par = np.array([norm[j,0],temp_profile[j,i]])
-                brk_pulse[j,:,i] = norm[j,0]*bbody(energy,par)*bkn_profile[j,i]    
+                brk_pulse[j,:,i] = norm[j,0]*varbbody(energy,par)*bkn_profile[j,i]    
             model_profile[j] = np.sum(brk_pulse[j],axis=1)
             pulse_profile[j] = np.sum(brk_pulse[j],axis=0)
     else:

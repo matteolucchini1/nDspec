@@ -1419,7 +1419,8 @@ class CrossSpectrum(FourierProduct):
 
         nu_min = freq_bounds[0]
         nu_max = freq_bounds[1]       
-        lag_spectrum = self.phase_energy(freq_bounds)/(2.*np.pi*(nu_max-nu_min))        
+        nu_c = 0.5*(nu_min+nu_max)
+        lag_spectrum = self.phase_energy(freq_bounds)/(2.*np.pi*nu_c)        
         return lag_spectrum        
 
     def plot_cross_1d(self,form="polar",return_plot=False):
