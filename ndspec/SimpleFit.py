@@ -15,7 +15,258 @@ colorscale = pl.cm.PuRd(np.linspace(0.,1.,5))
 from lmfit import fit_report, minimize
 from lmfit.model import ModelResult as LM_result
 
-class FitPowerSpectrum():
+class SimpleFit():
+    def __init__(self):
+        self.model = None
+        self.model_params = None
+        self.likelihood = None
+        self.fit_result = None
+        self.data = None
+        self.data_err = None
+    pass
+
+    def set_model(self,model,params=None):
+        """
+        This method is used to pass the model users want to fit to the data. 
+        Optionally it is also possible to pass the initial parameter values of 
+        the model. 
+        
+        Parameters:
+        -----------            
+        model: lmfit.CompositeModel 
+            The lmfit wrapper of the model one wants to fit to the data. 
+            
+        params: lmfit.Parameters, default: None 
+            The parameter values from which to start evalauting the model during
+            the fit. If it is not provided, all model parameters will default 
+            to 0, set to be free, and have no minimum or maximum bound. 
+        """
+    
+        #this should be an lmfit model object
+        self.model = model 
+        if params is None:
+            self.model_params = self.model.make_params(verbose=True)
+        else:
+            self.model_params = params
+        return 
+
+    def set_params(self,params):
+        """
+        This method is used to set the model parameter names and values. It can
+        be used both to initialize a fit, and to test different parameter values 
+        before actually running the minimization algorithm.
+        
+        Parameters:
+        -----------                       
+        params: lmfit.Parameters
+            The parameter values from which to start evalauting the model during
+            the fit.  
+        """
+        
+        self.model_params = params
+        return 
+
+    def get_residuals(self,model,res_type):    
+        """
+        This methods return the residuals (either as data/model, or as 
+        contribution to the total chi squared) of the input model, given the 
+        parameters set in model_parameters, with respect to the data. 
+        
+        Parameters:
+        -----------
+        model_vals: np.array(float)
+            An array of model values to be compared against the data.
+            
+        res_type: string 
+            If set to "ratio", the method returns the residuals defined as 
+            data/model. If set to "delchi", it returns the contribution of 
+            each energy channel to the total chi squared.
+            
+        Returns:
+        --------
+        residuals: np.array(float)
+            An array of the same size as the data, containing the model 
+            residuals in each channel.
+            
+        bars: np.array(float)
+            An array of the same size as the residuals, containing the one sigma 
+            range for each contribution to the residuals.           
+        """
+        
+        model = self.eval_model()
+        if isinstance(self,EnergyDependentFit):
+            model = np.extract(self.ebounds_mask,model)
+        if res_type == "ratio":
+            residuals = self.data/model
+            bars = self.data_err/model
+        elif res_type == "delchi":
+            residuals = (self.data-model)/self.data_err
+            bars = np.ones(len(self.data))
+        else:
+            #eventually a better likelihood will need to go here
+            print("can only return delta chi squared or ratio")
+        return residuals, bars
+
+    def print_fit_stat(self):
+        """
+        This method compares the model defined by the user, using the last set
+        of parameters to have been set in the class, to the data stored. It then
+        prints the chi-squared goodness-of-fit to terminal, along with the 
+        number of data bins, free parameters and degrees of freedom. 
+        """
+        
+        if self.likelihood is None:
+            res, err = self.get_residuals(self.model,"delchi")
+            chi_squared = np.sum(np.power(res.reshape(len(self.data)),2))
+            freepars = 0
+            for key, value in self.model_params.items():
+                param = self.model_params[key]
+                if param.vary is True:
+                    freepars += 1
+            dof = len(self.data) - freepars
+            reduced_chisquared = chi_squared/dof
+            print("Goodness of fit metrics:")
+            print("Chi squared" + "{0: <13}".format(" ") + str(chi_squared))
+            print("Reduced chi squared" + "{0: <5}".format(" ") + str(reduced_chisquared))
+            print("Data bins:" + "{0: <14}".format(" ") + str(len(self.data)))
+            print("Free parameters:" + "{0: <8}".format(" ") + str(freepars))
+            print("Degrees of freedom:" + "{0: <5}".format(" ") + str(dof))
+        else:
+            print("custom likelihood not supported yet")
+        return 
+
+    def fit_data(self,algorithm='leastsq'):
+        """
+        This method attempts to minimize the residuals of the model with respect 
+        to the data defined by the user. The fit always starts from the set of 
+        parameters defined with .set_params(). Once the algorithm has completed 
+        its run, it prints to terminal the best-fitting parameters, fit 
+        statistics, and simple selection criteria (reduced chi-squared, Akaike
+        information criterion, and Bayesian informatino criterion). 
+        
+        Parameters:
+        -----------
+        algorithm: str, default="leastsq"
+            The fitting algorithm to be used in the minimization. The possible 
+            choices are detailed on the LMFit documentation page:
+            https://lmfit.github.io/lmfit-py/fitting.html#fit-methods-table.
+        """
+        
+        self.fit_result = minimize(self._minimizer,self.model_params,
+                                   method=algorithm)
+        print(fit_report(self.fit_result,show_correl=False))
+        fit_params = self.fit_result.params
+        self.set_params(fit_params)
+        return
+
+
+class EnergyDependentFit():
+    def __init__(self):   
+        self.energs = 0.5*(self.response.energ_hi+self.response.energ_lo)
+        self.energ_bounds = self.response.energ_hi-self.response.energ_lo
+        self.ebounds = 0.5*(self.response.emax+self.response.emin)
+        self.ewidths = self.response.emax - self.response.emin
+        self.ebounds_mask = np.full((self.response.n_chans), True)
+        pass
+
+    def _set_unmasked_data(self):
+        self._emin_unmasked = self.response.emin
+        self._emax_unmasked = self.response.emax
+        self._ebounds_unmasked = self.ebounds
+        self._ewidths_unmasked = self.ewidths
+        self._data_unmasked = self.data
+        self._data_err_unmasked = self.data_err
+
+        if self.twod_data is True:
+            self._all_chans = self._ebounds_unmasked.size
+            self._all_bins = self.n_freqs*self._all_chans
+            self.n_chans = self._all_chans
+            self.n_bins = self._all_bins
+        return
+        
+    #this mess is from the cross spectrum
+    def ignore_energies(self,bound_lo,bound_hi):
+        if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
+            (isinstance(bound_hi, (np.floating, float, int)) != True)):
+            raise TypeError("Energy bounds must be floats or integers")
+        
+        #is2d flag here
+        #if bounds of channel lie in ignored energies, ignore channel
+        self.ebounds_mask = ((self._emin_unmasked<bound_lo)|
+                             (self._emax_unmasked>bound_hi))&self.ebounds_mask
+       
+        #take the unmasked arrays and keep only the bounds we want
+        self.emin = np.extract(self.ebounds_mask,self._emin_unmasked)
+        self.emax = np.extract(self.ebounds_mask,self._emax_unmasked)
+        self.ebounds = np.extract(self.ebounds_mask,self._ebounds_unmasked)
+        self.ewidths = np.extract(self.ebounds_mask,self._ewidths_unmasked)   
+        self.n_chans = self.ebounds_mask[self.ebounds_mask==True].size
+
+        if self.twod_data is True:  
+            self.n_bins = self.n_chans*self.n_freqs
+            if self.units != "lags":
+                data_filter_first_dim = self._filter_2d_by_mask(self._data_unmasked[:self._all_bins],self.ebounds_mask)
+                error_filter_first_dim = self._filter_2d_by_mask(self._data_err_unmasked[:self._all_bins],self.ebounds_mask)              
+                data_filter_second_dim = self._filter_2d_by_mask(self._data_unmasked[self._all_bins:],self.ebounds_mask)
+                error_filter_second_dim = self._filter_2d_by_mask(self._data_err_unmasked[self._all_bins:],self.ebounds_mask)                
+                self.data = np.append(data_filter_first_dim,data_filter_second_dim)
+                self.data_err = np.append(error_filter_first_dim,error_filter_second_dim)              
+            else:
+                self.data = self._filter_2d_by_mask(self._data_unmasked,self.ebounds_mask)
+                self.data_err = self._filter_2d_by_mask(self._data_err_unmasked,self.ebounds_mask)
+        else: 
+            self.data = np.extract(self.ebounds_mask,self._data_unmasked)
+            self.data_err = np.extract(self.ebounds_mask,self._data_err_unmasked)            
+        return
+   
+    def notice_energies(self,bound_lo,bound_hi):
+        if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
+            (isinstance(bound_hi, (np.floating, float, int)) != True)):
+            raise TypeError("Energy bounds must be floats or integers")        
+              
+        #if bounds of channel lie in noticed energies, noitce channel
+        self.ebounds_mask = self.ebounds_mask|np.logical_not(
+                            (self._emin_unmasked<bound_lo)|
+                            (self._emax_unmasked>bound_hi))
+
+        #take the unmasked arrays and keep only the bounds we want
+        self.emin = np.extract(self.ebounds_mask,self._emin_unmasked)
+        self.emax = np.extract(self.ebounds_mask,self._emax_unmasked)
+        self.ebounds = np.extract(self.ebounds_mask,self._ebounds_unmasked)
+        self.ewidths = np.extract(self.ebounds_mask,self._ewidths_unmasked)   
+        self.n_chans = self.ebounds_mask[self.ebounds_mask==True].size        
+
+        if self.twod_data is True:
+            self.n_bins = self.n_chans*self.n_freqs
+            if self.units != "lags":
+                data_filter_first_dim = self._filter_2d_by_mask(self._data_unmasked[:self._all_bins],self.ebounds_mask)
+                error_filter_first_dim = self._filter_2d_by_mask(self._data_err_unmasked[:self._all_bins],self.ebounds_mask)              
+                data_filter_second_dim = self._filter_2d_by_mask(self._data_unmasked[self._all_bins:],self.ebounds_mask)
+                error_filter_second_dim = self._filter_2d_by_mask(self._data_err_unmasked[self._all_bins:],self.ebounds_mask)                
+                self.data = np.append(data_filter_first_dim,data_filter_second_dim)
+                self.data_err = np.append(error_filter_first_dim,error_filter_second_dim)              
+            else:
+                self.data = self._filter_2d_by_mask(self._data_unmasked,self.ebounds_mask)
+                self.data_err = self._filter_2d_by_mask(self._data_err_unmasked,self.ebounds_mask)
+        else:
+            self.data = np.extract(self.ebounds_mask,self._data_unmasked)
+            self.data_err = np.extract(self.ebounds_mask,self._data_err_unmasked)               
+        return
+
+    def _filter_2d_by_mask(self,arr,mask):
+        filtered_array = [] 
+        if self.dependence == "energy":
+            arr_reshape = arr.reshape((self.n_freqs,self._all_chans))
+            for i in range(self.n_freqs):
+                extract_row = np.extract(self.ebounds_mask,arr_reshape[i,:])
+                filtered_array = np.append(filtered_array,extract_row)  
+        elif self.dependence == "frequency":
+            arr_reshape = arr.reshape((self._all_chans,self.n_freqs))
+            filtered_array = arr_reshape[mask,:]
+            filtered_array = filtered_array.reshape(self.n_bins)
+        return filtered_array
+
+class FitPowerSpectrum(SimpleFit):
     """
     Least-chi squared fitter class for a powerspectrum, defined as the product 
     between a Fourier-transformed lightcurve and its complex conjugate. 
@@ -61,15 +312,11 @@ class FitPowerSpectrum():
     """ 
 
     def __init__(self):
-        self.model = None
-        self.model_params = None
-        self.likelihood = None
-        self.fit_result = None
-        self.data = None
-        self.data_err = None
+        SimpleFit.__init__(self)
         self.freqs = None 
+        self.twod_data = False
         pass
-    
+
     def set_data(self,data,data_err=None,data_grid=None):
         """
         This method is used to pass the data users want to fit. The input can
@@ -102,48 +349,7 @@ class FitPowerSpectrum():
             self.data_err = data_err
             self.freqs = data_grid
         return
-
-    def set_model(self,model,params=None):
-        """
-        This method is used to pass the model users want to fit to the data. 
-        Optionally it is also possible to pass the initial parameter values of 
-        the model. 
-        
-        Parameters:
-        -----------            
-        model: lmfit.CompositeModel 
-            The lmfit wrapper of the model one wants to fit to the data. 
-            
-        params: lmfit.Parameters, default: None 
-            The parameter values from which to start evalauting the model during
-            the fit. If it is not provided, all model parameters will default 
-            to 0, set to be free, and have no minimum or maximum bound. 
-        """
-    
-        #this should be an lmfit model object
-        self.model = model 
-        if params is None:
-            self.model_params = self.model.make_params(verbose=True)
-        else:
-            self.model_params = params
-        return 
-
-    def set_params(self,params):
-        """
-        This method is used to set the model parameter names and values. It can
-        be used both to initialize a fit, and to test different parameter values 
-        before actually running the minimization algorithm.
-        
-        Parameters:
-        -----------                       
-        params: lmfit.Parameters
-            The parameter values from which to start evalauting the model during
-            the fit.  
-        """
-        
-        self.model_params = params
-        return 
-    
+       
     def eval_model(self,params=None,freq=None):
         """
         This method is used to evaluate and return the model values for a given 
@@ -177,74 +383,8 @@ class FitPowerSpectrum():
         else:
             model = self.model.eval(params,freq=freq)
         return model
-         
-    def get_residuals(self,model_vals,res_type):
-        """
-        This methods return the residuals (either as data/model, or as 
-        contribution to the total chi squared) of the input model, given the 
-        parameters set in model_parameters, with respect to the data. 
-        
-        Parameters:
-        -----------
-        model_vals: np.array(float)
-            An array of model values to be compared against the data.
-            
-        res_type: string 
-            If set to "ratio", the method returns the residuals defined as 
-            data/model. If set to "delchi", it returns the contribution of 
-            each Frequency bin to the total chi squared.
-            
-        Returns:
-        --------
-        residuals: np.array(float)
-            An array of the same size as the data, containing the model 
-            residuals in each bin.
-            
-        bars: np.array(float)
-            An array of the same size as the residuals, containing the one sigma 
-            range for each contribution to the residuals.           
-        """
-        
-        if res_type == "ratio":
-            residuals = self.data/model_vals
-            bars = self.data_err/model_vals
-        elif res_type == "delchi":
-            residuals = (self.data-model_vals)/self.data_err
-            bars = np.ones(len(self.data))
-        else:
-            #eventually a better likelihood will need to go here
-            print("can only return delta chi squared or ratio")
-        return residuals, bars
-
-    def print_fit_stat(self):
-        """
-        This method compares the model defined by the user, using the last set
-        of parameters to have been set in the class, to the data stored. It then
-        prints the chi-squared goodness-of-fit to terminal, along with the 
-        number of data bins, free parameters and degrees of freedom. 
-        """
     
-        if self.likelihood is None:
-            res, err = self.get_residuals(self.model,"delchi")
-            chi_squared = np.sum(np.power(res.reshape(len(self.data)),2))
-            freepars = 0
-            for key, value in self.model_params.items():
-                param = self.model_params[key]
-                if param.vary is True:
-                    freepars += 1
-            dof = len(self.data) - freepars
-            reduced_chisquared = chi_squared/dof
-            print("Goodness of fit metrics:")
-            print("Chi squared" + "{0: <13}".format(" ") + str(chi_squared))
-            print("Reduced chi squared" + "{0: <5}".format(" ") + str(reduced_chisquared))
-            print("Data bins:" + "{0: <14}".format(" ") + str(len(self.data)))
-            print("Free parameters:" + "{0: <8}".format(" ") + str(freepars))
-            print("Degrees of freedom:" + "{0: <5}".format(" ") + str(dof))
-        else:
-            print("custom likelihood not supported yet")
-        return 
-    
-    def _psd_minimizer(self,params):
+    def _minimizer(self,params):
         """
         This method is used exclusively when running a minimization algorithm.
         It evaluates the model for an input set of parameters, and then returns 
@@ -270,30 +410,6 @@ class FitPowerSpectrum():
         else:
             raise TypeError("custom likelihood not implemented yet")
         return residuals
-
-    def fit_data(self,algorithm='leastsq'):
-        """
-        This method attempts to minimize the residuals of the model with respect 
-        to the data defined by the user. The fit always starts from the set of 
-        parameters defined with .set_params(). Once the algorithm has completed 
-        its run, it prints to terminal the best-fitting parameters, fit 
-        statistics, and simple selection criteria (reduced chi-squared, Akaike
-        information criterion, and Bayesian informatino criterion). 
-        
-        Parameters:
-        -----------
-        algorithm: str, default="leastsq"
-            The fitting algorithm to be used in the minimization. The possible 
-            choices are detailed on the LMFit documentation page:
-            https://lmfit.github.io/lmfit-py/fitting.html#fit-methods-table.
-        """
-        
-        self.fit_result = minimize(self._psd_minimizer,self.model_params,
-                                   method=algorithm)
-        print(fit_report(self.fit_result,show_correl=False))
-        fit_params = self.fit_result.params
-        self.set_params(fit_params)
-        return
     
     def plot_data(self,units="fpower",return_plot=False):
         """
@@ -393,7 +509,7 @@ class FitPowerSpectrum():
         """
         
         if params is None:
-            model = self.eval_model(params=self.params)
+            model = self.eval_model(params=self.model_params)
         else:
             model = self.eval_model(params=params)
 
@@ -432,13 +548,13 @@ class FitPowerSpectrum():
 
         if plot_components is True:
             #we need to allocate a ModelResult object in order to retrieve the components
-            comps = LM_result(model=self.model,params=test.model_params)
-            comps = comps.eval_components(freq=test.freqs)
+            comps = LM_result(model=self.model,params=self.model_params)
+            comps = comps.eval_components(freq=self.freqs)
             for key in comps.keys():
                 if units == "power":                
-                    ax1.plot(test.freqs,comps[key],label=key,lw=2)
+                    ax1.plot(self.freqs,comps[key],label=key,lw=2)
                 elif units == "fpower":
-                    ax1.plot(test.freqs,comps[key]*test.freqs,label=key,lw=2)
+                    ax1.plot(self.freqs,comps[key]*self.freqs,label=key,lw=2)
             ax1.legend(loc='best')
         
         ax1.set_xscale("log",base=10)
@@ -467,108 +583,10 @@ class FitPowerSpectrum():
         else:
             return   
 
-class FitTimeAvgSpectrum():
-    """
-    Least-chi squared fitter class for a time averaged spectrum, defined as the  
-    count rate as a function of photon channel energy bound. 
-    
-    Given an instrument response, a count rate spectrum, its error and a 
-    model (defined in energy space), this class handles fitting internally 
-    using the lmfit library.    
-        
-    Attributes
-    ----------
-    model: lmfit.CompositeModel 
-        A lmfit CompositeModel object, which contains a wrapper to the model 
-        component(s) one wants to fit to the data. 
-   
-    model_params: lmfit.Parameters 
-        A lmfit Parameters object, which contains the parameters for the model 
-        components.
-   
-    likelihood: None
-        Work in progress; currently the software defaults to chi squared 
-        likelihood
-   
-    fit_result: lmfit.MinimizeResult
-        A lmfit MinimizeResult, which stores the result (including best-fitting 
-        parameter values, fit statistics etc) of a fit after it has been run.         
-   
-    data: np.array(float)
-        An array of float containing the time-averaged spectrum to be fitted. It 
-        should be defined in detector space, in units of counts/s/keV. Contains 
-        exclusively the energy channels noticed during the fit.
-   
-    data_err: np.array(float)
-        The uncertainty on the spectrum stored in data. Contains exclusively the
-        energy channels noticed during the fit.
-
-    response: nDspec.ResponseMatrix
-        The instrument response matrix corresponding to the spectrum to be 
-        fitted. It is required to define the energy grids over which model and
-        data are defined. 
-   
-    energs: np.array(float)
-        The array of physical photon energies over which the model is computed. 
-        Defined as the middle of each bin in the energy range stored in the 
-        instrument response provided.    
-        
-    energ_bounds: np.array(float)
-        The array of energy bin widths, for each bin over which the model is 
-        computed. Defined as the difference between the uppoer and lower bounds 
-        of the energy bins stored in the insrument response provided. 
-        
-    emin: np.array(float)
-        The array of lower bounds for the instrument energy channels, as stored 
-        in the instrument response provided. Only contains the channels that are 
-        noticed during the fit.
-        
-    emax: np.array(float)
-        The array of upper bounds for the instrument energy channels, as stored 
-        in the instrument response provided. Only contains the channels that are 
-        noticed during the fit.
-        
-    ebounds: np.array(float) 
-        The array of energy channel bin centers for the instrument energy
-        channels,  as stored in the instrument response provided. Only contains 
-        the channels that are noticed during the fit.
-
-    ewidths: np.array(float) 
-        The array of energy channel bin widths for the instrument energy
-        channels,  as stored in the instrument response provided. Only contains 
-        the channels that are noticed during the fit.
-        
-    ebounds_mask: np.array(bool)
-        The array of instrument energy channels that are either ignored or 
-        noticed during the fit. A given channel i is noticed if ebounds_mask[i]
-        is True, and ignored if it is false.
-        
-    _emin_unmasked, _emax_unmasked, _ebounds_unmasked, _ewidths_unmasked: np.array(float)
-        The array of every lower bound, upper bound, channel center and channel 
-        widths stored in the response, regardless of which ones are ignored or 
-        noticed during the fit. Used exclusively to facilitate book-keeping 
-        internal to the class. 
-        
-    _data_unmasked, _data_err_unmasked: np.array(float)
-        The array of every cout rate and relative error contained in the 
-        spectrum, regardless of which ones are ignored or noticed during the 
-        fit. Used exclusively to facilitate book-keeping internal to the class. 
-    """ 
-
+class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
     def __init__(self):
-        self.model = None
-        self.model_params = None
-        self.likelihood = None
-        self.fit_result = None
-        self.data = None
-        self.data_err = None
-        self.response = None
-        self.energs = None
-        self.energ_bounds = None
-        self.emin = None
-        self.emax = None
-        self.ewidths = None
-        self.ebounds = None
+        SimpleFit.__init__(self)
+        self.twod_data = False
         pass
 
     def set_data(self,response,data):
@@ -591,134 +609,16 @@ class FitTimeAvgSpectrum():
             a type 1 OGIP-formatted file (such as a pha file produced by a
             typical instrument reduction pipeline).
         """
-    
+
         bounds_lo, bounds_hi, counts, error, exposure = load_pha(data,response)
-        self.response = response.rebin_channels(bounds_lo,bounds_hi)
-        #this needs to keep track of the bin widths when i switch to integrating models 
-        #in each energy bin
-        self.energs = 0.5*(self.response.energ_hi+self.response.energ_lo)
-        self.energ_bounds = self.response.energ_hi-self.response.energ_lo
-        self.emin = bounds_lo
-        self.emax = bounds_hi
-        self.ebounds = 0.5*(self.emax+self.emin)
-        self.ewidths = bounds_hi - bounds_lo
+        self.response = response.rebin_channels(bounds_lo,bounds_hi)   
+        EnergyDependentFit.__init__(self)  
         #this loads the spectrum in units of counts/s/keV
         self.data = counts/exposure/self.ewidths
         self.data_err = error/exposure/self.ewidths
-        #here we keep track of which channels are noticed/ignored, by default
-        #all are noticed
-        self.ebounds_mask = np.full((self.response.n_chans), True)
-        self._emin_unmasked = self.emin
-        self._emax_unmasked = self.emax
-        self._ebounds_unmasked = self.ebounds
-        self._ewidths_unmasked = self.ewidths
-        self._data_unmasked = self.data
-        self._data_err_unmasked = self.data_err
+        self._set_unmasked_data()
         return 
 
-    def ignore_energies(self,bound_lo,bound_hi):
-        """
-        Adjusts the data arrays stored such that they (and the fit) ignore 
-        selected channels based on their energy bounds.
-
-        Parameters:
-        -----------
-        bound_lo : float
-            Lower bound of ignored energy interval.
-        bound_hi : float
-            Higher bound of ignored energy interval .    
-        """
-        
-        if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
-            (isinstance(bound_hi, (np.floating, float, int)) != True)):
-            raise TypeError("Energy bounds must be floats or integers")
-        
-        #if bounds of channel lie in ignored energies, ignore channel
-        self.ebounds_mask = ((self._emin_unmasked<bound_lo)|
-                             (self._emax_unmasked>bound_hi))&self.ebounds_mask
-        
-        #take the unmasked arrays and keep only the bounds we want
-        self.emin = np.extract(self.ebounds_mask,self._emin_unmasked)
-        self.emax = np.extract(self.ebounds_mask,self._emax_unmasked)
-        self.ebounds = np.extract(self.ebounds_mask,self._ebounds_unmasked)
-        self.ewidths = np.extract(self.ebounds_mask,self._ewidths_unmasked)
-        self.data = np.extract(self.ebounds_mask,self._data_unmasked)
-        self.data_err = np.extract(self.ebounds_mask,self._data_err_unmasked)
-        return 
-        
-    def notice_energies(self,bound_lo,bound_hi):
-        """
-        Adjusts the data arrays stored such that they (and the fit) notice
-        selected (previously ignore) channels  based on their energy 
-        bounds.
-
-        Parameters:
-        -----------
-        bound_lo : float
-            Lower bound of ignored energy interval.
-        bound_hi : float,
-            Higher bound of ignored energy interval.     
-        """
-        
-        if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
-            (isinstance(bound_hi, (np.floating, float, int)) != True)):
-            raise TypeError("Energy bounds must be floats or integers")
-        
-        #if bounds of channel lie in noticed energies, noitce channel
-        self.ebounds_mask = self.ebounds_mask|np.logical_not(
-                            (self._emin_unmasked<bound_lo)|
-                            (self._emax_unmasked>bound_hi))
-        
-        #take the unmasked arrays and keep only the bounds we want
-        self.emin = np.extract(self.ebounds_mask,self._emin_unmasked)
-        self.emax = np.extract(self.ebounds_mask,self._emax_unmasked)
-        self.ebounds = np.extract(self.ebounds_mask,self._ebounds_unmasked)
-        self.ewidths = np.extract(self.ebounds_mask,self._ewidths_unmasked)
-        self.data = np.extract(self.ebounds_mask,self._data_unmasked)
-        self.data_err = np.extract(self.ebounds_mask,self._data_err_unmasked)   
-        return 
-    
-    def set_model(self,model,params=None):
-        """
-        This method is used to pass the model users want to fit to the data. 
-        Optionally it is also possible to pass the initial parameter values of 
-        the model. 
-        
-        Parameters:
-        -----------            
-        model: lmfit.CompositeModel 
-            The lmfit wrapper of the model one wants to fit to the data. The 
-            output of the model must be in units of photons/keV/cm^2/s.            
-            
-        params: lmfit.Parameters, default: None 
-            The parameter values from which to start evalauting the model during
-            the fit. If it is not provided, all model parameters will default 
-            to 0, set to be free, and have no minimum or maximum bound. 
-        """
-        
-        self.model = model 
-        if params is None:
-            self.model_params = self.model.make_params(verbose=True)
-        else:
-            self.model_params = params
-        return 
-
-    def set_params(self,params):
-        """
-        This method is used to set the model parameter names and values. It can
-        be used both to initialize a fit, and to test different parameter values 
-        before actually running the minimization algorithm.
-        
-        Parameters:
-        -----------                       
-        params: lmfit.Parameters
-            The parameter values from which to start evalauting the model during
-            the fit.  
-        """
-        
-        self.model_params = params
-        return 
-    
     def eval_model(self,params=None,energ=None,fold=True):    
         """
         This method is used to evaluate and return the model values for a given 
@@ -761,75 +661,7 @@ class FitTimeAvgSpectrum():
             model = self.response.convolve_response(model)  
         return model
 
-    def get_residuals(self,model,res_type):    
-        """
-        This methods return the residuals (either as data/model, or as 
-        contribution to the total chi squared) of the input model, given the 
-        parameters set in model_parameters, with respect to the data. 
-        
-        Parameters:
-        -----------
-        model_vals: np.array(float)
-            An array of model values to be compared against the data.
-            
-        res_type: string 
-            If set to "ratio", the method returns the residuals defined as 
-            data/model. If set to "delchi", it returns the contribution of 
-            each energy channel to the total chi squared.
-            
-        Returns:
-        --------
-        residuals: np.array(float)
-            An array of the same size as the data, containing the model 
-            residuals in each channel.
-            
-        bars: np.array(float)
-            An array of the same size as the residuals, containing the one sigma 
-            range for each contribution to the residuals.           
-        """
-        
-        model = self.eval_model()
-        model = np.extract(self.ebounds_mask,model)
-        if res_type == "ratio":
-            residuals = self.data/model
-            bars = self.data_err/model
-        elif res_type == "delchi":
-            residuals = (self.data-model)/self.data_err
-            bars = np.ones(len(self.data))
-        else:
-            #eventually a better likelihood will need to go here
-            print("can only return delta chi squared or ratio")
-        return residuals, bars
-
-    def print_fit_stat(self):
-        """
-        This method compares the model defined by the user, using the last set
-        of parameters to have been set in the class, to the data stored. It then
-        prints the chi-squared goodness-of-fit to terminal, along with the 
-        number of data bins, free parameters and degrees of freedom. 
-        """
-        
-        if self.likelihood is None:
-            res, err = self.get_residuals(self.model,"delchi")
-            chi_squared = np.sum(np.power(res.reshape(len(self.data)),2))
-            freepars = 0
-            for key, value in self.model_params.items():
-                param = self.model_params[key]
-                if param.vary is True:
-                    freepars += 1
-            dof = len(self.data) - freepars
-            reduced_chisquared = chi_squared/dof
-            print("Goodness of fit metrics:")
-            print("Chi squared" + "{0: <13}".format(" ") + str(chi_squared))
-            print("Reduced chi squared" + "{0: <5}".format(" ") + str(reduced_chisquared))
-            print("Data bins:" + "{0: <14}".format(" ") + str(len(self.data)))
-            print("Free parameters:" + "{0: <8}".format(" ") + str(freepars))
-            print("Degrees of freedom:" + "{0: <5}".format(" ") + str(dof))
-        else:
-            print("custom likelihood not supported yet")
-        return 
-
-    def _spectrum_minimizer(self,params):
+    def _minimizer(self,params):
         """
         This method is used exclusively when running a minimization algorithm.
         It evaluates the model for an input set of parameters, and then returns 
@@ -856,30 +688,6 @@ class FitTimeAvgSpectrum():
         else:
             raise TypeError("custom likelihood not implemented yet")
         return residuals
-
-    def fit_data(self,algorithm='leastsq'):
-        """
-        This method attempts to minimize the residuals of the model with respect 
-        to the data defined by the user. The fit always starts from the set of 
-        parameters defined with .set_params(). Once the algorithm has completed 
-        its run, it prints to terminal the best-fitting parameters, fit 
-        statistics, and simple selection criteria (reduced chi-squared, Akaike
-        information criterion, and Bayesian informatino criterion). 
-        
-        Parameters:
-        -----------
-        algorithm: str, default="leastsq"
-            The fitting algorithm to be used in the minimization. The possible 
-            choices are detailed on the LMFit documentation page:
-            https://lmfit.github.io/lmfit-py/fitting.html#fit-methods-table.
-        """
-        
-        self.fit_result = minimize(self._spectrum_minimizer,self.model_params,
-                                   method=algorithm)
-        print(fit_report(self.fit_result,show_correl=False))
-        fit_params = self.fit_result.params
-        self.set_params(fit_params)
-        return
 
     def plot_data(self,units="data",return_plot=False):
         """
@@ -2645,6 +2453,7 @@ def load_pha(path,response):
         The exposure time contained in the spectrum file.        
     '''
     from astropy.io import fits
+    from astropy.io.fits.card import Undefined, UNDEFINED
     
     with fits.open(path,filemap=False) as spectrum:
         extnames = np.array([h.name for h in spectrum])

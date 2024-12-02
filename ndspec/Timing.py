@@ -98,7 +98,7 @@ class FourierProduct(nDspecOperator):
         grid.       
     """
 
-    def __init__(self,times,freqs=0,method='fft'):
+    def __init__(self,times,freqs=0,method='fft',verbose=False):
 
         if (np.diff(times)<0).any():
             raise ValueError("Input time array is not monotonically increasing")
@@ -108,14 +108,16 @@ class FourierProduct(nDspecOperator):
         self.n_times = self.times.size
         
         if (np.allclose(self.time_bins, self.time_bins[0]) is False):
-            warnings.warn("Bin sizes not constant over time array, defaulting method to sinc",
-                           UserWarning)
+            if verbose is True:
+                warnings.warn("Bin sizes not constant over time array, defaulting method to sinc",
+                               UserWarning)
             self.method = 'sinc'
         elif np.isin(method,(['sinc'],['fft'],['sinc_cumul'])):
             self.method = method
         else:
-            warnings.warn("Unknown transform method, defaulting to fftw",
-                           UserWarning)
+            if verbose is True:
+                warnings.warn("Unknown transform method, defaulting to fftw",
+                               UserWarning)
             self.method ='fft'
         #if we're going to do fft the freqyency array is pre-determined, 
         #otherwise it  should be in the arguments
