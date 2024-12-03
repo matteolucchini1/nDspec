@@ -1693,214 +1693,229 @@ class FitOneDCrossSpectrum():
         else:
             return  
 
-class FitTwoDCrossSpectrum():
+class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
     def __init__(self):
-        self.model = None
-        self.model_type = None
-        self.model_params = None
-        self.likelihood = None
-        self.fit_result = None
-        self.data = None
-        self.data_err = None
-        self.response = None
-        self.energs = None
-        self.energ_bounds = None
-        self.emin = None
-        self.emax = None
-        self.ebounds = None
-        self.ewidths = None
+        SimpleFit.__init__(self)
+        self.twod_data = True 
         self.ref_band = None
         self.freqs = None 
         self._times = None
-        self.powerspec = None
         self.crossspec = None
-        self.units = None
-        self._supported_units = ["cartesian","polar","lags"]
+        self._supported_coordinates = ["cartesian","polar","lags"]
         self._supported_models = ["irf","transfer"]
+        self._supported_products = ["frequency","energy"]
         self.renorm_phase = False
         self.renorm_modulus = False
-        #we also need to double load the data to store it in a hidden unmasked variable
-        #this is required in case users want to ignore/re-notice energy ranges
-        #formally we could call some of these directly e.g. from the resposne, but
-        #storing this way makes the following methods far more readable
-        self._emin_unmasked = self.emin
-        self._emax_unmasked = self.emax
-        self._ebounds_unmasked = self.ebounds
-        self._ewidths_unmasked = self.ewidths
-        self._data_unmasked = self.data
-        self._data_err_unmasked = self.data_err
-        self._all_chans = None
-        self._all_bins = None
-        self.n_freqs = None
-        self.n_chans = None
-        self.n_bins = None
         pass
 
-    def set_units(self,units="cartesian"):    
-        if units not in self._supported_units:
+    def set_product_dependence(self,depend):
+        #dep can only be frequency or energy for now, eventually polarimetry
+        if depend not in self._supported_products:
+            raise AttributeError("Unsopprted products for the cross spectrum")
+        else:
+            self.dependence = depend
+        return 
+
+    def set_coordinates(self,units="cartesian"):    
+        if units not in self._supported_coordinates:
             raise AttributeError("Unsopprted units for the cross spectrum")
         else:
             self.units = units
         return 
 
-    def set_data(self,response,ref_band,time_res,seg_size,
-                 data,data_err,channel_bounds,freq_bounds):  
-        bounds_lo = channel_bounds[:-1]
-        bounds_hi = channel_bounds[1:]                
-        self.response = response.rebin_channels(bounds_lo,bounds_hi)
-        self.energs = 0.5*(self.response.energ_hi+self.response.energ_lo)
-        self.energ_bounds = self.response.energ_hi-self.response.energ_lo
-        self.emin = self.response.emin
-        self.emax = self.response.emax
-        self.ebounds = 0.5*(self.emin+self.emax)
-        self.ewidths = self.emax-self.emin
-        self.ref_band = ref_band
+    #sub_bounds is the bounds with the subjugate channels (will need to be
+    #extended to the lowest bins)
+    #freqs is the internal frequency grid where we evaluate the model
+    #freq_bounds are the bounds over which we frequency-average to get
+    #energy dependent products
+    #explicitely show in the documentation that there are many ways to build
+    #data and users have a lot of freedom.
+    def set_data(self,response,ref_bounds,sub_bounds,data,
+                 data_err=None,freq_grid=None,time_grid=None,
+                 freq_bins=None,time_res=None,seg_size=None,norm=None):
+        #I need a safeguard to put in the lowest+highest channels in the matrix
+        if self.units is None:
+            raise AttributeError("Cross spectrum units not defined")        
+        bounds_lo = sub_bounds[:-1]
+        bounds_hi = sub_bounds[1:]  
+        self.response = response.rebin_channels(bounds_lo,bounds_hi) 
+        self.ref_band = ref_bounds
+        EnergyDependentFit.__init__(self)  
+        self.n_chans = self.ebounds_mask[self.ebounds_mask==True].size
+        
+        if self.dependence == "frequency":
+            self._freq_dependent_cross(data,data_err,freq_grid,time_grid,time_res,seg_size,norm)
+        elif self.dependence == "energy":
+            self._energ_dependent_cross(freq_bins,data,data_err,freq_grid,time_grid,time_res,seg_size)
+        else:
+            print("error")    
+        self._set_unmasked_data()
+        return
+
+    def _freq_dependent_cross(self,data,data_err=None,
+                              freq_grid=None,time_grid=None,
+                              time_res=None,seg_size=None,norm=None):
+        
+        if getattr(data, '__module__', None) == "stingray.events":
+            #check here that timeres, seg size and norm are all defined
+            events_ref = data.filter_energy_range(self.ref_band)
+            ps_ref = AveragedPowerspectrum.from_events(events_ref,
+                                                       segment_size=seg_size,
+                                                       dt=time_res,norm=norm,silent=True)
+            ctrate_ref = get_average_ctrate(events_ref.time,events_ref.gti,seg_size)
+            noise_ref = poisson_level(norm=norm, meanrate=ctrate_ref)     
+                
+            #set the (linearly spaced) internal time and frequency grids
+            lc_length = ps_ref.n*time_res
+            time_samples = int(lc_length/time_res)
+            self._times = np.linspace(time_res,lc_length,time_samples)
+            self.freqs = np.array(ps_ref.freq)
+
+            #loop over all channels of interest and get the desired
+            #timing products
+            self.data = []
+            self.data_err = []
+            
+            for i in range(self.n_chans):
+                events_sub = events.filter_energy_range([self.response.emin[i],self.response.emax[i]])
+                #get the cross spectrum
+                cs = AveragedCrossspectrum.from_events(events_sub,events_ref,
+                                                       segment_size=seg_size,dt=time_res,norm=norm,silent=True)
+                if self.units == "lags":
+                    lag, lag_err = cs.time_lag() 
+                    self.data = np.append(self.data,lag)
+                    self.data_err = np.append(self.data_err,lag_err)
+                else:
+                    ps_sub = AveragedPowerspectrum.from_events(events_sub,
+                                                               segment_size=seg_size,
+                                                               dt=time_res,norm=norm,silent=True)    
+                    ctrate_sub = get_average_ctrate(events_sub.time,events_sub.gti,seg_size)                    
+                    noise_sub = poisson_level(norm=norm, meanrate=ctrate_sub)  
+                    if norm == "frac":
+                        N = 2./noise_ref 
+                    elif norm == "abs":
+                        N = 2.*noise_sub
+                    else:
+                        print("Normalization is wrong")
+                        N = 1.
+                
+                    if self.units == "cartesian":    
+                        data_first_dim = np.real(cs.power)
+                        data_second_dim = np.imag(cs.power)                
+                        error_first_dim = np.sqrt((ps_sub.power*ps_ref.power+ \
+                                                   np.real(cs.power)**2- \
+                                                   np.imag(cs.power)**2)/(2.*N))
+                        error_second_dim = np.sqrt((ps_sub.power*ps_ref.power- \
+                                                    np.real(cs.power)**2+ \
+                                                    np.imag(cs.power)**2)/(2.*N))
+                    elif self.units == "polar":
+                        data_first_dim = np.absolute(cs.power)
+                        error_first_dim = np.sqrt(ps_sub.power*ps_ref.power/(2.*N))
+                        data_second_dim, error_second_dim = cs.phase_lag()
+                    
+                    if i == 0:
+                        self.data = np.append(self.data,data_first_dim)
+                        self.data_err = np.append(self.data_err,error_first_dim)
+                    else:
+                        self.data = np.insert(self.data,i,data_first_dim)
+                        self.data_err = np.insert(self.data_err,i,error_first_dim) 
+                    self.data = np.append(self.data,data_second_dim)
+                    self.data_err = np.append(self.data_err,error_second_dim)
+
+            #here we just pass the data+grids by hand
+        else:
+            #we can explicitely pass frequency and time grids
+            if (time_grid is not None and freq_grid is not None):
+                self._times = time_grid
+                self.freqs = freq_grid
+            #or we can explicitel pass a frequency grid alone, and the time grid is 
+            #reconstructed automatically 
+            elif freq_grid is not None:
+                self.freqs = freq_grid
+                #now revert the grid from frequency to time, and save in times
+                #this is needed to allocate the ndspec objects
+                time_res = 0.5/(self.freqs[-1]+self.freqs[0])
+                lc_length = (self.freqs.size+1)*2*time_res
+                time_samples = int(lc_length/time_res)
+                #check the spacing of the frequency array, allocate time array accordingly
+                if (np.allclose(self.freqs, self.freqs[0]) is False):
+                    self._times = np.geomspace(time_res,lc_length,time_samples)
+                else:
+                    self._times = np.linspace(time_res,lc_length,time_samples)              
+            else:
+                print("Frequency and/or time grids undefined")
+            #the reason setting the grids is flexible is to allow users to avoid numerical
+            #issues due to the discrete FFT at the highest and/or lowest frequency bins
+            
+            #if everything is ok, set the data. 
+            self.data = data
+            self.data_err = data_err  
+        
+        self.n_freqs = self.freqs.size
+        return
+
+    def _energ_dependent_cross(self,freq_bounds,data,data_err=None,
+                               freq_grid=None,time_grid=None,
+                               time_res=None,seg_size=None):
+
         self.freq_bounds = freq_bounds
+        self.n_freqs = self.freq_bounds.size-1
+                
         self.data = data
         self.data_err = data_err
-        freqs = fftfreq(int(seg_size/time_res),time_res)
-        self.freqs = freqs[freqs>0]
-        #now revert the grid from frequency to time, and save in times
-        #this is needed to allocate the ndspec objects - TBD check this works 
-        #for many resolutions
-        lc_length = (self.freqs.size+1)*2*time_res
-        time_samples = int(lc_length/time_res)
-        self._times = np.linspace(time_res,lc_length,time_samples)
-        self._emin_unmasked = self.emin
-        self._emax_unmasked = self.emax
-        self._ebounds_unmasked = self.ebounds
-        self._ewidths_unmasked = self.ewidths
-        self._data_unmasked = self.data
-        self._data_err_unmasked = self.data_err
-        #mask to track noticed/ignored energy channels
-        self.ebounds_mask = np.full((self.response.n_chans), True)
-        self.n_freqs = self.freq_bounds.size-1
-        self._all_chans = self._ebounds_unmasked.size
-        self._all_bins = self.n_freqs*self._all_chans
-        self.n_chans = self._all_chans
-        self.n_bins = self._all_bins
+
+        #we can explicitely pass frequency and time grids
+        if (time_grid is not None )&(freq_grid is not None):
+            self._times = time_grid
+            self.freqs = freq_grid
+        #or do so implicetly with a segment size and time resolution
+        elif (time_res is not None)&(seg_size is not None):
+            freqs = fftfreq(int(seg_size/time_res),time_res)
+            self.freqs = freqs[freqs>0]        
+            lc_length = (self.freqs.size+1)*2*time_res
+            time_samples = int(lc_length/time_res)
+            self._times = np.linspace(time_res,lc_length,time_samples)
+        #or we can explicitel pass a frequency grid alone, and the time grid is 
+        #reconstructed automatically 
+        elif freq_grid is not None:
+            self.freqs = freq_grid
+            #now revert the grid from frequency to time, and save in times
+            #this is needed to allocate the ndspec objects
+            time_res = 0.5/(self.freqs[-1]+self.freqs[0])
+            lc_length = (self.freqs.size+1)*2*time_res
+            time_samples = int(lc_length/time_res)
+            #check the spacing of the frequency array, allocate time array accordingly
+            if (np.allclose(self.freqs, self.freqs[0]) is False):
+                self._times = np.geomspace(time_res,lc_length,time_samples)
+            else:
+                self._times = np.linspace(time_res,lc_length,time_samples)              
+        else:
+            print("Frequency and/or time grids undefined")    
+        #the reason setting the grids is flexible is to allow users to avoid numerical
+        #issues due to the discrete FFT at the highest and/or lowest frequency bins        
         return 
 
-    def ignore_energies(self,bound_lo,bound_hi):
-        if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
-            (isinstance(bound_hi, (np.floating, float, int)) != True)):
-            raise TypeError("Energy bounds must be floats or integers")
-        
-
-        #if bounds of channel lie in ignored energies, ignore channel
-        self.ebounds_mask = ((self._emin_unmasked<bound_lo)|
-                             (self._emax_unmasked>bound_hi))&self.ebounds_mask
-       
-        #take the unmasked arrays and keep only the bounds we want
-        self.emin = np.extract(self.ebounds_mask,self._emin_unmasked)
-        self.emax = np.extract(self.ebounds_mask,self._emax_unmasked)
-        self.ebounds = np.extract(self.ebounds_mask,self._ebounds_unmasked)
-        self.ewidths = np.extract(self.ebounds_mask,self._ewidths_unmasked)   
-        self.n_chans = self.ebounds_mask[self.ebounds_mask==True].size
-        self.n_bins = self.n_chans*self.n_freqs
-        
-        if self.units != "lags":
-            data_filter_first_dim = self._filter_2d_by_mask(self._data_unmasked[:self._all_bins],self.ebounds_mask)
-            error_filter_first_dim = self._filter_2d_by_mask(self._data_err_unmasked[:self._all_bins],self.ebounds_mask)              
-            data_filter_second_dim = self._filter_2d_by_mask(self._data_unmasked[self._all_bins:],self.ebounds_mask)
-            error_filter_second_dim = self._filter_2d_by_mask(self._data_err_unmasked[self._all_bins:],self.ebounds_mask)                
-            self.data = np.append(data_filter_first_dim,data_filter_second_dim)
-            self.data_err = np.append(error_filter_first_dim,error_filter_second_dim)              
-        else:
-            self.data = model = self._filter_2d_by_mask(self._data_unmasked,self.ebounds_mask)
-            self.data_err = model = self._filter_2d_by_mask(self._data_err_unmasked,self.ebounds_mask)
-        return
-   
-    def notice_energies(self,bound_lo,bound_hi):
-        if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
-            (isinstance(bound_hi, (np.floating, float, int)) != True)):
-            raise TypeError("Energy bounds must be floats or integers")        
-              
-        #if bounds of channel lie in noticed energies, noitce channel
-        self.ebounds_mask = self.ebounds_mask|np.logical_not(
-                            (self._emin_unmasked<bound_lo)|
-                            (self._emax_unmasked>bound_hi))
-
-        #take the unmasked arrays and keep only the bounds we want
-        self.emin = np.extract(self.ebounds_mask,self._emin_unmasked)
-        self.emax = np.extract(self.ebounds_mask,self._emax_unmasked)
-        self.ebounds = np.extract(self.ebounds_mask,self._ebounds_unmasked)
-        self.ewidths = np.extract(self.ebounds_mask,self._ewidths_unmasked)   
-        self.n_chans = self.ebounds_mask[self.ebounds_mask==True].size
-        self.n_bins = self.n_chans*self.n_freqs
-
-        if self.units != "lags":
-            data_filter_first_dim = self._filter_2d_by_mask(self._data_unmasked[:self._all_bins],self.ebounds_mask)
-            error_filter_first_dim = self._filter_2d_by_mask(self._data_err_unmasked[:self._all_bins],self.ebounds_mask)              
-            data_filter_second_dim = self._filter_2d_by_mask(self._data_unmasked[self._all_bins:],self.ebounds_mask)
-            error_filter_second_dim = self._filter_2d_by_mask(self._data_err_unmasked[self._all_bins:],self.ebounds_mask)                
-            self.data = np.append(data_filter_first_dim,data_filter_second_dim)
-            self.data_err = np.append(error_filter_first_dim,error_filter_second_dim)              
-        else:
-            self.data = model = self._filter_2d_by_mask(self._data_unmasked,self.ebounds_mask)
-            self.data_err = model = self._filter_2d_by_mask(self._data_err_unmasked,self.ebounds_mask)
-        return
-
-    def _filter_2d_by_mask(self,arr,mask):
-        arr_reshape = arr.reshape((self.n_freqs,self._all_chans))
-        filtered_array = [] 
-        for i in range(self.n_freqs):
-            extract_row = np.extract(self.ebounds_mask,arr_reshape[i,:])
-            filtered_array = np.append(filtered_array,extract_row)                    
-        return filtered_array
-    
-    def set_model(self,model,model_type="irf",params=None):        
-        if model_type not in self._supported_models:
+    def set_model(self,model,model_type="irf",params=None):
+        if model_type not in self.supported_models:
             raise AttributeError("Unsopprted model type")  
         self.model_type = model_type
-        self.crossspec = CrossSpectrum(self._times,freqs=self.freqs,energ=self.energs)
-        if self.model_type != "cross":
-            self.powerspec = PowerSpectrum(self._times)        
+        self.crossspec = CrossSpectrum(self.times,freqs=self.freqs,energ=self.energs)
+        self.crossspec.set_reference_energ(self.ref_band)
         self.model = model 
         if params is None:
             self.model_params = self.model.make_params(verbose=True)
         else:
             self.model_params = params
         return 
-
+        
     def set_psd_weights(self,psd_weights):       
         if self.model_type != "cross":
             self.crossspec.set_psd_weights(psd_weights)
         else:
             print("Power spectrum weight not needed")
         return 
-
-    def set_params(self,params):
-        self.model_params = params
-        return 
-
-    def renorm_phases(self,value):
-        self.renorm_phase = value
-        if self.renorm_phase is True:
-            self.phase_renorm_model = LM_Model(self._renorm_phase)
-            phase_pars = LM_Parameters()
-            for index in range(self.n_freqs):   
-                phase_pars.add('phase_renorm_'+str(index+1), value=0,min=-0.2,max=0.2,vary=True)            
-            self.model_params = self.model_params + phase_pars
-        return
-        
-    def _renorm_phase(self,array,renorm):
-        return array + renorm
-
-    def renorm_mods(self,value):
-        self.renorm_modulus = value
-        if self. renorm_modulus is True:
-            self.mod_renorm_model = LM_Model(self._renorm_modulus)
-            mods_pars = LM_Parameters()
-            for index in range(self.n_freqs):   
-                mods_pars.add('mods_renorm_'+str(index+1), value=1,min=0,max=1e5,vary=True)            
-            self.model_params = self.model_params + mods_pars            
-        return
-
-    def _renorm_modulus(self,array,renorm):
-        return renorm*array
     
-    def eval_model(self,params=None,ref_band=None):       
+    def eval_model(self,ref_band=None):
         if ref_band is None:
             ref_band = self.ref_band
         
@@ -1912,20 +1927,66 @@ class FitTwoDCrossSpectrum():
         #store the model in the cross spectrum, depending on the type
         if self.model_type == "irf":
             self.crossspec.set_impulse(np.transpose(model_eval))
-            self.crossspec.set_reference_energ(ref_band)
             self.crossspec.cross_from_irf()
         elif self.model_type == "transfer":
             self.crossspec.set_transfer(np.transpose(model_eval))
-            self.crossspec.set_reference_energ(ref_band)
             self.crossspec.cross_from_transfer()
         else:
             #transposing is required to ensure the units are correct 
             self.crossspec.cross = np.transpose(model_eval)
         
         #fold the instrument response:
-        folded_eval = self.response.convolve_response(self.crossspec,units_in="rate",units_out="channel")            
-        
-        #depending on units, return the correct format
+        folded_eval = self.response.convolve_response(self.crossspec,units_in="rate",units_out="channel")  
+
+        #return the appropriately structured products
+        #filtering may be necessary ugh
+        if self.dependence == "frequency":
+            eval = self._freq_dependent_model(folded_eval)
+        elif self.dependence == "energy":
+            eval = self._energ_dependent_model(folded_eval)
+        else:
+            print("error")  
+
+        #tbd: only do this if some elements in ebounds_mask are False
+        #make sure that this works for freq dependent stuff 
+        if self.units != "lags":
+            model_first_dim = self._filter_2d_by_mask(model[:self._all_bins],self.ebounds_mask)
+            model_second_dim = self._filter_2d_by_mask(model[self._all_bins:],self.ebounds_mask)
+            model = np.append(model_first_dim,model_second_dim)
+        else:
+            model = self._filter_2d_by_mask(model,self.ebounds_mask)
+        return eval
+
+    def _freq_dependent_model(self,folded_cross):
+        model = []
+        sub_bounds = [self.response.emin,self.response.emax]
+        if self.units == "lags":
+            for i in range(self.n_chans):
+                model_eval = folded_eval.lag_frequency(sub_bounds[i],ref_bounds=self.ref_band)
+                model = np.append(model,model_eval)
+        elif self.units == "cartesian":
+            real = []
+            imag = []             
+            for i in range(self.n_chans):
+                real_eval = folded_eval.real_frequency(sub_bounds[i],ref_bounds=self.ref_band)
+                imag_eval = folded_eval.imag_frequency(sub_bounds[i],ref_bounds=self.ref_band)             
+                real = np.append(real,real_eval)
+                imag = np.append(imag,imag_eval)
+            model = np.concatenate((real,imag))
+        elif self.units == "polar":
+            mod = []
+            phase = []            
+            for i in range(self.n_chans):
+                mod_eval = folded_eval.mod_frequency(sub_bounds[i],ref_bounds=self.ref_band)
+                phase_eval = folded_eval.phase_frequency(sub_bounds[i],ref_bounds=self.ref_band)             
+                mod = np.append(mod,mod_eval)
+                phase = np.append(phase,phase_eval)            
+            model = np.concatenate((mod,phase))
+        else:
+            print("error")    
+        return model
+
+    def _energ_dependent_model(self,folded_eval):
         model = []
         if self.units == "lags":   
             for i in range(self.n_freqs):
@@ -1988,111 +2049,114 @@ class FitTwoDCrossSpectrum():
                 phase = np.append(phase,phase_model)
             model = np.concatenate((mod,phase))
         else:
-            print("weird units raise proper error tbd")
-
-        #tbd: only do this if some elements in ebounds_mask are False
-        if self.units != "lags":
-            model_first_dim = self._filter_2d_by_mask(model[:self._all_bins],self.ebounds_mask)
-            model_second_dim = self._filter_2d_by_mask(model[self._all_bins:],self.ebounds_mask)
-            model = np.append(model_first_dim,model_second_dim)
-        else:
-            model = self._filter_2d_by_mask(model,self.ebounds_mask)
-            
+            print("weird units raise proper error tbd")            
         return model
 
-    def get_residuals(self,model,res_type):
-        model = self.eval_model()
-        if res_type == "ratio":
-            residuals = self.data/model
-            bars = self.data_err/model
-        elif res_type == "delchi":
-            residuals = (self.data-model)/self.data_err
-            bars = np.ones(len(self.data))
-        else:
-            #eventually a better likelihood will need to go here
-            print("can only return delta chi squared or ratio")
-        return residuals, bars
+    def renorm_phases(self,value):
+        #add complaint if people activate this for freq dependency
+        self.renorm_phase = value
+        if self.renorm_phase is True:
+            self.phase_renorm_model = LM_Model(self._renorm_phase)
+            phase_pars = LM_Parameters()
+            for index in range(self.n_freqs):   
+                phase_pars.add('phase_renorm_'+str(index+1), value=0,min=-0.2,max=0.2,vary=True)            
+            self.model_params = self.model_params + phase_pars
+        return
+        
+    def _renorm_phase(self,array,renorm):
+        return array + renorm
 
-    def print_fit_stat(self):
-        if self.likelihood is None:
-            res, err = self.get_residuals(model,"delchi")
-            chi_squared = np.sum(np.power(res.reshape(len(self.data)),2))
-            freepars = 0
-            for key, value in self.model_params.items():
-                param = self.model_params[key]
-                if param.vary is True:
-                    freepars += 1
-            dof = self.n_bins - freepars
-            reduced_chisquared = chi_squared/dof
-            print("Goodness of fit metrics:")
-            print("Chi squared" + "{0: <13}".format(" ") + str(chi_squared))
-            print("Reduced chi squared" + "{0: <5}".format(" ") + str(reduced_chisquared))
-            print("Data bins:" + "{0: <14}".format(" ") + str(self.n_bins))
-            print("Free parameters:" + "{0: <8}".format(" ") + str(freepars))
-            print("Degrees of freedom:" + "{0: <5}".format(" ") + str(dof))
-        else:
-            print("custom likelihood not supported yet")
-        return 
+    def renorm_mods(self,value):
+        #add complaint if people activate this for freq dependency
+        self.renorm_modulus = value
+        if self. renorm_modulus is True:
+            self.mod_renorm_model = LM_Model(self._renorm_modulus)
+            mods_pars = LM_Parameters()
+            for index in range(self.n_freqs):   
+                mods_pars.add('mods_renorm_'+str(index+1), value=1,min=0,max=1e5,vary=True)            
+            self.model_params = self.model_params + mods_pars            
+        return
 
-    def _cross_minimizer(self,params):
+    def _renorm_modulus(self,array,renorm):
+        return renorm*array
+
+    def _minimizer(self,params):
         if self.likelihood is None:
             model = self.eval_model(params,ref_band=self.ref_band)
-            #tbd mask here
             residuals = (self.data-model)/self.data_err
         else:
             raise TypeError("custom likelihood not implemented yet")
         return residuals
-
-    def fit_data(self,algorithm='leastsq'):
-        self.fit_result = minimize(self._cross_minimizer,self.model_params,
-                                   method=algorithm)
-        print(fit_report(self.fit_result,show_correl=False))
-        fit_params = self.fit_result.params
-        self.set_params(fit_params)
-        return    
-
-    #tbd: have a way to call a range of frequencies only 
+    
     def plot_data_1d(self,return_plot=False):
+        #depending on the units of the data, we need to set the number of 
+        #spectra that were loaded, what goes on the x axis, and the bounds
+        #of where one spectrum ends and the next begins
+        if self.dependence == "frequency":
+            x_axis = self.freqs
+            x_axis_label = "Frequency (Hz)"
+            #here we need to look at the edges of each bin, NOT at the center
+            #which is contained in ebounds
+            #this is wrong, it needs to be the noticed channel bounds blergh
+            bounds_min = self.ebounds-0.5*self.ewidths
+            channel_bounds = np.append(bounds_min,self.ebounds[-1]+0.5*self.ewidths[-1])
+            labels = np.round(channel_bounds,1)
+            units = "keV"
+            spec_number = self.n_chans
+            data_bound = self.n_freqs
+        elif self.dependence == "energy":
+            x_axis = self.ebounds
+            x_axis_label = "Energy (keV)"
+            labels = np.round(self.freq_bounds,1)
+            units = "Hz"
+            spec_number = self.n_freqs    
+            data_bound = self.n_chans
+           
         if self.units != "lags":
             fig, ((ax1),(ax2)) = plt.subplots(1,2,figsize=(12.,5.))  
-            ax2.hlines(0,self.ebounds[0],self.ebounds[-1],
-                       color='black',ls=':',zorder=3)
+            
+            ax2.hlines(0,x_axis[0],x_axis[-1],color='black',ls=':',zorder=3)
+           
             if self.units == "cartesian":
                 left_label = "Real part"
                 right_label = "Imaginary part"                
             elif self.units == "polar":
                 left_label = "Modulus"
-                right_label = "Phase"                            
-            for i in range(self.n_freqs):
-                ax1.errorbar(self.ebounds,self.data[i*self.n_chans:(i+1)*self.n_chans],
-                             yerr=self.data_err[i*self.n_chans:(i+1)*self.n_chans],
-                             drawstyle="steps-mid",marker='o',
-                             label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")
-                ax2.errorbar(self.ebounds,self.data[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
-                             yerr=self.data_err[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
-                             drawstyle="steps-mid",marker='o',
-                             label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")    
+                right_label = "Phase" 
+                
+            for i in range(spec_number):
+                ax1.errorbar(x_axis,self.data[i*data_bound:(i+1)*data_bound],
+                             yerr=self.data_err[i*data_bound:(i+1)*data_bound],
+                             marker='o',linestyle='',#drawstyle="steps-mid",
+                             label=f"{labels[i]}-{labels[i+1]} {units}")
+                ax2.errorbar(x_axis,self.data[self.n_bins+i*data_bound:self.n_bins+(i+1)*data_bound],
+                             yerr=self.data_err[self.n_bins+i*data_bound:self.n_bins+(i+1)*data_bound],
+                             marker='o',linestyle='',#drawstyle="steps-mid",
+                             label=f"{labels[i]}-{labels[i+1]} {units}") 
+                
             ax1.set_yscale("log")
             ax1.set_xscale("log")
-            ax1.set_xlabel("Energy (keV)")
+            ax1.set_xlabel(x_axis_label)
             ax1.set_ylabel(left_label)
             ax2.set_xscale("log")
-            ax2.set_xlabel("Energy (keV)")
+            ax2.set_xlabel(x_axis_label)
             ax2.set_ylabel(right_label)
             ax2.legend(loc="best",ncol=2)
         else:            
             fig, ((ax1)) = plt.subplots(1,1,figsize=(6.,4.5)) 
-            ax1.hlines(0,self.ebounds[0],self.ebounds[-1],
-                       color='black',ls=':',zorder=3)
-            for i in range(self.n_freqs):
-                ax1.errorbar(self.ebounds,self.data[i*self.n_chans:(i+1)*self.n_chans],
-                             yerr=self.data_err[i*self.n_chans:(i+1)*self.n_chans],
-                             drawstyle="steps-mid",marker='o',
-                             label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")
+            
+            ax1.hlines(0,x_axis[0],x_axis[-1],color='black',ls=':',zorder=3)
+            
+            for i in range(spec_number):
+                ax1.errorbar(x_axis,self.data[i*data_bound:(i+1)*data_bound],
+                             yerr=self.data_err[i*data_bound:(i+1)*data_bound],
+                             marker='o',linestyle='',#drawstyle="steps-mid",
+                             label=f"{labels[i]}-{labels[i+1]} {units}") 
+            
             ax1.set_xscale("log")
-            ax1.legend(loc="best",ncol=2)
+            ax1.legend(loc="best",ncol=2,fontsize=12)
             ax1.set_ylabel("Lag (s)")
-            ax1.set_xlabel("Energy (keV)")
+            ax1.set_xlabel(x_axis_label)
         
         fig.tight_layout()            
         if return_plot is True:
@@ -2100,51 +2164,91 @@ class FitTwoDCrossSpectrum():
         else:
             return 
 
-    def plot_data_2d(self,return_plot=False):
-        freq_intervals = 0.5*(self.freq_bounds[1:]+self.freq_bounds[:-1])
+    def plot_data_2d(self,use_phase=False,return_plot=False):        
+        #depending on the units of the data, we need to set the number of 
+        #spectra that were loaded, what goes on the x axis, and the bounds
+        #of where one spectrum ends and the next begins
+
+        if self.dependence == "frequency":
+            x_axis = self.freqs
+            y_axis = self._ebounds_unmasked
+            #here we need to look at the edges of each bin, NOT at the center
+            #which is contained in ebounds
+            spec_number = self.n_chans
+            data_bound = self.n_freqs
+        elif self.dependence == "energy":
+            x_axis =  0.5*(self.freq_bounds[1:]+self.freq_bounds[:-1])
+            y_axis = self._ebounds_unmasked
+            spec_number = self.n_freqs    
+            data_bound = self.n_chans        
+        
         if self.units != "lags":
-            left_data = np.transpose(self.data[:self.n_bins].reshape((self.n_freqs,self.n_chans)))
-            right_data = np.transpose(self.data[self.n_bins:].reshape((self.n_freqs,self.n_chans)))
+            if self.dependence=="energy":
+                mask_twod = np.tile(self.ebounds_mask,self.n_freqs)
+                left_data = self._data_unmasked[:self._all_bins].reshape((self.n_freqs,self._all_chans))
+                right_data = self._data_unmasked[self._all_bins:].reshape((self.n_freqs,self._all_chans))
+            elif self.dependence=="frequency":
+                mask_twod = np.transpose(np.tile(self.ebounds_mask,self.n_freqs))
+                left_data = np.transpose(self._data_unmasked[:self._all_bins].reshape((self._all_chans,self.n_freqs)))
+                right_data = np.transpose(self._data_unmasked[self._all_bins:].reshape((self._all_chans,self.n_freqs)))                
+            mask_twod = mask_twod.reshape((self.n_freqs,self._all_chans))
+            mask_twod = np.logical_not(mask_twod) 
+            left_data = np.transpose(np.ma.masked_where(mask_twod, left_data))
+            right_data = np.transpose(np.ma.masked_where(mask_twod, right_data))
+
             fig, ((ax1),(ax2)) = plt.subplots(1,2,figsize=(12.,5.)) 
             if self.units == "polar":
-                left_plot = ax1.pcolormesh(freq_intervals,self.ebounds,np.log10(left_data),cmap="viridis",
-                                      shading='auto',linewidth=0)
+                left_plot = ax1.pcolormesh(x_axis,y_axis,np.log10(left_data),cmap="viridis",
+                                           shading='auto',linewidth=0)
                 color_min = np.min([np.min(right_data),-0.01])
                 color_max = np.max([np.max(right_data),0.01])
                 phase_norm = TwoSlopeNorm(vmin=color_min,vcenter=0,vmax=color_max) 
-                right_plot = ax2.pcolormesh(freq_intervals,self.ebounds,right_data,cmap="BrBG",
-                      shading='auto',linewidth=0,norm=phase_norm)
+                right_plot = ax2.pcolormesh(x_axis,y_axis,right_data,cmap="BrBG",
+                                            shading='auto',linewidth=0,norm=phase_norm)
 
                 ax1.set_title("log10(Modulus)")
                 ax2.set_title("Phase")
             else:
-                left_plot = ax1.pcolormesh(freq_intervals,self.ebounds,np.log10(left_data),cmap="viridis",
-                                      shading='auto',linewidth=0)
-                right_plot = ax2.pcolormesh(freq_intervals,self.ebounds,right_data,cmap="cividis",
-                      shading='auto',linewidth=0)
+                left_plot = ax1.pcolormesh(x_axis,y_axis,np.log10(left_data),cmap="viridis",
+                                           shading='auto',linewidth=0)
+                right_plot = ax2.pcolormesh(x_axis,y_axis,right_data,cmap="cividis",
+                                            shading='auto',linewidth=0)
                 ax1.set_title("Real part")
                 ax2.set_title("Imaginary part")                
             fig.colorbar(left_plot, ax=ax1)
             fig.colorbar(right_plot, ax=ax2)
             ax1.set_xscale("log")
             ax1.set_yscale("log")
+            ax1.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],1.1*self.ebounds[-1]+0.5*self.ewidths[-1]])
             ax1.set_xlabel("Frequency (Hz)")
             ax1.set_ylabel("Energy (keV)")
 
             ax2.set_xscale("log")
             ax2.set_yscale("log")
+            ax2.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],1.1*self.ebounds[-1]+0.5*self.ewidths[-1]])
             ax2.set_xlabel("Frequency (Hz)")
             ax2.set_ylabel("Energy (keV)")
-        else:
-            plot_data = np.transpose(self.data.reshape((self.n_freqs,self.n_chans)))
+        else:   
             fig, ((ax1)) = plt.subplots(1,1,figsize=(6.,4.5))
+            if self.dependence == "energy":               
+                mask_twod = np.tile(self.ebounds_mask,self.n_freqs)
+                plot_data = self._data_unmasked.reshape((self.n_freqs,self._all_chans))
+            elif self.dependence == "frequency":
+                mask_twod = np.transpose(np.tile(self.ebounds_mask,self.n_freqs))
+                plot_data = np.transpose(self._data_unmasked.reshape((self._all_chans,self.n_freqs)))
+            mask_twod = mask_twod.reshape((self.n_freqs,self._all_chans))
+            mask_twod = np.logical_not(mask_twod) 
+            if use_phase is True:
+                plot_data = plot_data*(2.*np.pi*x_axis)
+            plot_data = np.transpose(np.ma.masked_where(mask_twod, plot_data))
             color_min = np.min([np.min(plot_data),-0.01])
             color_max = np.max([np.max(plot_data),0.01])
             lag_norm = TwoSlopeNorm(vmin=color_min,vcenter=0,vmax=color_max) 
-            lag_plot = ax1.pcolormesh(freq_intervals,self.ebounds,plot_data,cmap="BrBG",
-                  shading='auto',linewidth=0,norm=lag_norm)
+            lag_plot = ax1.pcolormesh(x_axis,y_axis,plot_data,cmap="BrBG",
+                                      shading='auto',linewidth=0,norm=lag_norm)
             ax1.set_title("Lag (s)")                
             fig.colorbar(lag_plot, ax=ax1)
+            ax1.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],1.1*self.ebounds[-1]+0.5*self.ewidths[-1]])
             ax1.set_xscale("log")
             ax1.set_yscale("log")
             ax1.set_xlabel("Frequency (Hz)")
@@ -2157,6 +2261,30 @@ class FitTwoDCrossSpectrum():
             return      
 
     def plot_model_1d(self,plot_data=True,params=None,residuals="delchi",return_plot=False):
+        
+        if self.dependence == "frequency":
+            x_axis = self.freqs
+            x_axis_label = "Frequency (Hz)"
+            #here we need to look at the edges of each bin, NOT at the center
+            #which is contained in ebounds
+            #this is wrong, it needs to be the noticed channel bounds blergh
+            bounds_min = self.ebounds-0.5*self.ewidths
+            channel_bounds = np.append(bounds_min,self.ebounds[-1]+0.5*self.ewidths[-1])
+            labels = np.round(channel_bounds,1)
+            units = "keV"
+            spec_number = self.n_chans
+            data_bound = self.n_freqs
+        elif self.dependence == "energy":
+            x_axis = self.ebounds
+            x_axis_label = "Energy (keV)"
+            #same issue as above for the bins, this will break when we
+            #mask out frequency bins in the middle 
+            labels = np.round(self.freq_bounds,1)
+            units = "Hz"
+            spec_number = self.n_freqs    
+            data_bound = self.n_chans
+
+        #this returns on the un-masked channel
         model = self.eval_model(params=params)
         #if we're plotting data, also get the residuals
         if plot_data is True:
@@ -2168,43 +2296,40 @@ class FitTwoDCrossSpectrum():
 
         if self.units != "lags":
             if plot_data is True:
+                #plot real and imaginary, or phase and modulus, including
+                #model, data and residuals
                 fig, ((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,figsize=(12.,6.),
                                                           sharex=True,
                                                           gridspec_kw={'height_ratios': [2, 1]})      
-                ax2.hlines(0,self.ebounds[0],self.ebounds[-1],
-                       color='black',ls=':',zorder=3)
-                for i in range(self.n_freqs):
+                ax2.hlines(0,x_axis[0],x_axis[-1],color='black',ls=':',zorder=3)
+
+                for i in range(spec_number):
                     col="C"+str(i)
-                    ax1.errorbar(self.ebounds,self.data[i*self.n_chans:(i+1)*self.n_chans],
-                                 yerr=self.data_err[i*self.n_chans:(i+1)*self.n_chans],
-                                 drawstyle="steps-mid",marker='o',color=col,
-                                 label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")
-                    ax2.errorbar(self.ebounds,self.data[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
-                                 yerr=self.data_err[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
-                                 drawstyle="steps-mid",marker='o',color=col,
-                                 label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")
-                    ax3.errorbar(self.ebounds,model_res[i*self.n_chans:(i+1)*self.n_chans],
-                                 yerr=res_errors[i*self.n_chans:(i+1)*self.n_chans],
-                                 drawstyle="steps-mid",
+                    ax1.errorbar(x_axis,self.data[i*data_bound:(i+1)*data_bound],
+                                 yerr=self.data_err[i*data_bound:(i+1)*data_bound],
                                  marker='o',color=col,
-                                 zorder=2)
-                    ax4.errorbar(self.ebounds,model_res[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
-                                 yerr=res_errors[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
-                                 drawstyle="steps-mid",
+                                 label=f"{labels[i]}-{labels[i+1]} {units}")
+                    ax2.errorbar(x_axis,self.data[self.n_bins+i*data_bound:self.n_bins+(i+1)*data_bound],
+                                 yerr=self.data_err[self.n_bins+i*data_bound:self.n_bins+(i+1)*data_bound],
                                  marker='o',color=col,
-                                 zorder=2)
-                    ax1.plot(self.ebounds,model[i*self.n_chans:(i+1)*self.n_chans],linewidth=3,zorder=3)
-                    ax2.plot(self.ebounds,model[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
+                                 label=f"{labels[i]}-{labels[i+1]} {units}")
+                    ax3.errorbar(x_axis,model_res[i*data_bound:(i+1)*data_bound],
+                                 yerr=res_errors[i*data_bound:(i+1)*data_bound],
+                                 marker='o',color=col,zorder=2)
+                    ax4.errorbar(x_axis,model_res[self.n_bins+i*data_bound:self.n_bins+(i+1)*data_bound],
+                                 yerr=res_errors[self.n_bins+i*data_bound:self.n_bins+(i+1)*data_bound],
+                                 marker='o',color=col, zorder=2)
+                    ax1.plot(x_axis,model[i*data_bound:(i+1)*data_bound],linewidth=3,zorder=3)
+                    ax2.plot(x_axis,model[self.n_bins+i*data_bound:self.n_bins+(i+1)*data_bound],
                              linewidth=3,zorder=3)
-                
                 ax1.set_xscale("log")
                 ax1.set_yscale("log")  
                 ax2.legend(loc="best",ncol=2)
                 ax2.set_xscale("log")
                 ax3.set_xscale("log")
-                ax3.set_xlabel("Energy (kev)") 
+                ax3.set_xlabel(x_axis_label) 
                 ax3.set_ylabel(reslabel)  
-                ax4.set_xlabel("Energy (kev)") 
+                ax4.set_xlabel(x_axis_label) 
                 ax4.set_ylabel(reslabel)
                 ax4.legend(loc='best')
                 if self.units == "polar":
@@ -2214,26 +2339,28 @@ class FitTwoDCrossSpectrum():
                     ax1.set_ylabel("Real part")
                     ax2.set_ylabel("Imaginary part")
                 if residuals == "delchi":
-                    ax3.plot(self.ebounds,np.zeros(self.n_chans),ls=":",lw=2,color='black',zorder=4)
-                    ax4.plot(self.ebounds,np.zeros(self.n_chans),ls=":",lw=2,color='black',zorder=4)
+                    ax3.hlines(0,x_axis[0],x_axis[-1],color='black',ls=':',zorder=4)
+                    ax4.hlines(0,x_axis[0],x_axis[-1],color='black',ls=':',zorder=4)
                 elif residuals == "ratio":
-                    ax3.plot(self.ebounds,np.ones(self.n_chans),ls=":",lw=2,color='black',zorder=4)                    
-                    ax4.plot(self.ebounds,np.ones(self.n_chans),ls=":",lw=2,color='black',zorder=4)  
+                    ax3.hlines(1,x_axis[0],x_axis[-1],color='black',ls=':',zorder=4)
+                    ax4.hlines(1,x_axis[0],x_axis[-1],color='black',ls=':',zorder=4)
             else:
+                #plot real and imaginary, or phase and modulus,
+                #including only the model
                 fig, ((ax1),(ax2)) = plt.subplots(1,2,figsize=(12.,5.))  
-                for i in range(self.n_freqs):
+                for i in range(spec_number):
                     col="C"+str(i)
-                    ax1.plot(self.ebounds,model[i*self.n_chans:(i+1)*self.n_chans],
+                    ax1.plot(x_axis,model[i*data_bound:(i+1)*data_bound],
                              linewidth=3,color=col,zorder=3)
-                    ax2.plot(self.ebounds,model[self.n_bins+i*self.n_chans:self.n_bins+(i+1)*self.n_chans],
+                    ax2.plot(x_axis,model[self.n_bins+i*data_bound:self.n_bins+(i+1)*data_bound],
                              linewidth=3,color=col,zorder=3,
-                             label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")    
-                ax2.plot(self.ebounds,np.zeros(self.n_chans),ls=":",lw=2,color='black',zorder=4)
+                             label=f"{labels[i]}-{labels[i+1]} {units}") 
+                ax2.hlines(0,x_axis[0],x_axis[-1],color='black',ls=':',zorder=3)
                 ax2.legend(loc="best",ncol=2)
                 ax1.set_xscale("log")
                 ax2.set_xscale("log")
-                ax1.set_xlabel("Energy (kev)") 
-                ax2.set_xlabel("Energy (kev)") 
+                ax1.set_xlabel(x_axis_label) 
+                ax2.set_xlabel(x_axis_label) 
                 if self.units == "polar":
                     ax1.set_ylabel("Modulus")
                     ax2.set_ylabel("Phase")
@@ -2241,45 +2368,45 @@ class FitTwoDCrossSpectrum():
                     ax1.set_ylabel("Real part")
                     ax2.set_ylabel("Imaginary part")
         else:
-            if plot_data is True:            
+            if plot_data is True:  
+                #plot the lags, including model, data and residuals
                 fig, (ax1,ax2) = plt.subplots(2,1,figsize=(6.,6.),sharex=True,
                                               gridspec_kw={'height_ratios': [2, 1]})
-                ax1.hlines(0,self.ebounds[0],self.ebounds[-1],
-                           color='black',ls=':',zorder=4)
-                for i in range(self.n_freqs):
+                ax1.hlines(0,x_axis[0],x_axis[-1],color='black',ls=':',zorder=4)
+                for i in range(spec_number):
                     col="C"+str(i)
-                    ax1.errorbar(self.ebounds,self.data[i*self.n_chans:(i+1)*self.n_chans],
-                                 yerr=self.data_err[i*self.n_chans:(i+1)*self.n_chans],
+                    ax1.errorbar(x_axis,self.data[i*data_bound:(i+1)*data_bound],
+                                 yerr=self.data_err[i*data_bound:(i+1)*data_bound],
                                  drawstyle="steps-mid",marker='o',color=col,zorder=2,
-                                 label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")            
-                    ax1.plot(self.ebounds,model[i*self.n_chans:(i+1)*self.n_chans],
+                                 label=f"{labels[i]}-{labels[i+1]} {units}")           
+                    ax1.plot(x_axis,model[i*data_bound:(i+1)*data_bound],
                              linewidth=3,color=col,zorder=3) 
-                    ax2.errorbar(self.ebounds,model_res[i*self.n_chans:(i+1)*self.n_chans],
-                                 yerr=res_errors[i*self.n_chans:(i+1)*self.n_chans],
+                    ax2.errorbar(x_axis,model_res[i*data_bound:(i+1)*data_bound],
+                                 yerr=res_errors[i*data_bound:(i+1)*data_bound],
                                  drawstyle="steps-mid",marker='o',color=col,zorder=2)
-                if residuals == "delchi":
-                    ax2.plot(self.ebounds,np.zeros(self.n_chans),ls=":",lw=2,color='black')                
+                if residuals == "delchi": 
+                    ax2.hlines(0,x_axis[0],x_axis[-1],color='black',ls=':',zorder=4)
                 elif residuals == "ratio":
-                    ax2.plot(self.ebounds,np.ones(self.n_chans),ls=":",lw=2,color='black')    
+                    ax2.hlines(1,x_axis[0],x_axis[-1],color='black',ls=':',zorder=4)
                 ax1.set_ylabel("Lag (s)")
                 ax1.set_xscale("log")
                 ax2.set_ylabel(reslabel)
                 ax1.legend(loc="best",ncol=2)
-                ax2.set_xlabel("Energy (kev)")   
+                ax2.set_xlabel(x_axis_label)   
                 ax2.set_xscale("log")
             else:
+                #plot the lags, including only the model
                 fig, ((ax1)) = plt.subplots(1,1,figsize=(6.,4.5)) 
-                ax1.hlines(0,self.ebounds[0],self.ebounds[-1],
-                           color='black',ls=':',zorder=4)
-                for i in range(self.n_freqs):
+                ax1.hlines(0,x_axis[0],x_axis[-1],color='black',ls=':',zorder=4)
+                for i in range(spec_number):
                     col="C"+str(i)
-                    ax1.plot(self.ebounds,model[i*self.n_chans:(i+1)*self.n_chans],
+                    ax1.plot(x_axis,model[i*data_bound:(i+1)*data_bound],
                              drawstyle="steps-mid",marker='o',color=col,
-                             label=f"{round(self.freq_bounds[i],1)}-{round(self.freq_bounds[i+1],1)} Hz")
+                             label=f"{labels[i]}-{labels[i+1]} {units}") 
                 ax1.set_xscale("log")
                 ax1.legend(loc="best",ncol=2)
                 ax1.set_ylabel("Lag (s)")
-                ax1.set_xlabel("Energy (keV)")                
+                ax1.set_xlabel(x_axis_label)                
         
         fig.tight_layout()
         if return_plot is True:
@@ -2287,8 +2414,25 @@ class FitTwoDCrossSpectrum():
         else:
             return 
 
-    def plot_model_2d(self,params=None,use_phase=False,residuals="delchi",return_plot=False,):
-        freq_intervals = 0.5*(self.freq_bounds[1:]+self.freq_bounds[:-1])
+    def plot_model_2d(self,params=None,use_phase=False,residuals="delchi",return_plot=False):
+    
+        if self.dependence == "frequency":
+            x_axis = self.freqs
+            y_axis = self._ebounds_unmasked
+            #here we need to look at the edges of each bin, NOT at the center
+            #which is contained in ebounds
+            channel_bounds = np.append(self.response.emin,self.response.emax[-1])
+            labels = np.round(channel_bounds,1)
+            units = "keV"
+            spec_number = self.n_chans
+            data_bound = self.n_freqs
+        elif self.dependence == "energy":
+            x_axis =  0.5*(self.freq_bounds[1:]+self.freq_bounds[:-1])
+            y_axis = self._ebounds_unmasked
+            labels = np.round(self.freq_bounds,1)
+            spec_number = self.n_freqs    
+            data_bound = self.n_chans 
+
         model = self.eval_model(params=params)
         model_res,_ = self.get_residuals(self.model,residuals)
 
@@ -2299,12 +2443,24 @@ class FitTwoDCrossSpectrum():
             else:
                 left_title = "Real"
                 mid_title = "Imaginary" 
-            data_reformat = np.transpose(self.data[:self.n_bins].reshape((self.n_freqs,self.n_chans)))
-            model_reformat = np.transpose(model[:self.n_bins].reshape((self.n_freqs,self.n_chans)))
+
+            if self.dependence == "energy":
+                mask_twod = np.tile(self.ebounds_mask,self.n_freqs)
+                data_reformat = self._data_unmasked[:self._all_bins].reshape((self.n_freqs,self._all_chans))
+                model_reformat = model[:self._all_bins].reshape((self.n_freqs,self._all_chans))
+            elif self.dependence == "frequency":
+                mask_twod = np.transpose(np.tile(self.ebounds_mask,self.n_freqs))
+                data_reformat = np.transpose(self._data_unmasked[:self._all_bins].reshape((self._all_chans,self.n_freqs)))
+                model_reformat =  np.transpose(model[:self._all_bins].reshape((self.n_freqs,self._all_chans)))
+            mask_twod = mask_twod.reshape((self.n_freqs,self._all_chans))
+            mask_twod = np.logical_not(mask_twod) 
+            data_reformat = np.transpose(np.ma.masked_where(mask_twod, data_reformat))
+            model_reformat = np.transpose(np.ma.masked_where(mask_twod, model_reformat))
             plot_info = [data_reformat,model_reformat]
+
             scale_min = np.min(self.data[:self.n_bins])
             scale_max = np.max(self.data[:self.n_bins])
-
+    
             fig, axs = plt.subplots(2, 3, figsize=(15.,6.), sharex=True) 
             for row in range(2):
                 ax = axs[row][0]
@@ -2319,12 +2475,19 @@ class FitTwoDCrossSpectrum():
             cbar = fig.colorbar(left_plot, ax=axs[0:2,0],aspect = 40)
             cbar.formatter.set_powerlimits((0, 0))
             
-            data_reformat = np.transpose(self.data[self.n_bins:].reshape((self.n_freqs,self.n_chans)))
-            model_reformat = np.transpose(model[self.n_bins:].reshape((self.n_freqs,self.n_chans)))
+            if self.dependence == "energy":
+                data_reformat = self._data_unmasked[self._all_bins:].reshape((self.n_freqs,self._all_chans))
+                model_reformat = model[self._all_bins:].reshape((self.n_freqs,self._all_chans))
+            elif self.dependence == "frequency":
+                data_reformat = np.transpose(self._data_unmasked[self._all_bins:].reshape((self._all_chans,self.n_freqs)))
+                model_reformat =  np.transpose(model[self._all_bins:].reshape((self.n_freqs,self._all_chans)))
+            data_reformat = np.transpose(np.ma.masked_where(mask_twod, data_reformat))
+            model_reformat = np.transpose(np.ma.masked_where(mask_twod, model_reformat))
             plot_info = [data_reformat,model_reformat]
+            
             scale_min = np.min(self.data[self.n_bins:])
             scale_max = np.max(self.data[self.n_bins:])
-
+    
             for row in range(2):
                 ax = axs[row][1]
                 mid_plot = ax.pcolormesh(freq_intervals,self.ebounds,plot_info[row],cmap="cividis",
@@ -2337,9 +2500,15 @@ class FitTwoDCrossSpectrum():
             cbar = fig.colorbar(mid_plot, ax=axs[0:2,1],aspect = 40)
             cbar.formatter.set_powerlimits((0, 0))
 
-            top_res = np.transpose(model_res[self.n_bins:].reshape((self.n_freqs,self.n_chans)))
-            bot_res = np.transpose(model_res[:self.n_bins].reshape((self.n_freqs,self.n_chans)))
-            plot_info = [top_res,bot_res]
+            if self.dependence == "energy":
+                top_res = model_res[self._all_bins:].reshape((self.n_freqs,self._all_chans))
+                bot_res = model_res[:self._all_bins].reshape((self.n_freqs,self._all_chans))
+            elif self.dependence == "frequency":
+                top_res = np.transpose(model_res[self._all_bins:].reshape((self.n_freqs,self._all_chans)))
+                bot_res = np.transpose(model_res[:self._all_bins].reshape((self.n_freqs,self._all_chans)))
+            top_res = np.transpose(np.ma.masked_where(mask_twod, top_res))
+            bot_res = np.transpose(np.ma.masked_where(mask_twod, bot_res))
+            plot_info = [data_reformat,model_reformat]
 
             for row in range(2):
                 ax = axs[row][2]
@@ -2356,60 +2525,76 @@ class FitTwoDCrossSpectrum():
             axs[0][2].set_title(mid_title+" residuals")
             axs[1][2].set_title(left_title+" residuals")
             ax.set_xlabel("Frequency (Hz)")
-        
         else:
             fig, ((ax1),(ax2),(ax3)) = plt.subplots(1, 3, figsize=(15.,4.), sharex=True)             
-            plot_data = np.transpose(self.data.reshape((self.n_freqs,self.n_chans)))
+            if self.dependence == "energy":               
+                mask_twod = np.tile(self.ebounds_mask,self.n_freqs)
+                plot_data = self._data_unmasked.reshape((self.n_freqs,self._all_chans))
+                plot_model = model.reshape((self.n_freqs,self._all_chans))
+                plot_res = model_res.reshape((self.n_freqs,self._all_chans))
+            elif self.dependence == "frequency":
+                mask_twod = np.transpose(np.tile(self.ebounds_mask,self.n_freqs))
+                plot_data = np.transpose(self._data_unmasked.reshape((self._all_chans,self.n_freqs)))
+                plot_model = np.transpose(model.reshape((self.n_freqs,self._all_chans)))
+                plot_res = np.transpose(model_res.reshape((self.n_freqs,self._all_chans)))
+            mask_twod = mask_twod.reshape((self.n_freqs,self._all_chans))
+            mask_twod = np.logical_not(mask_twod) 
+            plot_data = np.transpose(np.ma.masked_where(mask_twod, plot_data))
             if use_phase is True:
-                plot_data = plot_data*(2.*np.pi*freq_intervals)
+                plot_data = plot_data*(2.*np.pi*x_axis)
             color_min = np.min([np.min(plot_data),-0.01])
             color_max = np.max([np.max(plot_data),0.01])
             lag_norm = TwoSlopeNorm(vmin=color_min,vcenter=0,vmax=color_max) 
-            data_plot = ax1.pcolormesh(freq_intervals,self.ebounds,plot_data,cmap="BrBG",
+            data_plot = ax1.pcolormesh(x_axis,y_axis,plot_data,cmap="BrBG",
                                         shading='auto',linewidth=0,norm=lag_norm)
             
             ax1.set_title("Data")                
             fig.colorbar(data_plot, ax=ax1)
-            
-            plot_model = np.transpose(model.reshape((self.n_freqs,self.n_chans)))
+
             if use_phase is True:
                 plot_model = plot_model*(2.*np.pi*freq_intervals)
+            plot_model = np.transpose(np.ma.masked_where(mask_twod, plot_model))
             lag_norm = TwoSlopeNorm(vmin=color_min,vcenter=0,vmax=color_max) 
-            model_plot = ax2.pcolormesh(freq_intervals,self.ebounds,plot_model,cmap="BrBG",
+            model_plot = ax2.pcolormesh(x_axis,y_axis,plot_model,cmap="BrBG",
                                         shading='auto',linewidth=0,norm=lag_norm)
             ax2.set_title("Model")                
-            fig.colorbar(model_plot, ax=ax2)
-
+            fig.colorbar(model_plot, ax=ax2)    
             
-            plot_res = np.transpose(model_res.reshape((self.n_freqs,self.n_chans)))
+            plot_res = np.transpose(np.ma.masked_where(mask_twod, plot_res))
             res_min = np.min([np.min(plot_res),-1])
             res_max = np.max([np.max(plot_res),1])
             res_norm = TwoSlopeNorm(vmin=res_min,vcenter=0,vmax=res_max) 
             res_plot = ax3.pcolormesh(freq_intervals,self.ebounds,plot_res,cmap="BrBG",
                                         shading='auto',linewidth=0,norm=res_norm)
-
+    
             ax3.set_title("Residuals")                
             fig.colorbar(res_plot, ax=ax3)
             
             ax1.set_xscale("log")
             ax1.set_yscale("log")
+            ax1.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],self.ebounds[-1]+0.5*self.ewidths[-1]])
             ax1.set_xlabel("Frequency (Hz)")
             ax1.set_ylabel("Energy (keV)")
             
             ax2.set_xscale("log")
             ax2.set_yscale("log")
+            ax2.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],1.1*self.ebounds[-1]+0.5*self.ewidths[-1]])
             ax2.set_yticklabels([])
             ax2.set_xlabel("Frequency (Hz)")
             
             ax3.set_xscale("log")
             ax3.set_yscale("log")
+            ax3.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],1.1*self.ebounds[-1]+0.5*self.ewidths[-1]])
             ax3.set_yticklabels([])
             ax3.set_xlabel("Frequency (Hz)")
+        
         if return_plot is True:
             return fig
         else:
             return 
 
+#missing: ignore freq bins
+#do this as a separate class like EnergyDependent
 #tbd: plots for all the data in 1d, all the data in 2d, individual spectra in 1d
 #same for data+model too
 
