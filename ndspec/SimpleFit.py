@@ -2248,7 +2248,9 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                                       shading='auto',linewidth=0,norm=lag_norm)
             ax1.set_title("Lag (s)")                
             fig.colorbar(lag_plot, ax=ax1)
-            ax1.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],1.1*self.ebounds[-1]+0.5*self.ewidths[-1]])
+            ymin = np.max([self.ebounds[0]-0.5*self.ewidths[0],1e-1])
+            ymax = self.ebounds[-1]+0.5*self.ewidths[-1]
+            ax1.set_ylim([ymin,ymax])
             ax1.set_xscale("log")
             ax1.set_yscale("log")
             ax1.set_xlabel("Frequency (Hz)")
@@ -2593,12 +2595,6 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         else:
             return 
 
-#missing: ignore freq bins
-#do this as a separate class like EnergyDependent
-#tbd: plots for all the data in 1d, all the data in 2d, individual spectra in 1d
-#same for data+model too
-
-        
 def load_pha(path,response):
     '''
     This function loads an X-ray spectrum , given an input path to an OGIP-compatible
