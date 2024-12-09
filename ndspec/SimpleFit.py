@@ -942,8 +942,6 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         else:
             return  
 
-#now to define a cross spectrum class in some way
-
 class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
     def __init__(self):
         SimpleFit.__init__(self)
@@ -989,9 +987,15 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             raise AttributeError("Cross spectrum units not defined") 
         if norm is None:
             norm = "abs"
-        #THIS DESPERATELY NEEDS A WARNING TO AUTO SET TO THE LOWEST BIN
-        bounds_lo = sub_bounds[:-1]
-        bounds_hi = sub_bounds[1:]  
+        #combine the edges of the reference and subject bands with those of the matrix
+        #then sort+keep only the ones that are not repeated, and rebin the matrix
+        #to this grid of channels
+        rebin_bounds = np.append(sub_bounds,ref_bounds).reshape(len(sub_bounds)+len(ref_bounds))
+        rebin_bounds = np.append(rebin_bounds,response.emin[0])
+        rebin_bounds = np.append(rebin_bounds,response.emax[-1])
+        rebin_bounds = np.unique(np.sort(rebin_bounds))
+        bounds_lo = rebin_bounds[:-1]
+        bounds_hi = rebin_bounds[1:] 
         self.response = response.rebin_channels(bounds_lo,bounds_hi) 
         self.ref_band = ref_bounds
         EnergyDependentFit.__init__(self)  
