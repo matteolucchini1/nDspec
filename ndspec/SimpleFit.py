@@ -192,14 +192,11 @@ class EnergyDependentFit():
             self.n_bins = self._all_bins
         return
         
-    #this mess is from the cross spectrum
     def ignore_energies(self,bound_lo,bound_hi):
         if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
             (isinstance(bound_hi, (np.floating, float, int)) != True)):
             raise TypeError("Energy bounds must be floats or integers")
         
-        #is2d flag here
-        #if bounds of channel lie in ignored energies, ignore channel
         self.ebounds_mask = ((self._emin_unmasked<bound_lo)|
                              (self._emax_unmasked>bound_hi))&self.ebounds_mask
        
@@ -232,7 +229,7 @@ class EnergyDependentFit():
             (isinstance(bound_hi, (np.floating, float, int)) != True)):
             raise TypeError("Energy bounds must be floats or integers")        
               
-        #if bounds of channel lie in noticed energies, noitce channel
+        #if bounds of channel lie in noticed energies, notice channel
         self.ebounds_mask = self.ebounds_mask|np.logical_not(
                             (self._emin_unmasked<bound_lo)|
                             (self._emax_unmasked>bound_hi))
@@ -945,6 +942,8 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         else:
             return  
 
+#now to define a cross spectrum class in some way
+
 class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
     def __init__(self):
         SimpleFit.__init__(self)
@@ -987,7 +986,10 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                  freq_bins=None,time_res=None,seg_size=None,norm=None):
         #I need a safeguard to put in the lowest+highest channels in the matrix
         if self.units is None:
-            raise AttributeError("Cross spectrum units not defined")        
+            raise AttributeError("Cross spectrum units not defined") 
+        if norm is None:
+            norm = "abs"
+        #THIS DESPERATELY NEEDS A WARNING TO AUTO SET TO THE LOWEST BIN
         bounds_lo = sub_bounds[:-1]
         bounds_hi = sub_bounds[1:]  
         self.response = response.rebin_channels(bounds_lo,bounds_hi) 
@@ -1212,28 +1214,30 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                 eval = self._filter_2d_by_mask(eval,self.ebounds_mask)
         return eval
 
-    def _freq_dependent_model(self,folded_cross):
+    def _freq_dependent_model(self,folded_eval):
         model = []
-        sub_bounds = [self.response.emin,self.response.emax]
+        sub_bounds = np.array([self._ebounds_unmasked-0.5*self._ewidths_unmasked,
+                               self._ebounds_unmasked+0.5*self._ewidths_unmasked])
+        sub_bounds = np.transpose(sub_bounds)
         if self.units == "lags":
-            for i in range(self.n_chans):
-                model_eval = folded_eval.lag_frequency(sub_bounds[i],ref_bounds=self.ref_band)
+            for i in range(self._all_chans):
+                model_eval = folded_eval.lag_frequency(sub_bounds[i])
                 model = np.append(model,model_eval)
         elif self.units == "cartesian":
             real = []
             imag = []             
-            for i in range(self.n_chans):
-                real_eval = folded_eval.real_frequency(sub_bounds[i],ref_bounds=self.ref_band)
-                imag_eval = folded_eval.imag_frequency(sub_bounds[i],ref_bounds=self.ref_band)             
+            for i in range(self._all_chans):
+                real_eval = folded_eval.real_frequency(sub_bounds[i])
+                imag_eval = folded_eval.imag_frequency(sub_bounds[i])            
                 real = np.append(real,real_eval)
                 imag = np.append(imag,imag_eval)
             model = np.concatenate((real,imag))
         elif self.units == "polar":
             mod = []
             phase = []            
-            for i in range(self.n_chans):
-                mod_eval = folded_eval.mod_frequency(sub_bounds[i],ref_bounds=self.ref_band)
-                phase_eval = folded_eval.phase_frequency(sub_bounds[i],ref_bounds=self.ref_band)             
+            for i in range(self._all_chans):
+                mod_eval = folded_eval.mod_frequency(sub_bounds[i])
+                phase_eval = folded_eval.phase_frequency(sub_bounds[i])         
                 mod = np.append(mod,mod_eval)
                 phase = np.append(phase,phase_eval)            
             model = np.concatenate((mod,phase))
@@ -1803,8 +1807,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             elif self.dependence == "frequency":
                 mask_twod = np.transpose(np.tile(self.ebounds_mask,self.n_freqs))
                 plot_data = np.transpose(self._data_unmasked.reshape((self._all_chans,self.n_freqs)))
-                plot_model = np.transpose(model.reshape((self.n_freqs,self._all_chans)))
-                plot_res = np.transpose(model_res.reshape((self.n_freqs,self._all_chans)))
+                plot_model = np.transpose(model.reshape((self._all_chans,self.n_freqs)))
+                plot_res = np.transpose(model_res.reshape((self._all_chans,self.n_freqs)))
             mask_twod = mask_twod.reshape((self.n_freqs,self._all_chans))
             mask_twod = np.logical_not(mask_twod) 
             if use_phase is True:
