@@ -942,8 +942,6 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         else:
             return  
 
-#now to define a cross spectrum class in some way
-
 class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
     def __init__(self):
         SimpleFit.__init__(self)
@@ -953,7 +951,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         self._times = None
         self.crossspec = None
         self._supported_coordinates = ["cartesian","polar","lags"]
-        self._supported_models = ["irf","transfer"]
+        self._supported_models = ["irf","transfer","cross"]
         self._supported_products = ["frequency","energy"]
         self.renorm_phase = False
         self.renorm_modulus = False
@@ -1184,7 +1182,6 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         if params is None:
             params= self.model_params
         model_eval = self.model.eval(params,freqs=self.freqs,energs=self.energs,times=self._times)
-
         #store the model in the cross spectrum, depending on the type
         if self.model_type == "irf":
             self.crossspec.set_impulse(np.transpose(model_eval))
@@ -1194,10 +1191,10 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             self.crossspec.set_transfer(np.transpose(model_eval))
             self.crossspec.set_reference_energ(self.ref_band)
             self.crossspec.cross_from_transfer()
-        else:
+        elif self.model_type == "cross":
             #transposing is required to ensure the units are correct 
             self.crossspec.cross = np.transpose(model_eval)
-        
+            
         #fold the instrument response:
         folded_eval = self.response.convolve_response(self.crossspec,units_in="rate",units_out="channel")  
 
@@ -1607,7 +1604,6 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                 ax3.set_ylabel(reslabel)  
                 ax4.set_xlabel(x_axis_label) 
                 ax4.set_ylabel(reslabel)
-                ax4.legend(loc='best')
                 if self.units == "polar":
                     ax1.set_ylabel("Modulus")
                     ax2.set_ylabel("Phase")
@@ -1720,6 +1716,16 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                 left_title = "Real"
                 mid_title = "Imaginary" 
 
+            '''
+               elif self.dependence == "frequency":
+                mask_twod = np.transpose(np.tile(self.ebounds_mask,self.n_freqs))
+                plot_data = np.transpose(self._data_unmasked.reshape((self._all_chans,self.n_freqs)))
+                plot_model = np.transpose(model.reshape((self._all_chans,self.n_freqs)))
+                plot_res = np.transpose(model_res.reshape((self._all_chans,self.n_freqs)))
+            mask_twod = mask_twod.reshape((self.n_freqs,self._all_chans))
+            mask_twod = np.logical_not(mask_twod)          
+            '''
+            
             if self.dependence == "energy":
                 mask_twod = np.tile(self.ebounds_mask,self.n_freqs)
                 data_reformat = self._data_unmasked[:self._all_bins].reshape((self.n_freqs,self._all_chans))
@@ -1727,7 +1733,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             elif self.dependence == "frequency":
                 mask_twod = np.transpose(np.tile(self.ebounds_mask,self.n_freqs))
                 data_reformat = np.transpose(self._data_unmasked[:self._all_bins].reshape((self._all_chans,self.n_freqs)))
-                model_reformat =  np.transpose(model[:self._all_bins].reshape((self.n_freqs,self._all_chans)))
+                model_reformat =  np.transpose(model[:self._all_bins].reshape((self._all_chans,self.n_freqs)))
             mask_twod = mask_twod.reshape((self.n_freqs,self._all_chans))
             mask_twod = np.logical_not(mask_twod) 
             data_reformat = np.transpose(np.ma.masked_where(mask_twod, data_reformat))
@@ -1758,7 +1764,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                 model_reformat = model[self._all_bins:].reshape((self.n_freqs,self._all_chans))
             elif self.dependence == "frequency":
                 data_reformat = np.transpose(self._data_unmasked[self._all_bins:].reshape((self._all_chans,self.n_freqs)))
-                model_reformat =  np.transpose(model[self._all_bins:].reshape((self.n_freqs,self._all_chans)))
+                model_reformat =  np.transpose(model[self._all_bins:].reshape((self._all_chans,self.n_freqs)))
             data_reformat = np.transpose(np.ma.masked_where(mask_twod, data_reformat))
             model_reformat = np.transpose(np.ma.masked_where(mask_twod, model_reformat))
             plot_info = [data_reformat,model_reformat]
@@ -1781,19 +1787,23 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             cbar.formatter.set_powerlimits((0, 0))
 
             if self.dependence == "energy":
-                top_res = model_res[self._all_bins:].reshape((self.n_freqs,self._all_chans))
-                bot_res = model_res[:self._all_bins].reshape((self.n_freqs,self._all_chans))
+                top_res = model_res[self._all_bins:].reshape((self._all_chans,self.n_freqs))
+                bot_res = model_res[:self._all_bins].reshape((self._all_chans,self.n_freqs))
             elif self.dependence == "frequency":
-                top_res = np.transpose(model_res[self._all_bins:].reshape((self.n_freqs,self._all_chans)))
-                bot_res = np.transpose(model_res[:self._all_bins].reshape((self.n_freqs,self._all_chans)))
+                top_res = np.transpose(model_res[self._all_bins:].reshape((self._all_chans,self.n_freqs)))
+                bot_res = np.transpose(model_res[:self._all_bins].reshape((self._all_chans,self.n_freqs)))
             top_res = np.transpose(np.ma.masked_where(mask_twod, top_res))
             bot_res = np.transpose(np.ma.masked_where(mask_twod, bot_res))
             plot_info = [top_res,bot_res]
 
             for row in range(2):
                 ax = axs[row][2]
-                res_min = np.min(np.append(plot_info[row].reshape(self._all_bins),-0.1))
-                res_max = np.max(np.append(plot_info[row].reshape(self._all_bins),0.1))
+                filtered_row = self._filter_2d_by_mask(np.array(plot_info[row]),self.ebounds_mask)
+                res_min = np.min([np.min(filtered_row),-1])
+                res_max = np.max([np.max(filtered_row),1])
+                
+                #res_min = np.min(np.append(plot_info[row].reshape(self._all_bins),-0.1))
+                #res_max = np.max(np.append(plot_info[row].reshape(self._all_bins),0.1))
                 res_norm = TwoSlopeNorm(vmin=res_min,vcenter=0,vmax=res_max) 
                 mid_plot = ax.pcolormesh(x_axis,y_axis,plot_info[row],cmap="BrBG",
                                             shading='auto',rasterized=True,norm=res_norm)

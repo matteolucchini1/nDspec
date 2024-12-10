@@ -33,6 +33,26 @@ def lorentz(array, params):
     model = np.divide(lorentz_num,np.square(f_res)+lorentz_den)
     return np.nan_to_num(model)
 
+def cross_lorentz(array1,array2,params):
+    n_energs = len(array1)
+    n_freqs = len(array2)
+        if params.ndim == 1:
+        f_pk = params[0]
+        q = params[1]
+        rms = params[2]
+        phase = params[3]
+    elif params.ndim == 2:
+        f_pk = params[:,0][:,np.newaxis]
+        q = params[:,1][:,np.newaxis]
+        rms = params[:,2][:,np.newaxis]
+        phase = params[:,3][:,np.newaxis]
+    else:
+        raise TypeError("Params has too many dimensions, limit to 1 or 2 dimensions")
+    lorentz_arr = lorentz(array2,params)*np.exp(1j*phase)
+    twod_lorentz = np.tile(lorentz_arr,n_energs).reshape((n_energs,n_freqs))
+    twod_lorentz = np.transpose(twod_lorentz)
+    return twod_lorentz
+
 def powerlaw(array, params):
     if params.ndim == 1:
         norm = params[0]

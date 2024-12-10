@@ -450,7 +450,8 @@ class ResponseMatrix(nDspecOperator):
                                          energ = resp_energs,
                                          freqs = model_input.freqs,
                                          method = model_input.method)
-            output_model.set_psd_weights(model_input.power_spec)
+            if hasattr(model_input,"power_spec"):
+                output_model.set_psd_weights(model_input.power_spec)
         else: 
            unfolded_model = model_input 
     
