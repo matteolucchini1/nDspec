@@ -942,6 +942,8 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         else:
             return  
 
+#now to define a cross spectrum class in some way
+
 class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
     def __init__(self):
         SimpleFit.__init__(self)
@@ -1048,7 +1050,9 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                                                                segment_size=seg_size,
                                                                dt=time_res,norm=norm,silent=True)    
                     ctrate_sub = get_average_ctrate(events_sub.time,events_sub.gti,seg_size)                    
-                    noise_sub = poisson_level(norm=norm, meanrate=ctrate_sub)  
+                    noise_sub = poisson_level(norm=norm, meanrate=ctrate_sub)                      
+                    data_size = len(cs.freq)
+                    
                     if norm == "frac":
                         N = 2./noise_ref 
                     elif norm == "abs":
@@ -1075,8 +1079,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                         self.data = np.append(self.data,data_first_dim)
                         self.data_err = np.append(self.data_err,error_first_dim)
                     else:
-                        self.data = np.insert(self.data,i,data_first_dim)
-                        self.data_err = np.insert(self.data_err,i,error_first_dim) 
+                        self.data = np.insert(self.data,i*data_size,data_first_dim)
+                        self.data_err = np.insert(self.data_err,i*data_size,error_first_dim) 
                     self.data = np.append(self.data,data_second_dim)
                     self.data_err = np.append(self.data_err,error_second_dim)
 
@@ -1482,13 +1486,15 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             fig.colorbar(right_plot, ax=ax2)
             ax1.set_xscale("log")
             ax1.set_yscale("log")
-            ax1.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],1.1*self.ebounds[-1]+0.5*self.ewidths[-1]])
+            ymin = np.max([self.ebounds[0]-0.5*self.ewidths[0],1e-1])
+            ymax = self.ebounds[-1]+0.5*self.ewidths[-1]
+            ax1.set_ylim([ymin,ymax])
             ax1.set_xlabel("Frequency (Hz)")
             ax1.set_ylabel("Energy (keV)")
 
             ax2.set_xscale("log")
             ax2.set_yscale("log")
-            ax2.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],1.1*self.ebounds[-1]+0.5*self.ewidths[-1]])
+            ax2.set_ylim([ymin,ymax])
             ax2.set_xlabel("Frequency (Hz)")
             ax2.set_ylabel("Energy (keV)")
         else:   
