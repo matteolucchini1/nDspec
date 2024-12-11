@@ -1186,8 +1186,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
 
         if plot_data is True:
             ax1.errorbar(energies,data,yerr=yerror,xerr=xerror,
-                         ls="",marker='o')
-       
+                         ls="",marker='o')       
        
         ax1.plot(energies,model,lw=3,zorder=3)
 
@@ -1233,6 +1232,183 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
             return  
 
 class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
+    """
+    Least-chi squares fitter class for the cross spectrum. The class supports 
+    both one-dimensional data between a reference and subject band as a function 
+    of Fourier frequency, and two-dimensional data between many subjects bands 
+    and a common reference band as a function of both energy and Fourier
+    frequency. 
+    
+    Given an instrument response, an input spectrum, its error and a model, this
+    class handles fitting internally using the lmfit library. The model can 
+    either be in the form of the actual values of the (complex) cross spectrum, 
+    a transfer function (defined in the Fourier domain), or an impulse response 
+    function (defined in the time domain). In all cases, the conversion from 
+    model units to cross spectral products (e.g. lag vs frequency, or real part 
+    vs energy in a fixed frequency interval) is handled automatically by the 
+    class. 
+           
+    Due to the variety of spectral-timing products related to or derived from 
+    the cross spectrum, users have several ways of defining the input data. In 
+    general, however, they are encouraged to do their own analysis separately 
+    using e.g. stingray, before moving on to fitting it.
+    
+    Attributes inherited from SimpleFit:
+    ------------------------------------
+    model: lmfit.CompositeModel 
+        A lmfit CompositeModel object, which contains a wrapper to the model 
+        component(s) one wants to fit to the data. 
+   
+    model_params: lmfit.Parameters 
+        A lmfit Parameters object, which contains the parameters for the model 
+        components.
+   
+    likelihood: None
+        Work in progress; currently the software defaults to chi squared 
+        likelihood
+   
+    fit_result: lmfit.MinimizeResult
+        A lmfit MinimizeResult, which stores the result (including best-fitting 
+        parameter values, fit statistics etc) of a fit after it has been run.         
+   
+    data: np.array(float)
+        An array storing the data to be fitted. If the data is complex and/or 
+        multi-dimensional, it is flattened to a single dimension in order to be 
+        compatible with the LMFit fitter methods.
+   
+    data_err: np.array(float)
+        An array containing the uncertainty on the data to be fitted. It is also 
+        stored as a one-dimensional array regardless of the type or dimensionality 
+        of the initial data.       
+    
+    Attributes inherited from EnergyDependentFit:
+    ---------------------------------------------    
+    energs: np.array(float)
+        The array of physical photon energies over which the model is computed. 
+        Defined as the middle of each bin in the energy range stored in the 
+        instrument response provided.    
+        
+    energ_bounds: np.array(float)
+        The array of energy bin widths, for each bin over which the model is 
+        computed. Defined as the difference between the uppoer and lower bounds 
+        of the energy bins stored in the insrument response provided. 
+               
+    ebounds: np.array(float) 
+        The array of energy channel bin centers for the instrument energy
+        channels,  as stored in the instrument response provided. Only contains 
+        the channels that are noticed during the fit.
+
+    ewidths: np.array(float) 
+        The array of energy channel bin widths for the instrument energy
+        channels,  as stored in the instrument response provided. Only contains 
+        the channels that are noticed during the fit.
+        
+    ebounds_mask: np.array(bool)
+        The array of instrument energy channels that are either ignored or 
+        noticed during the fit. A given channel i is noticed if ebounds_mask[i]
+        is True, and ignored if it is false. 
+        
+    n_chans: int 
+        The number of channels that are to be noticed during the fit.
+        
+    _all_chans: int 
+        The total number of channels in the loaded response matrix.
+        
+    n_bins: int 
+        Only used for two-dimensional data fitting. Defined as the number of 
+        noticed channels, times the number of bins in the second dimension 
+        (e.g. Fourier frequency).
+        
+    _all_bins: int 
+        Only used for two-dimensional data fitting. Defined as the total number 
+        of  channels, times the number of bins in the second dimension 
+        (e.g. Fourier frequency).
+                
+    _emin_unmasked, _emax_unmasked, _ebounds_unmasked, _ewidths_unmasked: np.array(float)
+        The array of every lower bound, upper bound, channel center and channel 
+        widths stored in the response, regardless of which ones are ignored or 
+        noticed during the fit. Used exclusively to facilitate book-keeping 
+        internal to the fitter class. 
+        
+    _data_unmasked, _data_err_unmasked: np.array(float)
+        The array of every cout rate and relative error contained in the 
+        spectrum, regardless of which ones are ignored or noticed during the 
+        fit. Used exclusively to facilitate book-keeping internal to the fitter
+        class.       
+    
+    Other attributes:
+    -----------------
+    response: nDspec.ResponseMatrix
+        The instrument response matrix corresponding to the spectrum to be 
+        fitted. It is required to define the energy grids over which model and
+        data are defined.  
+    
+    twod_data: bool 
+        A boolean that tracks whether we're using a two-dimensional product (like 
+        a cross spectrum). Necessary to correctly mask enerby bins for both 
+        frequency and energy dependent products. 
+
+    units: str 
+        A string that checks the units which the user is providing  - "lags" for 
+        fitting lag spectra alone, "polar" or fitting modulus and phase together, 
+        and "cartesian"	 for fitting real and imaginary parts together.        
+            
+    ref_band: [np.float,np.float]
+        The minimum/maximum energy bounds over which to take the reference band. 
+        Necessary to calculate spectral timing products (like lag spectra) from 
+        the input model.
+    
+    freqs: np.array(float)
+        The Fourier frequency over which both the data and model are defined, 
+        in units of Hz.   
+    
+    _times: np.array(float)
+        The array of times corresponding to the Fourier frequency array. Used 
+        internally for model calculations/book-keeping.        
+        
+    crossspec: nDspec.CrossSpectrum
+        A nDspec CrossSpectrum object used to store model evaluations, and to 
+        convert model evaluations into spectral-timing data products. 
+     
+    renorm_phase: bool 
+        Allows users to apply a small phase renormalization when fitting energy 
+        dependent products. This is necessary to account for imperfections in 
+        the instrument response/calibration. For more discussions, see Appendix 
+        E in Mastroserio et al. 2018: 
+        https://ui.adsabs.harvard.edu/abs/2018MNRAS.475.4027M/abstract
+        This setting will NOT affect the modulus of a cross spectrum, only the 
+        phase (and therefore it will affect the real and imaginary parts).
+    
+    renorm_modulus: bool 
+        Allows users to apply a small modulus renormalization when fitting energy 
+        dependent products.  This can be useful when defining models from transfer 
+        or impulse response functions, in order to re-normalize the model in each
+        Fourier frequency bin to match the data. Physically, this allows one to 
+        take into account differences between the power spectrum shape assumed 
+        in the model to calculate the spectral timing products (e.g. modulus vs 
+        energy), and the ``true'' underyling power spectrum in the source. 
+        This setting will NOT affect the phase of a cross spectrum, only the 
+        modulus (and therefore it will affect the real and imaginary parts).   
+
+   _supported_coordinates: str
+        A string that checks the units models/data can be defined as. "lags" is 
+        for fitting lag spectra alone, "polar" is for fitting modulus and phase 
+        together, and "cartesian" is for fitting real and imaginary parts 
+        together.
+    
+    _supported_models: str
+        A string that checks the type of model defined. "cross" indicates models 
+        that already return the full cross spectrum, and thus need limited 
+        operations applied before being compared to the data. "transfer" 
+        indicates models of transfer functions, which need to be crossed with 
+        a reference band to calculate the cross spectrum. "irf" indicates a 
+        models of impulse response functions, which need to be Fourier transformed 
+        and then crossed with a reference band.
+    
+    _supported_products: str 
+        A string that checks whether the data provided (e.g. lags) is a function 
+        of Fourier frequency or energy.             
+    """
     
     def __init__(self):
         SimpleFit.__init__(self)
@@ -1249,22 +1425,45 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         pass
 
     def set_product_dependence(self,depend):
-        #dep can only be frequency or energy for now, eventually polarimetry
+        """
+        This method allows users to specify whether the data they intend to fit is 
+        a function of Fourier frequency (e.g. lag frequency spectra), or energy 
+        (e.g. lag vs energy spectra). Polarimetric data is not supported at this 
+        time. 
+        
+        Parameters:
+        -----------
+        depend: str 
+            A string containing the dependence of the data. Must be one of the 
+            supported dependence stored in the class - ie "frequency" or "energy".
+        """
         if depend not in self._supported_products:
             raise AttributeError("Unsopprted products for the cross spectrum")
         else:
             self.dependence = depend
         return 
 
-    def set_coordinates(self,units="cartesian"):    
+    def set_coordinates(self,units):  
+        """
+        This method allows users to specify the coordinate system of the data 
+        they intend to fit. The possible choices are "lags", for time lags alone,
+        "polar", for modulus and phase together, or "cartesian", for real and 
+        imaginary parts together.
+        
+        Parameters:
+        -----------
+        units: str 
+            A string containing the dependence of the data. Must be one of the 
+            supported units stored in the class - ie "lags", "polar" or 
+            "cartesian".
+        """      
         if units not in self._supported_coordinates:
             raise AttributeError("Unsopprted units for the cross spectrum")
         else:
             self.units = units
         return 
 
-    #sub_bounds is the bounds with the subjugate channels (will need to be
-    #extended to the lowest bins)
+    #sub_bounds is the bounds with the subjugate channels 
     #freqs is the internal frequency grid where we evaluate the model
     #freq_bounds are the bounds over which we frequency-average to get
     #energy dependent products
@@ -1273,9 +1472,16 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
     def set_data(self,response,ref_bounds,sub_bounds,data,
                  data_err=None,freq_grid=None,time_grid=None,
                  freq_bins=None,time_res=None,seg_size=None,norm=None):
-        #I need a safeguard to put in the lowest+highest channels in the matrix
+        """
+        This method is used to set the cross-spectrum data to be fitted. The 
+        exact data is determined by the set_product_dependence and set_coordinates
+        setter methods.  
+        """
+                
         if self.units is None:
             raise AttributeError("Cross spectrum units not defined") 
+        if self.dependence is None:
+            raise AttributeError("Cross spectrum dependence not defined") 
         if norm is None:
             norm = "abs"
         #combine the edges of the reference and subject bands with those of the matrix
