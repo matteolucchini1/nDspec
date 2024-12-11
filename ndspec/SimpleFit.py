@@ -1463,10 +1463,6 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             self.units = units
         return 
 
-    #sub_bounds is the bounds with the subjugate channels 
-    #freqs is the internal frequency grid where we evaluate the model
-    #freq_bounds are the bounds over which we frequency-average to get
-    #energy dependent products
     #explicitely show in the documentation that there are many ways to build
     #data and users have a lot of freedom.
     def set_data(self,response,ref_bounds,sub_bounds,data,
@@ -1476,6 +1472,83 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         This method is used to set the cross-spectrum data to be fitted. The 
         exact data is determined by the set_product_dependence and set_coordinates
         setter methods.  
+        
+        The method requires an input instrument response, bounds defined for the 
+        reference band as well as the subject band(s), and the actual data. This 
+        can be in the form of an array, in which case users also need to specify 
+        the errors, or (only for frequency-dependent data) a stingray.events 
+        object. Additionally, users need to specify the time resolution and 
+        segment size of the lightcurves used to build the data.          
+        
+        When loading energy-dependent products (e.g. many lag-energy spectra), 
+        it is necessary to specify the Fourier frequency intervals over which
+        each lag spectrum is computed, using the freq_bins argument. 
+        
+        When loading freqency-dependent products from a stingray event file, it 
+        is possible to specify the normalization to be used. By default, this 
+        will be asbsolute rms normalization.
+        
+        Finally, for both products, users can specify by hand the Fourier 
+        frequency and time grids to be used internally for model computations. 
+        In some cases, this can be useful in speeding up model evaluations. 
+        
+        Parameters:
+        -----------
+        response: nDspec.ResponseMatrix
+            The instrument response matrix corresponding to the spectrum to be 
+            fitted. It is required to define the energy grids over which model 
+            and data are defined. It is rebinned automatically such that the 
+            subject/reference bands are in separate channels.
+        
+        ref_bounds: [np.float,np.float]
+            The minimum/maximum energy bounds over which to take the reference 
+            band.
+        
+        sub_bounds: np.array([float,float])
+            An array of minimum/maximum energy bounds over which each channel of 
+            interest is taken. 
+        
+        data: np.array(float) or stingray.events 
+            The data to be fitted, either in the form of a one-dimensional array 
+            or a stingray event file. If passing an array, the data has to be 
+            stored such that all the real values or moduli are contained in the 
+            first half of the array, with the imaginary values or phases in the 
+            second half. 
+
+        data_err: np.array(float), optional
+            Only required when not passing a stingray event file. Needs to be 
+            in the same format as the data array - all moduli/real parts first, 
+            all phases/imaginary parts second. 
+
+        time_res: np.float, optional 
+            The time resolution of the lightcurves used to build the data. It is 
+            necessary to build the grid of Fourier frequency over which to 
+            compute the model.
+        
+        seg_sizenp.float, optional 
+            The size of the segments in which the lightcurves were divided 
+            to build the data. It is necessary to build the grid of Fourier 
+            frequency over which to compute the model.         
+
+        freq_grid: np.array(float), optional 
+            The grid of Fourier frequency over which to compute the model. If it 
+            is not passed explicitely, it is computed from the time resolution 
+            and segment size arguments. 
+        
+        time_grid: np.array(float), optional 
+            The grid of times used to generate the Fourier frequency grid. Used 
+            for internal model calcluations, if using an impulse response 
+            function and the users wishes to use the sinc decomposition method.
+        
+        freq_bins: np.array(float), optional 
+            The Fourier frequency grids over which energy-dependent data has 
+            been averaged. Required for fitting energy-dependent data (e.g. lag 
+            energy spectra), and not used for frequency-dependent data.
+            
+        norm; str, optionalm default = "abs" 
+            The normalization of the data products, if they are calculated from 
+            a stingray event file. If not specified, absolute rms normalization 
+            is used.  
         """
                 
         if self.units is None:
@@ -1487,7 +1560,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         #combine the edges of the reference and subject bands with those of the matrix
         #then sort+keep only the ones that are not repeated, and rebin the matrix
         #to this grid of channels
-        rebin_bounds = np.append(sub_bounds,ref_bounds).reshape(len(sub_bounds)+len(ref_bounds))
+        n_bins = len(sub_bounds)+len(ref_bounds)
+        rebin_bounds = np.append(sub_bounds,ref_bounds).reshape(n_bins)
         rebin_bounds = np.append(rebin_bounds,response.emin[0])
         rebin_bounds = np.append(rebin_bounds,response.emax[-1])
         rebin_bounds = np.unique(np.sort(rebin_bounds))
@@ -1499,9 +1573,13 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         self.n_chans = self.ebounds_mask[self.ebounds_mask==True].size
         
         if self.dependence == "frequency":
-            self._freq_dependent_cross(data,data_err,freq_grid,time_grid,time_res,seg_size,norm)
+            self._freq_dependent_cross(data,data_err,
+                                       freq_grid,time_grid,
+                                       time_res,seg_size,norm)
         elif self.dependence == "energy":
-            self._energ_dependent_cross(freq_bins,data,data_err,freq_grid,time_grid,time_res,seg_size)
+            self._energ_dependent_cross(freq_bins,data,data_err,
+                                        freq_grid,time_grid,
+                                        time_res,seg_size)
         else:
             print("error")    
         self._set_unmasked_data(self.n_freqs)
@@ -1516,7 +1594,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             events_ref = data.filter_energy_range(self.ref_band)
             ps_ref = AveragedPowerspectrum.from_events(events_ref,
                                                        segment_size=seg_size,
-                                                       dt=time_res,norm=norm,silent=True)
+                                                       dt=time_res,norm=norm,
+                                                       silent=True)
             ctrate_ref = get_average_ctrate(events_ref.time,events_ref.gti,seg_size)
             noise_ref = poisson_level(norm=norm, meanrate=ctrate_ref)     
                 
@@ -1532,10 +1611,12 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             self.data_err = []
             
             for i in range(self.n_chans):
-                events_sub = events.filter_energy_range([self.response.emin[i],self.response.emax[i]])
-                #get the cross spectrum
+                events_sub = events.filter_energy_range([self.response.emin[i],
+                                                         self.response.emax[i]])
                 cs = AveragedCrossspectrum.from_events(events_sub,events_ref,
-                                                       segment_size=seg_size,dt=time_res,norm=norm,silent=True)
+                                                       segment_size=seg_size,
+                                                       dt=time_res,norm=norm,
+                                                       silent=True)
                 if self.units == "lags":
                     lag, lag_err = cs.time_lag() 
                     self.data = np.append(self.data,lag)
@@ -1543,7 +1624,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                 else:
                     ps_sub = AveragedPowerspectrum.from_events(events_sub,
                                                                segment_size=seg_size,
-                                                               dt=time_res,norm=norm,silent=True)    
+                                                               dt=time_res,norm=norm,
+                                                               silent=True)    
                     ctrate_sub = get_average_ctrate(events_sub.time,events_sub.gti,seg_size)                    
                     noise_sub = poisson_level(norm=norm, meanrate=ctrate_sub)                      
                     data_size = len(cs.freq)
