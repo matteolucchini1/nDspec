@@ -36,7 +36,7 @@ def lorentz(array, params):
 def cross_lorentz(array1,array2,params):
     n_energs = len(array1)
     n_freqs = len(array2)
-        if params.ndim == 1:
+    if params.ndim == 1:
         f_pk = params[0]
         q = params[1]
         rms = params[2]

@@ -16,6 +16,39 @@ from lmfit import fit_report, minimize
 from lmfit.model import ModelResult as LM_result
 
 class SimpleFit():
+    """
+    Generic least-chi squared fitter class, used internally to store methods 
+    that are shared between all the fitter types. 
+           
+    Attributes
+    ----------
+    model: lmfit.CompositeModel 
+        A lmfit CompositeModel object, which contains a wrapper to the model 
+        component(s) one wants to fit to the data. 
+   
+    model_params: lmfit.Parameters 
+        A lmfit Parameters object, which contains the parameters for the model 
+        components.
+   
+    likelihood: None
+        Work in progress; currently the software defaults to chi squared 
+        likelihood
+   
+    fit_result: lmfit.MinimizeResult
+        A lmfit MinimizeResult, which stores the result (including best-fitting 
+        parameter values, fit statistics etc) of a fit after it has been run.         
+   
+    data: np.array(float)
+        An array storing the data to be fitted. If the data is complex and/or 
+        multi-dimensional, it is flattened to a single dimension in order to be 
+        compatible with the LMFit fitter methods.
+   
+    data_err: np.array(float)
+        An array containing the uncertainty on the data to be fitted. It is also 
+        stored as a one-dimensional array regardless of the type or dimensionality 
+        of the initial data.           
+    """ 
+
     def __init__(self):
         self.model = None
         self.model_params = None
@@ -151,7 +184,7 @@ class SimpleFit():
         parameters defined with .set_params(). Once the algorithm has completed 
         its run, it prints to terminal the best-fitting parameters, fit 
         statistics, and simple selection criteria (reduced chi-squared, Akaike
-        information criterion, and Bayesian informatino criterion). 
+        information criterion, and Bayesian information criterion). 
         
         Parameters:
         -----------
@@ -169,6 +202,70 @@ class SimpleFit():
         return
 
 class EnergyDependentFit():
+    """
+    Internal book-keeping class used to manage noticing or ignoring energy 
+    channels, for cases when the data requires an instrument response. 
+    
+    Stores the full (unmasked) energy center/bounds, and data arrays, a mask
+    used to track which channels/data points are noticed or ignored, as well as 
+    the masked arrays containing only the noticed bins. 
+
+    Attributes
+    ----------
+    
+    energs: np.array(float)
+        The array of physical photon energies over which the model is computed. 
+        Defined as the middle of each bin in the energy range stored in the 
+        instrument response provided.    
+        
+    energ_bounds: np.array(float)
+        The array of energy bin widths, for each bin over which the model is 
+        computed. Defined as the difference between the uppoer and lower bounds 
+        of the energy bins stored in the insrument response provided. 
+               
+    ebounds: np.array(float) 
+        The array of energy channel bin centers for the instrument energy
+        channels,  as stored in the instrument response provided. Only contains 
+        the channels that are noticed during the fit.
+
+    ewidths: np.array(float) 
+        The array of energy channel bin widths for the instrument energy
+        channels,  as stored in the instrument response provided. Only contains 
+        the channels that are noticed during the fit.
+        
+    ebounds_mask: np.array(bool)
+        The array of instrument energy channels that are either ignored or 
+        noticed during the fit. A given channel i is noticed if ebounds_mask[i]
+        is True, and ignored if it is false. 
+        
+    n_chans: int 
+        The number of channels that are to be noticed during the fit.
+        
+    _all_chans: int 
+        The total number of channels in the loaded response matrix.
+        
+    n_bins: int 
+        Only used for two-dimensional data fitting. Defined as the number of 
+        noticed channels, times the number of bins in the second dimension 
+        (e.g. Fourier frequency).
+        
+    _all_bins: int 
+        Only used for two-dimensional data fitting. Defined as the total number 
+        of  channels, times the number of bins in the second dimension 
+        (e.g. Fourier frequency).
+                
+    _emin_unmasked, _emax_unmasked, _ebounds_unmasked, _ewidths_unmasked: np.array(float)
+        The array of every lower bound, upper bound, channel center and channel 
+        widths stored in the response, regardless of which ones are ignored or 
+        noticed during the fit. Used exclusively to facilitate book-keeping 
+        internal to the fitter class. 
+        
+    _data_unmasked, _data_err_unmasked: np.array(float)
+        The array of every cout rate and relative error contained in the 
+        spectrum, regardless of which ones are ignored or noticed during the 
+        fit. Used exclusively to facilitate book-keeping internal to the fitter
+        class.   
+    """
     def __init__(self):   
         self.energs = 0.5*(self.response.energ_hi+self.response.energ_lo)
         self.energ_bounds = self.response.energ_hi-self.response.energ_lo
@@ -177,7 +274,19 @@ class EnergyDependentFit():
         self.ebounds_mask = np.full((self.response.n_chans), True)
         pass
 
-    def _set_unmasked_data(self):
+    def _set_unmasked_data(self,extra_dim_size=1.):
+        """
+        This initializer method is used to set up the unmasked arrays for later 
+        book-keeping. Classes inheriting from EnergyDependentFit should call it 
+        immediately after setting the data and energy/channel arrays. 
+        
+        Parameters
+        ----------
+        extra_dim_size: int, default=1
+            The dimension of the data in the direction in addition to photon energy 
+            (e.g., the number of Fourier frequency bins). Necessary to store the 
+            total number of data bins loaded. 
+        """
         self._emin_unmasked = self.response.emin
         self._emax_unmasked = self.response.emax
         self._ebounds_unmasked = self.ebounds
@@ -187,12 +296,23 @@ class EnergyDependentFit():
 
         if self.twod_data is True:
             self._all_chans = self._ebounds_unmasked.size
-            self._all_bins = self.n_freqs*self._all_chans
+            self._all_bins = extra_dim_size*self._all_chans
             self.n_chans = self._all_chans
             self.n_bins = self._all_bins
         return
         
     def ignore_energies(self,bound_lo,bound_hi):
+        """
+        This method Aadjusts the arrays stored such that they (and the fit) 
+        ignore selected channels based on their energy bounds.
+
+        Parameters:
+        -----------
+        bound_lo : float
+            Lower bound of ignored energy interval.
+        bound_hi : float
+            Higher bound of ignored energy interval.    
+        """
         if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
             (isinstance(bound_hi, (np.floating, float, int)) != True)):
             raise TypeError("Energy bounds must be floats or integers")
@@ -207,24 +327,56 @@ class EnergyDependentFit():
         self.ewidths = np.extract(self.ebounds_mask,self._ewidths_unmasked)   
         self.n_chans = self.ebounds_mask[self.ebounds_mask==True].size
 
+        #filter 2d data is more complex because we have to filter row by row 
+        #or column by column, depending on the format 
         if self.twod_data is True:  
             self.n_bins = self.n_chans*self.n_freqs
             if self.units != "lags":
-                data_filter_first_dim = self._filter_2d_by_mask(self._data_unmasked[:self._all_bins],self.ebounds_mask)
-                error_filter_first_dim = self._filter_2d_by_mask(self._data_err_unmasked[:self._all_bins],self.ebounds_mask)              
-                data_filter_second_dim = self._filter_2d_by_mask(self._data_unmasked[self._all_bins:],self.ebounds_mask)
-                error_filter_second_dim = self._filter_2d_by_mask(self._data_err_unmasked[self._all_bins:],self.ebounds_mask)                
+                data_filter_first_dim = self._filter_2d_by_mask(
+                                        self._data_unmasked[:self._all_bins],
+                                        self.ebounds_mask
+                                        )
+                error_filter_first_dim = self._filter_2d_by_mask(
+                                         self._data_err_unmasked[:self._all_bins],
+                                         self.ebounds_mask
+                                         )              
+                data_filter_second_dim = self._filter_2d_by_mask(
+                                         self._data_unmasked[self._all_bins:],
+                                         self.ebounds_mask
+                                         )
+                error_filter_second_dim = self._filter_2d_by_mask(
+                                          self._data_err_unmasked[self._all_bins:],
+                                          self.ebounds_mask
+                                          )                
                 self.data = np.append(data_filter_first_dim,data_filter_second_dim)
                 self.data_err = np.append(error_filter_first_dim,error_filter_second_dim)              
             else:
-                self.data = self._filter_2d_by_mask(self._data_unmasked,self.ebounds_mask)
-                self.data_err = self._filter_2d_by_mask(self._data_err_unmasked,self.ebounds_mask)
+                self.data = self._filter_2d_by_mask(
+                            self._data_unmasked,
+                            self.ebounds_mask
+                            )
+                self.data_err = self._filter_2d_by_mask(
+                                self._data_err_unmasked,
+                                self.ebounds_mask
+                                )
         else: 
             self.data = np.extract(self.ebounds_mask,self._data_unmasked)
             self.data_err = np.extract(self.ebounds_mask,self._data_err_unmasked)            
         return
    
     def notice_energies(self,bound_lo,bound_hi):
+        """
+        This method adjusts the data arrays stored such that they (and the fit) 
+        notice selected (previously ignore) channels  based on their energy 
+        bounds.
+
+        Parameters:
+        -----------
+        bound_lo : float
+            Lower bound of ignored energy interval.
+        bound_hi : float,
+            Higher bound of ignored energy interval.     
+        """
         if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
             (isinstance(bound_hi, (np.floating, float, int)) != True)):
             raise TypeError("Energy bounds must be floats or integers")        
@@ -241,24 +393,59 @@ class EnergyDependentFit():
         self.ewidths = np.extract(self.ebounds_mask,self._ewidths_unmasked)   
         self.n_chans = self.ebounds_mask[self.ebounds_mask==True].size        
 
+        #filter 2d data is more complex because we have to filter row by row 
+        #or column by column, depending on the format 
         if self.twod_data is True:
             self.n_bins = self.n_chans*self.n_freqs
             if self.units != "lags":
-                data_filter_first_dim = self._filter_2d_by_mask(self._data_unmasked[:self._all_bins],self.ebounds_mask)
-                error_filter_first_dim = self._filter_2d_by_mask(self._data_err_unmasked[:self._all_bins],self.ebounds_mask)              
-                data_filter_second_dim = self._filter_2d_by_mask(self._data_unmasked[self._all_bins:],self.ebounds_mask)
-                error_filter_second_dim = self._filter_2d_by_mask(self._data_err_unmasked[self._all_bins:],self.ebounds_mask)                
+                data_filter_first_dim = self._filter_2d_by_mask(
+                                        self._data_unmasked[:self._all_bins],
+                                        self.ebounds_mask
+                                        )
+                error_filter_first_dim = self._filter_2d_by_mask(
+                                         self._data_err_unmasked[:self._all_bins],
+                                         self.ebounds_mask
+                                         )              
+                data_filter_second_dim = self._filter_2d_by_mask(
+                                         self._data_unmasked[self._all_bins:],
+                                         self.ebounds_mask
+                                         )
+                error_filter_second_dim = self._filter_2d_by_mask(
+                                          self._data_err_unmasked[self._all_bins:],
+                                          self.ebounds_mask
+                                          )                
                 self.data = np.append(data_filter_first_dim,data_filter_second_dim)
                 self.data_err = np.append(error_filter_first_dim,error_filter_second_dim)              
             else:
-                self.data = self._filter_2d_by_mask(self._data_unmasked,self.ebounds_mask)
-                self.data_err = self._filter_2d_by_mask(self._data_err_unmasked,self.ebounds_mask)
+                self.data = self._filter_2d_by_mask(
+                            self._data_unmasked,
+                            self.ebounds_mask
+                            )
+                self.data_err = self._filter_2d_by_mask(
+                                self._data_err_unmasked,
+                                self.ebounds_mask
+                                )
         else:
             self.data = np.extract(self.ebounds_mask,self._data_unmasked)
             self.data_err = np.extract(self.ebounds_mask,self._data_err_unmasked)               
         return
 
     def _filter_2d_by_mask(self,arr,mask):
+        """
+        This method filters either the rows or columns of a two-dimensional 
+        array, depending on the dependence of the data products used. Currently 
+        the method assumes that the input data is a function of Fourier frequency 
+        and energy. For example, one could input lag-frequency spectra, or 
+        energy-covariance, or residuals for an appropriate two-dimensional model.
+        
+        Parameters:
+        ----------
+        arr: np.array(float,float)
+            The two-dimensional array to be filtered 
+        mask: np.array(bool)
+            The mask to be applied to the array - elements labelled as True in 
+            the mask are kept, ones labelled as False are filtered out. 
+        """    
         filtered_array = [] 
         if self.dependence == "energy":
             arr_reshape = arr.reshape((self.n_freqs,self._all_chans))
@@ -1007,7 +1194,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             self._energ_dependent_cross(freq_bins,data,data_err,freq_grid,time_grid,time_res,seg_size)
         else:
             print("error")    
-        self._set_unmasked_data()
+        self._set_unmasked_data(self.n_freqs)
         return
 
     def _freq_dependent_cross(self,data,data_err=None,
