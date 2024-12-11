@@ -33,21 +33,21 @@ class ResponseMatrix(nDspecOperator):
     responses when read with Astropy. Fixes for both of these issues are 
     pending.     
     
-    Parameters 
-    ----------  
+    Parameters: 
+    -----------  
     resp_path: string 
         The path to the response file (either .rmf or .rsp) to load.
     
     Other parameters:
-    ----------  
+    -----------------  
     arf_path: string 
         Optional path to an effective area file (.arf) to load along with the 
         redistribution matrix.  Note that some mission tools produce .rmf files 
         which also contain the telescope effective area, in which case loading 
         the arf is not necessary. 
         
-    Attributes
-    ----------
+    Attributes:
+    -----------
     chans: numpy.array(int)
         An array of integers of size (n_chans) representing each channel in the 
         response.
@@ -99,7 +99,7 @@ class ResponseMatrix(nDspecOperator):
         class attributes from it using astropy.
         
         Parameters:
-        ----------             
+        -----------             
         filepath: string 
             The path to the .rmf or .rsp file to be loaded.
         """
@@ -160,7 +160,7 @@ class ResponseMatrix(nDspecOperator):
         matrix columns of a response file into a (n_energs x n_chans) matrix.
         
         Parameters:
-        ---------- 
+        ----------- 
         n_grp: np.array(int)
             The number of sets of non-zero elements stored in the matrix. 
         
@@ -177,8 +177,8 @@ class ResponseMatrix(nDspecOperator):
             marked by n_grp, starting at channel f_chan and ending at channel 
             f_chan+n_chan.          
         
-        Returns
-        ---------- 
+        Returns:
+        --------
         resp_matrix: np.array(float,float)
             The instrument response matrix, loaded in an array of dimensions
             (n_energs x n_chans). The elements that are not present in the 
@@ -227,7 +227,7 @@ class ResponseMatrix(nDspecOperator):
         specresp class attribute.
         
         Parameters:
-        ----------     
+        -----------     
         filepath: string 
             The path to the .arf file to be loaded.
         """
@@ -268,13 +268,13 @@ class ResponseMatrix(nDspecOperator):
         """
         Get the tlmin keyword for `F_CHAN`.
 
-        Parameters
-        ----------
+        Parameters:
+        -----------
         h : an astropy.io.fits.hdu.table.BinTableHDU object
             The extension containing the `F_CHAN` column
 
-        Returns
-        -------
+        Returns:
+        --------
         tlmin : int
             The tlmin keyword
         """
@@ -292,9 +292,7 @@ class ResponseMatrix(nDspecOperator):
         # get the corresponding value
         tlmin = int(list(hdr.items())[tlmin_idx][1])
         return tlmin
-    
-    #tbd: in the tutorial add an example of trying to rebin in energy rather 
-    #than channel and show that it is dangerous
+
     def rebin_channels(self,new_bounds_lo,new_bounds_hi):
         """
         This method rebins the response matrix resp_matrix to an input, 
@@ -306,15 +304,15 @@ class ResponseMatrix(nDspecOperator):
         the total number of photons in the model, are conserved after rebinning.
         
         Parameters:
-        ----------    
+        -----------    
         new_bounds_lo: np.array(float)
             An array of energies with the lower bound of each energy channel. 
             
         new_bounds_hi: np.array(float)  
             An array of energies with the upper bound of each energy channel.     
         
-        Returns
-        ---------- 
+        Returns:
+        --------
         bin_resp: ResponseMatrix
             A ResponseMatrix object containing the same response loaded in the 
             self object, but rebinned over the channel axis to the input grid.
@@ -362,13 +360,13 @@ class ResponseMatrix(nDspecOperator):
         very carefully.
         
         Parameters:
-        ----------    
+        -----------   
         factor: integer
             The number of bins of the old energy grid that will be grouped in 
             the new energy grid  
         
-        Returns
-        ---------- 
+        Returns:
+        -------- 
         bin_resp: ResponseMatrix
             A ResponseMatrix object containing the same response loaded in the 
             self object, but rebinned over the energy axis to the input grid.
@@ -411,7 +409,7 @@ class ResponseMatrix(nDspecOperator):
         model is returned in units of counts/s/channel.
         
         Parameters:
-        ----------      
+        -----------      
         model_input: np.array(float,float) or CrossSpectrum
             Either a) a 2-d array of size (n_energs x arbirtrary length), 
             containing the input model as a function of energy and optionally an 
@@ -492,10 +490,15 @@ class ResponseMatrix(nDspecOperator):
         the base-10 logarithm of the response matrix. 
         
         Parameters:
-        ----------             
+        -----------             
         plot_type: string, default="channel"
             Sets the units of the X-axis to be either the channel number (by 
             default) or the bounds of each channel (plot_type="energy").
+        
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
         """
     
         fig = plt.figure(figsize=(9.,7.5))
@@ -529,10 +532,15 @@ class ResponseMatrix(nDspecOperator):
         function of energy. 
         
         Parameters:
-        ----------             
+        -----------             
         plot_scale: string, default="log"
             Switches between log10(arf) (plot_scale="log", the default behavior)
-            and just the arf (plot_scale="lin").  
+            and just the arf (plot_scale="lin").
+            
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
         """
     
         #tbd: only allow this to happen if specresp is defined
@@ -554,7 +562,6 @@ class ResponseMatrix(nDspecOperator):
             return fig 
         else:
             return   
-
         
     def diagonal_matrix(self,num):
         """
@@ -567,7 +574,7 @@ class ResponseMatrix(nDspecOperator):
             The dimension of the desired matrix.
             
         Returns: 
-        ---------- 
+        --------
         diag_resp: np.array(float,float)
             An identity matrix of size (num x num).   
         """
@@ -596,7 +603,7 @@ class ResponseMatrix(nDspecOperator):
         e.g. cross spectra. 
         
         Parameters:
-        ----------             
+        -----------             
         array: np.array(int,int)
             The input array to be unfolded, of size (n_energs,arbitrary). 
             In the x-axis it needs to be defined over the instrument energy 
@@ -604,7 +611,7 @@ class ResponseMatrix(nDspecOperator):
             frequencies).
             
         Returns: 
-        ---------- 
+        -------- 
         unfold_model: np.array(float,float)
             The array unfolded through the instrument response, of size 
             (n_chans,arbitrary), defined over the energy bounds of each channel 

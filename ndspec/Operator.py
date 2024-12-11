@@ -41,7 +41,7 @@ class nDspecOperator(object):
         weighted average of the input array.
         
         Parameters:
-        ---------- 
+        ----------- 
         array: np.array(float)
             An array of length identical to either element of array_start, 
             containing the array that the user wishes to be rebinned to the new 
@@ -58,8 +58,8 @@ class nDspecOperator(object):
             rebinned, the second array contains the upper bounds of the same 
             grid.      
         
-        Returns
-        ----------    
+        Returns:
+        --------    
         rebin_array: np.float 
             An array of length identical to either element of rebin_grid, 
             containing the rebinned array.
@@ -116,7 +116,7 @@ class nDspecOperator(object):
         responses over channels.
         
         Parameters:
-        ---------- 
+        ----------- 
         array: np.array(float)
             An array of length identical to either element of array_start, 
             containing the array that the user wishes to be rebinned to the new 
@@ -138,8 +138,8 @@ class nDspecOperator(object):
             renormalized by the number of bins the initial grid that were summed 
             in it.     
         
-        Returns
-        ----------    
+        Returns:
+        --------    
         rebin_array: np.float 
             An array of length identical to either element of rebin_grid, 
             containing the rebinned array.
@@ -185,7 +185,7 @@ class nDspecOperator(object):
         energy.
         
         Parameters:
-        ---------- 
+        ----------- 
         array: np.array(float)
             An array of length identical to either element of array_start, 
             containing the array that the user wishes to be rebinned to the new 
@@ -207,8 +207,8 @@ class nDspecOperator(object):
             renormalized by the number of bins the initial grid that were summed 
             in it.     
         
-        Returns
-        ----------    
+        Returns:
+        --------   
         rebin_array: np.float 
             An array of length identical to either element of rebin_grid, 
             containing the rebinned array.
@@ -248,7 +248,7 @@ class nDspecOperator(object):
         contained within "old_grid".
         
         Parameters:
-        ----------
+        -----------
         array: np.array(float) 
             The input array to be interpolated
             
@@ -262,7 +262,7 @@ class nDspecOperator(object):
             NOT perform extrapolation beyond the existing bounds. 
         
         Other parameters:
-        ----------
+        -----------------
         grid_told: float, default 1e-4
             Sets the precision to which  the boundaries of "new_grid" are set
             to be contained contained within "old_grid" to some small precision.
@@ -274,8 +274,8 @@ class nDspecOperator(object):
             logarithm of the  input array, which is more accurate if the latter 
             varies by many orders of magnitude over the grid
         
-        Returns
-        ---------- 
+        Returns:
+        --------
         interp_array: np.array(float) 
             The values of the input "array", interpolated over the updated grid 
             "new_grid".
@@ -310,7 +310,7 @@ class nDspecOperator(object):
         be implemented in the future.         
         
         Parameters:
-        ----------
+        -----------
         signal: np.array(float,float)
             The (two-dimensional) input to be integrated over one of the two
             axis.
@@ -329,8 +329,8 @@ class nDspecOperator(object):
             other dimensions (e.g. Fourier frequency, time, etc depending on the
             specific operator).
         
-        Returns
-        ----------     
+        Returns:
+        --------     
         integral: float 
             The result of the integral.
         """    
@@ -356,7 +356,7 @@ class nDspecOperator(object):
         the input array "grid".
         
         Parameters:
-        ----------
+        -----------
         grid: np.array(float)
             The array to be sliced.
             
@@ -365,8 +365,8 @@ class nDspecOperator(object):
             that one in 3 elements, starting from the 0th and rounded down to 
             the nearest integer, will be kept.
         
-        Returns
-        ----------     
+        Returns:
+        --------     
         sliced_grid: float 
             The input array sliced by a factor "factor".
         """
@@ -381,18 +381,17 @@ class nDspecOperator(object):
         they match with the edges of a fixed grid "starting_grid".
         
         Parameters:
-        ----------  
+        -----------  
         start_grid: np.array(float)
             An array containing either the lower or upper bounds of the fixed
             grid.          
 
         rebin_grid: np.array(float)
             An array containing either the lower or upper bounds of the grid to 
-            be re-aligned.        
- 
+            be re-aligned.      
         
         Returns:
-        ----------   
+        --------   
         aligned_grid: np.array(float) 
             An array with the same size as the "rebin_grid" input. Made of the 
             closest elements of the fixed "rebin_grid" to the initial input 
@@ -473,7 +472,7 @@ class nDspecOperator(object):
         [3-1,7-3,13-7] = [2,4,6].  
         
         Parameters:
-        ----------
+        -----------
         grid_lower_bounds: np.array(float) 
             A one-dimensional array of length n, containing the lower bounds of
             the grid. 
@@ -483,7 +482,7 @@ class nDspecOperator(object):
             the grd.         
         
         Returns:        
-        ----------
+        --------
         grid_widths: np.array(float) 
             A one-dimensional array of length n, containing the witdh of each 
             bin in the grid.
@@ -520,7 +519,7 @@ class nDspecOperator(object):
         [(3+1)/2,(7+3)/2,(13+7)/2] = [2,5,10].
         
         Parameters:
-        ----------
+        -----------
         grid_lower_bounds: np.array(float) 
             A one-dimensional array of length n, containing the lower bounds of
             the grid. 
@@ -530,7 +529,7 @@ class nDspecOperator(object):
             the grd.    
                     
         Returns:        
-        ----------
+        --------
         grid_midpoint: np.array(float)         
             A one-dimensional array of length n, containing the mid point 
             (defined as the geometric average) of each bin in the grid.        
@@ -565,7 +564,7 @@ class nDspecOperator(object):
         [3-1,7-3,13-7] = [2,4,6].  
         
         Parameters:
-        ----------
+        -----------
         grid_midpoint: np.array(float)         
             A one-dimensional array of length n, containing the mid point 
             (defined as the geometric average) of each bin in the grid. 
@@ -574,10 +573,10 @@ class nDspecOperator(object):
             The lowest bound of the first bin in the grid.
         
         Returns:
+        --------
         grid_widths: np.array(float)
             A one-dimensional array of length n, containing the witdh of each 
-            bin in the grid.        
-        ----------
+            bin in the grid.      
         """
         
         if (grid_midpoint[0] < start_point):
@@ -614,7 +613,7 @@ class nDspecOperator(object):
         the "grid_upper_bounds" array returned by this method is [3,7,13]. 
         
         Parameters:
-        ----------
+        -----------
         grid_midpoint: np.array(float)         
             A one-dimensional array of length n, containing the mid point 
             (defined as the geometric average) of each bin in the grid. 
@@ -623,14 +622,15 @@ class nDspecOperator(object):
             The lowest bound of the first bin in the grid.
                     
         Returns:
-         grid_lower_bounds: np.array(float) 
+        --------
+        grid_lower_bounds: np.array(float) 
             A one-dimensional array of length n, containing the lower bounds of
             the grid. 
             
         grid_upper_bounds: np.array(float)
             A one-dimensional array of length n, containing the upper bounds of 
             the grd.        
-        ----------
+
         """
 
         if (grid_midpoint[0] < start_point):
@@ -661,7 +661,7 @@ class nDspecOperator(object):
         bounds are contained.  
         
         Parameters:
-        ----------  
+        -----------  
         new_lo: np.array(float)
             An array of arbitrary size, containing the lower bounds of the new 
             grid 
@@ -670,8 +670,8 @@ class nDspecOperator(object):
             An array of arbitrary size, containing the lower bounds of the new 
             grid                     
         
-        Returns
-        ---------- 
+        Returns:
+        --------
         return_lo: np.array(float)
             An array of size len(new_low), containing the indexes of the first 
             bin in the original grid that is contained in each bin in the input 

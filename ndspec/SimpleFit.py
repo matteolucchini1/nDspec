@@ -20,8 +20,8 @@ class SimpleFit():
     Generic least-chi squared fitter class, used internally to store methods 
     that are shared between all the fitter types. 
            
-    Attributes
-    ----------
+    Attributes:
+    -----------
     model: lmfit.CompositeModel 
         A lmfit CompositeModel object, which contains a wrapper to the model 
         component(s) one wants to fit to the data. 
@@ -145,7 +145,6 @@ class SimpleFit():
             residuals = (data-model)/error
             bars = np.ones(len(data))
         else:
-            #eventually a better likelihood will need to go here
             print("can only return delta chi squared or ratio")
         return residuals, bars
 
@@ -210,9 +209,8 @@ class EnergyDependentFit():
     used to track which channels/data points are noticed or ignored, as well as 
     the masked arrays containing only the noticed bins. 
 
-    Attributes
-    ----------
-    
+    Attributes:
+    -----------    
     energs: np.array(float)
         The array of physical photon energies over which the model is computed. 
         Defined as the middle of each bin in the energy range stored in the 
@@ -266,6 +264,7 @@ class EnergyDependentFit():
         fit. Used exclusively to facilitate book-keeping internal to the fitter
         class.   
     """
+    
     def __init__(self):   
         self.energs = 0.5*(self.response.energ_hi+self.response.energ_lo)
         self.energ_bounds = self.response.energ_hi-self.response.energ_lo
@@ -280,13 +279,14 @@ class EnergyDependentFit():
         book-keeping. Classes inheriting from EnergyDependentFit should call it 
         immediately after setting the data and energy/channel arrays. 
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         extra_dim_size: int, default=1
             The dimension of the data in the direction in addition to photon energy 
             (e.g., the number of Fourier frequency bins). Necessary to store the 
             total number of data bins loaded. 
         """
+        
         self._emin_unmasked = self.response.emin
         self._emax_unmasked = self.response.emax
         self._ebounds_unmasked = self.ebounds
@@ -313,6 +313,7 @@ class EnergyDependentFit():
         bound_hi : float
             Higher bound of ignored energy interval.    
         """
+        
         if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
             (isinstance(bound_hi, (np.floating, float, int)) != True)):
             raise TypeError("Energy bounds must be floats or integers")
@@ -377,6 +378,7 @@ class EnergyDependentFit():
         bound_hi : float,
             Higher bound of ignored energy interval.     
         """
+        
         if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
             (isinstance(bound_hi, (np.floating, float, int)) != True)):
             raise TypeError("Energy bounds must be floats or integers")        
@@ -439,13 +441,20 @@ class EnergyDependentFit():
         energy-covariance, or residuals for an appropriate two-dimensional model.
         
         Parameters:
-        ----------
-        arr: np.array(float,float)
+        -----------
+        arr: np.array(float,float)  
             The two-dimensional array to be filtered 
         mask: np.array(bool)
             The mask to be applied to the array - elements labelled as True in 
             the mask are kept, ones labelled as False are filtered out. 
+            
+        Returns:
+        --------
+        filtered_array: np.array(float,float)
+            The input two-d array, reduced and filtered to include only the 
+            noticed energy channels 
         """    
+        
         filtered_array = [] 
         if self.dependence == "energy":
             arr_reshape = arr.reshape((self.n_freqs,self._all_chans))
@@ -471,8 +480,8 @@ class FitPowerSpectrum(SimpleFit):
     either pass noise-subtracted data, or include a constant component in the 
     model definition (see below).   
         
-    Attributes
-    ----------
+    Attributes inherited from SimpleFit:
+    ------------------------------------
     model: lmfit.CompositeModel 
         A lmfit CompositeModel object, which contains a wrapper to the model 
         component(s) one wants to fit to the data. 
@@ -490,14 +499,17 @@ class FitPowerSpectrum(SimpleFit):
         parameter values, fit statistics etc) of a fit after it has been run.         
    
     data: np.array(float)
-        An array of float containing the power spectrum to be fitted. Users can 
-        choose whatever units they prefer (e.g. fractional vs absolute 
-        normalization), as long as it is a power (rather than the more commonly
-        plotted power*frequency). 
+        An array storing the data to be fitted. If the data is complex and/or 
+        multi-dimensional, it is flattened to a single dimension in order to be 
+        compatible with the LMFit fitter methods.
    
     data_err: np.array(float)
-        The uncertainty on the power stored in data. 
-   
+        An array containing the uncertainty on the data to be fitted. It is also 
+        stored as a one-dimensional array regardless of the type or dimensionality 
+        of the initial data.   
+        
+    Other attributes:
+    -----------------    
     freqs: np.array(float)
         The Fourier frequency over which both the data and model are defined, 
         in units of Hz.           
@@ -776,6 +788,105 @@ class FitPowerSpectrum(SimpleFit):
             return   
 
 class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
+    """
+    Least-chi squared fitter class for a time averaged spectrum, defined as the  
+    count rate as a function of photon channel energy bound. 
+    
+    Given an instrument response, a count rate spectrum, its error and a 
+    model (defined in energy space), this class handles fitting internally 
+    using the lmfit library.    
+        
+    Attributes inherited from SimpleFit:
+    ------------------------------------
+    model: lmfit.CompositeModel 
+        A lmfit CompositeModel object, which contains a wrapper to the model 
+        component(s) one wants to fit to the data. 
+   
+    model_params: lmfit.Parameters 
+        A lmfit Parameters object, which contains the parameters for the model 
+        components.
+   
+    likelihood: None
+        Work in progress; currently the software defaults to chi squared 
+        likelihood
+   
+    fit_result: lmfit.MinimizeResult
+        A lmfit MinimizeResult, which stores the result (including best-fitting 
+        parameter values, fit statistics etc) of a fit after it has been run.         
+   
+    data: np.array(float)
+        An array storing the data to be fitted. If the data is complex and/or 
+        multi-dimensional, it is flattened to a single dimension in order to be 
+        compatible with the LMFit fitter methods.
+   
+    data_err: np.array(float)
+        An array containing the uncertainty on the data to be fitted. It is also 
+        stored as a one-dimensional array regardless of the type or dimensionality 
+        of the initial data.       
+    
+    Attributes inherited from EnergyDependentFit:
+    ---------------------------------------------    
+    energs: np.array(float)
+        The array of physical photon energies over which the model is computed. 
+        Defined as the middle of each bin in the energy range stored in the 
+        instrument response provided.    
+        
+    energ_bounds: np.array(float)
+        The array of energy bin widths, for each bin over which the model is 
+        computed. Defined as the difference between the uppoer and lower bounds 
+        of the energy bins stored in the insrument response provided. 
+               
+    ebounds: np.array(float) 
+        The array of energy channel bin centers for the instrument energy
+        channels,  as stored in the instrument response provided. Only contains 
+        the channels that are noticed during the fit.
+
+    ewidths: np.array(float) 
+        The array of energy channel bin widths for the instrument energy
+        channels,  as stored in the instrument response provided. Only contains 
+        the channels that are noticed during the fit.
+        
+    ebounds_mask: np.array(bool)
+        The array of instrument energy channels that are either ignored or 
+        noticed during the fit. A given channel i is noticed if ebounds_mask[i]
+        is True, and ignored if it is false. 
+        
+    n_chans: int 
+        The number of channels that are to be noticed during the fit.
+        
+    _all_chans: int 
+        The total number of channels in the loaded response matrix.
+        
+    n_bins: int 
+        Only used for two-dimensional data fitting. Defined as the number of 
+        noticed channels, times the number of bins in the second dimension 
+        (e.g. Fourier frequency).
+        
+    _all_bins: int 
+        Only used for two-dimensional data fitting. Defined as the total number 
+        of  channels, times the number of bins in the second dimension 
+        (e.g. Fourier frequency).
+                
+    _emin_unmasked, _emax_unmasked, _ebounds_unmasked, _ewidths_unmasked: np.array(float)
+        The array of every lower bound, upper bound, channel center and channel 
+        widths stored in the response, regardless of which ones are ignored or 
+        noticed during the fit. Used exclusively to facilitate book-keeping 
+        internal to the fitter class. 
+        
+    _data_unmasked, _data_err_unmasked: np.array(float)
+        The array of every cout rate and relative error contained in the 
+        spectrum, regardless of which ones are ignored or noticed during the 
+        fit. Used exclusively to facilitate book-keeping internal to the fitter
+        class.       
+    
+    Other attributes:
+    -----------------
+    response: nDspec.ResponseMatrix
+        The instrument response matrix corresponding to the spectrum to be 
+        fitted. It is required to define the energy grids over which model and
+        data are defined.   
+    """ 
+    
     def __init__(self):
         SimpleFit.__init__(self)
         self.twod_data = False
@@ -1027,20 +1138,12 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         xerror = 0.5*np.extract(self.ebounds_mask,self._ewidths_unmasked)       
         
         #first; get the model in the correct units
-        #need to be careful about the units here - although all this mess is solved by 
-        #going to the xspec convention for energy dependence...
         model_fold = self.eval_model(params=params,energ=self.energs)
-        #model_fold = self.response.convolve_response(model_prefold)
         if units == "data":   
             model = np.extract(self.ebounds_mask,model_fold)   
             ylabel = "Folded counts/s/keV"
         elif units.count("unfold"):
-            power = units.count("e")
-            #the reason for folding and then unfolding the model is that 
-            #this is actually what happens to the data when we 'unfold' it - 
-            #by definition it has gone from the physical space to the detector space
-            #during an observation, and then we (arbitrarily) define the operation of
-            #unfolding it to bring it back.   
+            power = units.count("e") 
             model = self.response.unfold_response(model_fold)
             if power == 0:
                 ylabel = "Counts/s/keV/cm$^{2}$"
@@ -1130,6 +1233,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
             return  
 
 class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
+    
     def __init__(self):
         SimpleFit.__init__(self)
         self.twod_data = True 

@@ -40,8 +40,8 @@ class FourierProduct(nDspecOperator):
     automatically between the two implementations to ensure the Fourier 
     transform calculation is correct.
     
-    Parameters 
-    ----------  
+    Parameters: 
+    -----------  
     times: np.array(float)
         The array of times over which the quantity to be transformed is defined.
         If using the fft method, this array also defines the frequencies over
@@ -58,8 +58,8 @@ class FourierProduct(nDspecOperator):
         as implemented by numpy.fft, and "sinc", for the sinc function 
         decomposition described in Uttley and Malzac 2023 (arXiv:2312.08302).
     
-    Attributes 
-    ----------  
+    Attributes: 
+    -----------  
     times: np.array(float) 
         The array of times over which quantities are to be Fourier transformed.
         Necessary to utilize the sinc transform method. This array needs to be 
@@ -134,8 +134,8 @@ class FourierProduct(nDspecOperator):
         using the sinc transform method, the decomposition matrix irc_sinc_arr 
         is also updated automatically.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         freqs: np.array(float) 
             If using the sinc method, this is the array that will be used as the
             objet Fourier frequency grid. If using the fft method, the array is
@@ -151,8 +151,8 @@ class FourierProduct(nDspecOperator):
             fftfreq to some other user-specified grid through the appropriate 
             methods of each object.
 
-        Returns
-        -------
+        Returns:
+        --------
         new_freqs: np.array(float) 
             The updated frequency array, which can then be assigned to the
             "freqs" method. 
@@ -188,13 +188,13 @@ class FourierProduct(nDspecOperator):
         transforms are normalized by a factor sqrt(N), in order to return the 
         same normalization as the sinc function method.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         input_array: np.array(float) 
             The array to be Fourier transformed. 
 
-        Returns
-        ------
+        Returns:
+        --------
         transform: np.array(complex) 
             The Fourier transform of the input array, including only the values 
             defined at positive, non-zero frequency bins. 
@@ -231,13 +231,13 @@ class FourierProduct(nDspecOperator):
         See https://numpy.org/doc/stable/reference/
                     routines.fft.html#implementation-details
     
-        Parameters
-        ----------
+        Parameters:
+        -----------
         include_zero : bool, default=False
             Include the zero frequency in the output slice.
     
-        Returns
-        -------
+        Returns:
+        --------
         positive_bins : `slice`
             Slice object encoding the positive frequency bins.
         """        
@@ -257,8 +257,8 @@ class FourierProduct(nDspecOperator):
         frequency when using the sinc decomposition method, following eq. 27 in  
         Uttley and Malzac (https://arxiv.org/abs/2312.08302).
         
-        Returns
-        -------
+        Returns:
+        --------
         decomp: np.array(complex,complex) 
             A two-d array of size (n-times x n_freqs), containing the 
             mapping of time delay bins to Fourier frequency. This is the
@@ -289,13 +289,13 @@ class FourierProduct(nDspecOperator):
         single impulse response function, essentially neglecting the summatory
         in eq. 27 in Uttley and Malzac 2023.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         input_array: np.array(float) 
             The array to be Fourier transformed. 
 
-        Returns
-        ------
+        Returns:
+        --------
         transform: np.array(complex) 
             The Fourier transform of the input array for the set of time delay 
             and Fourier frequency bins set by _sinc_decomp(). 
@@ -314,13 +314,13 @@ class FourierProduct(nDspecOperator):
         at the i-th time bin is the response at that time bin, plus the response 
         up to the i-1th bin, identically to eq. 27 in Uttley and Malzac 2023.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         input_array: np.array(float) 
             The array to be Fourier transformed. 
 
-        Returns
-        ------
+        Returns:
+        --------
         transform: np.array(complex) 
             The Fourier transform of the input array for the set of time delay 
             and Fourier frequency bins set by _sinc_decomp(). 
@@ -337,13 +337,13 @@ class FourierProduct(nDspecOperator):
         This method acts like a wrapper to Fourier transform array, and calls 
         the appropriate method depending on user settings. 
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         input_array: np.array(float) 
             The array to be Fourier transformed. 
 
-        Returns
-        ------
+        Returns:
+        --------
         transform: np.array(complex) 
             The Fourier transform of the input array.
         """        
@@ -366,8 +366,8 @@ class PowerSpectrum(FourierProduct):
     nas ecessary to Fourier transform input quantities and handle changes to the
     internal frequency grid. 
     
-    Parameters inherited from FourierProduct
-    ----------  
+    Parameters inherited from FourierProduct:
+    ----------------------------------------- 
     times: np.array(float)
         The array of times over which the input signal is defined. 
     
@@ -380,8 +380,8 @@ class PowerSpectrum(FourierProduct):
         numpy.fft, and "sinc", for the sinc function decomposition described in 
         Uttley and Malzac 2023 (arXiv:2312.08302).
      
-    Attributes inherited from FourierProduct  
-    ----------  
+    Attributes inherited from FourierProduct:  
+    -----------------------------------------  
     times: np.array 
         The array of times over which the input signal is defined. 
     
@@ -413,8 +413,8 @@ class PowerSpectrum(FourierProduct):
         therefore is updated automatically every time the user changes frequency
         grid.  
         
-    Other Attributes 
-    ----------   
+    Other Attributes: 
+    -----------------   
     power_spec: np.array(float)
         An array of size(n_freqs), storing the un-normalized power spectrum of 
         an input signal.     
@@ -430,8 +430,8 @@ class PowerSpectrum(FourierProduct):
         "freqs" Fourier frequency array, of an input array, and assigns it to   
         the power_spec attribute contained in the class instance.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         signal: np.array(float)
             The quantity from which to calculate the power spectrum.        
         """
@@ -449,14 +449,14 @@ class PowerSpectrum(FourierProduct):
         attributes (n_freqs, power_spec). The re-binned power spectrum is 
         calculated by interpolating the previous power over the new grid. 
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         new_grid: np.array(float) 
             The new grid of Fourier frequencies over which to rebin the power 
             spectrum.   
             
         Other parameters:
-        ----------
+        -----------------
         use_log: bool, default True
             Switches between interpolating the power spectrum, or the base 10 
             logarithm of the power spectrum, which is more accurate if the power 
@@ -473,13 +473,17 @@ class PowerSpectrum(FourierProduct):
         This method plots the either the power or power per unit frequency 
         as a function of frequency, stored in the class instance.  
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         units: string , default="Power*freq"
             Sets the units to plot on the y axis - the default "power*freq" 
             displays the power at that frequency, "power" instead uses the power
             per unit frequency.  
-
+            
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
         """
         
         fig, ((ax1)) = plt.subplots(1,1,figsize=(9.,6.))   
@@ -515,8 +519,8 @@ class CrossSpectrum(FourierProduct):
     two energy bands, or two-dimensional cross spectra defined over multiple 
     energy and frequency grids. 
     
-    Parameters inherited from FourierProduct
-    ----------  
+    Parameters inherited from FourierProduct:
+    -----------------------------------------  
     times: np.array(float)
         The array of times over which the input signal is defined. 
     
@@ -529,16 +533,15 @@ class CrossSpectrum(FourierProduct):
         numpy.fft, and "sinc", for the sinc function decomposition described in 
         Uttley and Malzac 2023 (arXiv:2312.08302).    
 
-
-    Other parameters 
-    ----------  
+    Other parameters; 
+    ----------------- 
     energ: np.array(float) 
         The array of energy (or energy channels) bin mid-points over which a
         two-dimensional cross spectrum is defined. If we are only considering 
         the cross-spectrum between two energy bands, this defaults to "None". 
 
-    Attributes inherited from FourierProduct  
-    ----------  
+    Attributes inherited from FourierProduct:  
+    -----------------------------------------  
     times: np.array(float) 
         The array of times over which the input signal is defined. 
     
@@ -570,8 +573,8 @@ class CrossSpectrum(FourierProduct):
         therefore is updated automatically every time the user changes frequency
         grid.  
     
-    Other attributes 
-    ---------- 
+    Other attributes: 
+    ----------------- 
     n_chans: int 
         The size of the "energy" array. Defaults to 1 for a one-dimensional 
         cross spectrum between two energy bands. 
@@ -643,8 +646,8 @@ class CrossSpectrum(FourierProduct):
         This method sets the weighing power spectrum power_spec from a given 
         input.  
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         input_power: np.array(float) or PowerSpectrum
             Either an array of size (n_freqs) that is to be used as the weighing  
             power spectrum when computing the cross spectrum, or an nDspec 
@@ -667,8 +670,8 @@ class CrossSpectrum(FourierProduct):
         This method sets the impulse response function imp_resp from which the 
         cross spectrum can be calculated.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         signal: np.array(float,float) 
             An array of size (n_chans x n_times) containing the model impulse 
             response function. 
@@ -690,8 +693,8 @@ class CrossSpectrum(FourierProduct):
         This method sets the transfer function trans_func from which the cross
         spectrum can be calculated.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         signal: np.array(float,float) 
             An array of size (n_chans x n_freqs) containing the model transfer 
             function. 
@@ -716,8 +719,8 @@ class CrossSpectrum(FourierProduct):
         each channel of interest to be subtracted from the reference band when 
         computing the cross spectrum.
           
-        Parameters
-        ----------           
+        Parameters:
+        -----------          
         ref_bounds: np.array(float)
             A list with lower and upper energy channel bounds to be used in the 
             reference band. By default, we assume that the reference band is
@@ -757,8 +760,8 @@ class CrossSpectrum(FourierProduct):
         whether or not they want each channel of interest to be subtracted from
         the reference band when computing the cross spectrum.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         input_lc: np.array(float) 
             An arrray of size (n_chans) containing either the reference band 
             lightcurve (if the model is defined in the time domain) or its 
@@ -788,8 +791,8 @@ class CrossSpectrum(FourierProduct):
         as arguments of  this method. In the latter case, the reference can 
         only be provided in array, rather than channel index, form.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         transfer: np.array(float,float), default=self.trans_func 
             An array of size (n_chans x n_freqs) containing a model defined in 
             Fourier space, such as a transfer function. 
@@ -852,8 +855,8 @@ class CrossSpectrum(FourierProduct):
         by the setter method set_impulse (which is the default behavior), or it 
         can be passed as argument of this method. 
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         signal: np.array(float,float), default=self.imp_resp 
             An array of size (n_chans x n_times) containing the model impulse 
             response function. 
@@ -885,8 +888,8 @@ class CrossSpectrum(FourierProduct):
         this method. In the latter case, the reference can only be provided in 
         array, rather than channel index, form.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         signal: np.array(float,float), default=self.imp_resp 
             An array of size (n_chans x n_times) containing the model impulse 
             response function. 
@@ -952,8 +955,8 @@ class CrossSpectrum(FourierProduct):
         the object to a new frequency grid, and updates the relevant class 
         attributes as necessary.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         new_grid: np.array(float)
             An array of arbitrary size, containing the Fourier frequency bin 
             midpoints of the new grid.
@@ -983,8 +986,8 @@ class CrossSpectrum(FourierProduct):
         This method returns the real part of the cross spectrum, both for one 
         and two dimensional cases.
 
-        Returns
-        -------
+        Returns:
+        --------
         real: np.array(float) 
             An array of real parts of the cross spectrum, of size 
             (n_chans x n_freqs)
@@ -1001,8 +1004,8 @@ class CrossSpectrum(FourierProduct):
         This method returns the imaginary part of the cross spectrum, both for  
         one and two dimensional cases.
 
-        Returns
-        -------
+        Returns:
+        --------
         imag: np.array(float) 
             An array of imaginary parts of the cross spectrum, of size 
             (n_chans x n_freqs)
@@ -1019,8 +1022,8 @@ class CrossSpectrum(FourierProduct):
         This method returns the modulus of the cross spectrum, both for one and
         and two dimensional cases.
 
-        Returns
-        -------
+        Returns:
+        --------
         mod: np.array(float)
             An array of moduli of the cross spectrum, of size 
             (n_chans x n_freqs)
@@ -1037,8 +1040,8 @@ class CrossSpectrum(FourierProduct):
         This method returns the phase of the cross spectrum, both for one and
         and two dimensional cases.
 
-        Returns
-        -------
+        Returns:
+        --------
         phases: np.array(float) 
             An array of phases of the cross spectrum, of size 
             (n_chans x n_freqs)
@@ -1055,8 +1058,8 @@ class CrossSpectrum(FourierProduct):
         This method converts the phase of the cross spectrum, both for one and
         and two dimensional cases, into time lags.
 
-        Returns
-        -------
+        Returns:
+        --------
         lags: np.array(float) 
             An array of phases of the cross spectrum, of size 
             (n_chans x n_freqs)
@@ -1079,8 +1082,8 @@ class CrossSpectrum(FourierProduct):
         imits specified in ref_bounds and int_bounds are ncluded in the r
         eference - e.g. [0.3,10.0] keV rather than (0.3,10.) keV.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         int_bounds: np.array(float) 
             A list of energy channel bounds to be used in the channels of 
             interest - using the convention used in X-ray spectral timing, this 
@@ -1092,8 +1095,8 @@ class CrossSpectrum(FourierProduct):
             By default, this assumes that the reference band is identical to  
             that used in calculating the cross spectrum. 
 
-        Returns
-        -------
+        Returns:
+        --------
         cross: np.array(complex) 
             A one-dimensional array of size (n_freqs) containing the one 
             dimensional cross spectrum between the channels of interest and the 
@@ -1133,8 +1136,8 @@ class CrossSpectrum(FourierProduct):
         re-calculating the cross product between the reference band and channels 
         of interest.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         int_bounds: np.array(float) 
             A list with lower and upper energy channel bounds to be used in the 
             channels of  interest - using the convention used in X-ray spectral
@@ -1146,8 +1149,8 @@ class CrossSpectrum(FourierProduct):
             reference band. By default, we assume that the reference band is
             identical to that used in calculating the cross spectrum. 
 
-        Returns
-        -------
+        Returns:
+        --------
         real_spectrum: np.array(float) 
             A one-dimensional array of size (n_freqs) containing the real part 
             of he one dimensional cross spectrum between the channels of  
@@ -1167,8 +1170,8 @@ class CrossSpectrum(FourierProduct):
         re-calculating the cross product between the reference band and channels 
         of interest.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         int_bounds: np.array(float) 
             A list with lower and upper energy channel bounds to be used in the 
             channels of  interest - using the convention used in X-ray spectral
@@ -1180,8 +1183,8 @@ class CrossSpectrum(FourierProduct):
             reference band. By default, we assume that the reference band is
             identical to that used in calculating the cross spectrum. 
 
-        Returns
-        -------
+        Returns:
+        --------
         imag_spectrum: np.array(float) 
             A one-dimensional array of size (n_freqs) containing the imaginary 
             part of the one dimensional cross spectrum between the channels of  
@@ -1200,8 +1203,8 @@ class CrossSpectrum(FourierProduct):
         the user and (if a new reference band is used) re-calculating the cross 
         product between the reference band and channels of interest.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         int_bounds: np.array(float) 
             A list with lower and upper energy channel bounds to be used in the 
             channels of  interest - using the convention used in X-ray spectral
@@ -1213,8 +1216,8 @@ class CrossSpectrum(FourierProduct):
             reference band. By default, we assume that the reference band is
             identical to that used in calculating the cross spectrum. 
 
-        Returns
-        -------
+        Returns;
+        --------
         mod_spectrum: np.array(float)
             A one-dimensional array of size (n_freqs) containing the modulus 
             of the one dimensional cross spectrum between the channels of  
@@ -1232,8 +1235,8 @@ class CrossSpectrum(FourierProduct):
         the user and (if a new reference band is used) re-calculating the cross 
         product between the reference band and channels of interest.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         int_bounds: np.array(float) 
             A list with lower and upper energy channel bounds to be used in the 
             channels of  interest - using the convention used in X-ray spectral
@@ -1245,8 +1248,8 @@ class CrossSpectrum(FourierProduct):
             reference band. By default, we assume that the reference band is
             identical to that used in calculating the cross spectrum. 
 
-        Returns
-        -------
+        Returns:
+        --------
         phase_spectrum: np.array(float) 
             A one-dimensional array of size (n_freqs) containing the phase 
             one dimensional cross spectrum between the channels of  
@@ -1266,8 +1269,8 @@ class CrossSpectrum(FourierProduct):
         re-calculating the cross product between the reference band and channels 
         of interest.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         int_bounds: np.array(float) 
             A list with lower and upper energy channel bounds to be used in the 
             channels of  interest - using the convention used in X-ray spectral
@@ -1279,8 +1282,8 @@ class CrossSpectrum(FourierProduct):
             reference band. By default, we assume that the reference band is
             identical to that used in calculating the cross spectrum. 
 
-        Returns
-        -------
+        Returns:
+        --------
         mod_spectrum: np.array(float) 
             A one-dimensional array of size (n_freqs) containing the time lags 
             of the one dimensional cross spectrum between the channels of  
@@ -1298,14 +1301,14 @@ class CrossSpectrum(FourierProduct):
         as a function of energy, by averaging the attribute "cross" over a given
         frequency range specified by the user. 
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         freq_bounds: np.array(float) 
             A list with lower and upper frequency bounds over which to average 
             the two dimensinoal cross spectrum
 
-        Returns
-        -------
+        Returns:
+        --------
         real_sectrum: np.array(float) 
             An array of size (n_chans) containing the real part of the Fourier 
             frequency averaged cross spectrum, as a function of energy. 
@@ -1325,14 +1328,14 @@ class CrossSpectrum(FourierProduct):
         spectrum as a function of energy, by averaging the attribute "cross" 
         over a given frequency range specified by the user. 
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         freq_bounds: np.array(float) 
             A list with lower and upper frequency bounds over which to average 
             the two dimensinoal cross spectrum
             
-        Returns
-        -------
+        Returns:
+        --------
         imag_spectrum: np.array(float)  
             An array of size (n_chans) containing the imaginary part of the  
             Fourier frequency averaged cross spectrum, as a function of energy. 
@@ -1352,14 +1355,14 @@ class CrossSpectrum(FourierProduct):
         a function of energy, by averaging the attribute "cross" over a given 
         frequency range specified by the user. 
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         freq_bounds: np.array(float) 
             A list with lower and upper frequency bounds over which to average 
             the two dimensinoal cross spectrum
             
-        Returns
-        -------
+        Returns:
+        --------
         mod_spectrum: np.array(float)  
             An array of size (n_chans) containing the modulus of the Fourier
             frequency averaged cross spectrum, as a function of energy. 
@@ -1379,14 +1382,14 @@ class CrossSpectrum(FourierProduct):
         as a function of energy, by averaging the attribute "cross" over a given
         frequency range specified by the user. 
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         freq_bounds: np.array(float) 
             A list with lower and upper frequency bounds over which to average 
             the two dimensinoal cross spectrum
             
-        Returns
-        -------
+        Returns:
+        --------
         phase_spectrum: np.array(float)  
             An array of size (n_chans) containing the phase of the Fourier
             frequency averaged cross spectrum, as a function of energy. 
@@ -1406,14 +1409,14 @@ class CrossSpectrum(FourierProduct):
         as a function of energy, by averaging the attribute "cross" over a given
         frequency range specified by the user. 
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         freq_bounds: np.array(float) 
             A list with lower and upper frequency bounds over which to average 
             the two dimensinoal cross spectrum
             
-        Returns
-        -------
+        Returns:
+        --------
         lag_spectrum: np.array(float)  
             An array of size (n_chans) containing the time lags of the Fourier
             frequency averaged cross spectrum, as a function of energy. 
@@ -1430,13 +1433,18 @@ class CrossSpectrum(FourierProduct):
         This method plots the a one-dimensional cross spectrum as a function of  
         Fourier frequency.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         form: string, default="polar" 
             A qualifier to choose in which units to plot the cross spectrum. 
             By default, form="polar" will plot the modulus, phase, and lag 
             frequency spectrum. Alternatively, form="cartesian" plots the real 
             and imaginary parts of the cross spectrum.
+            
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
         """
         
         #same as power spectrum, double check plotting style
@@ -1504,14 +1512,14 @@ class CrossSpectrum(FourierProduct):
         This method computes the normalization and ticks for two-dimensional 
         plots of the cross spectrum. 
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         plot_input: np.array(float,float) 
             The two-dimensional array to be plotted, from which to define the 
             axis limits for the plots.
 
-        Returns
-        -------
+        Returns:
+        --------
         norm: np.float 
             The normalization to be used for the colorbar in the plot. 
             
@@ -1544,8 +1552,8 @@ class CrossSpectrum(FourierProduct):
         Plots the a two-dimensional cross spectrum as a function of Fourier 
         frequency and energy.
         
-        Parameters
-        ----------
+        Parameters:
+        -----------
         form: string,default="polar" 
             A qualifier to choose in which units to plot the cross spectrum. 
             By default, form="polar" will plot the modulus, phase, and lag 
@@ -1555,6 +1563,11 @@ class CrossSpectrum(FourierProduct):
         energy_limits: list(float)
             The lower and upper bound to be used in the energy axis of the 
             cross spectrum.
+            
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
         """
                
         energy_indexes = np.where(np.logical_and(self.energ>energy_limits[0],
