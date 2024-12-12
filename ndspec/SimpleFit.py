@@ -1373,7 +1373,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
     renorm_phase: bool 
         Allows users to apply a small phase renormalization when fitting energy 
         dependent products. This is necessary to account for imperfections in 
-        the instrument response/calibration. For more discussions, see Appendix 
+        the instrument response/calibration. For more discussion, see Appendix 
         E in Mastroserio et al. 2018: 
         https://ui.adsabs.harvard.edu/abs/2018MNRAS.475.4027M/abstract
         This setting will NOT affect the modulus of a cross spectrum, only the 
@@ -1520,16 +1520,6 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             in the same format as the data array - all moduli/real parts first, 
             all phases/imaginary parts second. 
 
-        time_res: np.float, optional 
-            The time resolution of the lightcurves used to build the data. It is 
-            necessary to build the grid of Fourier frequency over which to 
-            compute the model.
-        
-        seg_sizenp.float, optional 
-            The size of the segments in which the lightcurves were divided 
-            to build the data. It is necessary to build the grid of Fourier 
-            frequency over which to compute the model.         
-
         freq_grid: np.array(float), optional 
             The grid of Fourier frequency over which to compute the model. If it 
             is not passed explicitely, it is computed from the time resolution 
@@ -1539,11 +1529,21 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             The grid of times used to generate the Fourier frequency grid. Used 
             for internal model calcluations, if using an impulse response 
             function and the users wishes to use the sinc decomposition method.
-        
+
         freq_bins: np.array(float), optional 
             The Fourier frequency grids over which energy-dependent data has 
             been averaged. Required for fitting energy-dependent data (e.g. lag 
             energy spectra), and not used for frequency-dependent data.
+        
+        time_res: np.float, optional 
+            The time resolution of the lightcurves used to build the data. It is 
+            necessary to build the grid of Fourier frequency over which to 
+            compute the model.
+        
+        seg_size: np.float, optional 
+            The size of the segments in which the lightcurves were divided 
+            to build the data. It is necessary to build the grid of Fourier 
+            frequency over which to compute the model.     
             
         norm; str, optionalm default = "abs" 
             The normalization of the data products, if they are calculated from 
@@ -1588,6 +1588,50 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
     def _freq_dependent_cross(self,data,data_err=None,
                               freq_grid=None,time_grid=None,
                               time_res=None,seg_size=None,norm=None):
+        """
+        This method handles loading a cross spectrum to be fitted, when users 
+        specify that they want the data to depend from Fourier frequency rather 
+        than energy (e.g., in the case of lag-frequency spectra).
+        
+        Parameters:
+        ----------- 
+        data: np.array(float) or stingray.events 
+            The data to be fitted, either in the form of a one-dimensional array 
+            or a stingray event file. If passing an array, the data has to be 
+            stored such that all the real values or moduli are contained in the 
+            first half of the array, with the imaginary values or phases in the 
+            second half. 
+
+        data_err: np.array(float), optional
+            Only required when not passing a stingray event file. Needs to be 
+            in the same format as the data array - all moduli/real parts first, 
+            all phases/imaginary parts second. 
+
+        freq_grid: np.array(float), optional 
+            The grid of Fourier frequency over which to compute the model. If it 
+            is not passed explicitely, it is computed from the time resolution 
+            and segment size arguments. 
+        
+        time_grid: np.array(float), optional 
+            The grid of times used to generate the Fourier frequency grid. Used 
+            for internal model calcluations, if using an impulse response 
+            function and the users wishes to use the sinc decomposition method.
+
+        time_res: np.float, optional 
+            The time resolution of the lightcurves used to build the data. It is 
+            necessary to build the grid of Fourier frequency over which to 
+            compute the model.
+        
+        seg_size: np.float, optional 
+            The size of the segments in which the lightcurves were divided 
+            to build the data. It is necessary to build the grid of Fourier 
+            frequency over which to compute the model.  
+            
+        norm; str, optionalm default = "abs" 
+            The normalization of the data products, if they are calculated from 
+            a stingray event file. If not specified, absolute rms normalization 
+            is used.         
+        """
         
         if getattr(data, '__module__', None) == "stingray.events":
             #check here that timeres, seg size and norm are all defined
@@ -1599,14 +1643,13 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             ctrate_ref = get_average_ctrate(events_ref.time,events_ref.gti,seg_size)
             noise_ref = poisson_level(norm=norm, meanrate=ctrate_ref)     
                 
-            #set the (linearly spaced) internal time and frequency grids
+            #If we use stingray, we always keep linearly-spaced frequency and 
+            #time grids 
             lc_length = ps_ref.n*time_res
             time_samples = int(lc_length/time_res)
             self._times = np.linspace(time_res,lc_length,time_samples)
             self.freqs = np.array(ps_ref.freq)
 
-            #loop over all channels of interest and get the desired
-            #timing products
             self.data = []
             self.data_err = []
             
@@ -1660,43 +1703,80 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                         self.data_err = np.insert(self.data_err,i*data_size,error_first_dim) 
                     self.data = np.append(self.data,data_second_dim)
                     self.data_err = np.append(self.data_err,error_second_dim)
-
-            #here we just pass the data+grids by hand
         else:
-            #we can explicitely pass frequency and time grids
+            #when we do not use stingray, we can explicitely pass frequency and 
+            #time grids
             if (time_grid is not None and freq_grid is not None):
                 self._times = time_grid
                 self.freqs = freq_grid
-            #or we can explicitel pass a frequency grid alone, and the time grid is 
-            #reconstructed automatically 
+            #or we can explicitely pass a frequency grid alone, and the time 
+            #grid is reconstructed automatically 
             elif freq_grid is not None:
                 self.freqs = freq_grid
-                #now revert the grid from frequency to time, and save in times
-                #this is needed to allocate the ndspec objects
                 time_res = 0.5/(self.freqs[-1]+self.freqs[0])
                 lc_length = (self.freqs.size+1)*2*time_res
                 time_samples = int(lc_length/time_res)
-                #check the spacing of the frequency array, allocate time array accordingly
+                #switching between linearly/geometrically spaced grids allows 
+                #the crossspec class attribute to switch automatically between 
+                #sinc and fftw methods upon initialization 
                 if (np.allclose(self.freqs, self.freqs[0]) is False):
                     self._times = np.geomspace(time_res,lc_length,time_samples)
                 else:
                     self._times = np.linspace(time_res,lc_length,time_samples)              
             else:
                 print("Frequency and/or time grids undefined")
-            #the reason setting the grids is flexible is to allow users to avoid numerical
-            #issues due to the discrete FFT at the highest and/or lowest frequency bins
-            
-            #if everything is ok, set the data. 
             self.data = data
             self.data_err = data_err  
         
         self.n_freqs = self.freqs.size
         return
 
-    def _energ_dependent_cross(self,freq_bounds,data,data_err=None,
+    def _energ_dependent_cross(self,freq_bounds,data,data_err,
                                freq_grid=None,time_grid=None,
                                time_res=None,seg_size=None):
+        """
+        This method handles loading a cross spectrum to be fitted, when users 
+        specify that they want the data to depend from photon energy rather 
+        than Fourier frequency (e.g., in the case of lag-energy spectra).
+        
+        Parameters:
+        ----------- 
+        freq_bounds: np.array(float), optional 
+            The bounds of the bins in Fourier frequencies over which energy-
+            dependent data has been averaged. 
+        
+        data: np.array(float) or stingray.events 
+            The data to be fitted, in the form of a one-dimensional array. The 
+            data has to be stored such that all the real values or moduli are 
+            contained in the first half of the array, with the imaginary values 
+            or phases in the second half. 
 
+        data_err: np.array(float)
+            The errors on the data to be fitted. Needs to be in the same format 
+            as the data array - all moduli/real parts first, all phases/
+            imaginary parts second. 
+        
+        freq_grid: np.array(float), optional 
+            The grid of Fourier frequency over which to compute the model. If it 
+            is not passed explicitely, it is computed from the time resolution 
+            and segment size arguments. 
+        
+        time_grid: np.array(float), optional 
+            The grid of times used to generate the Fourier frequency grid. Used 
+            for internal model calcluations, if using an impulse response 
+            function and the users wishes to use the sinc decomposition method.
+
+        time_res: np.float, optional 
+            The time resolution of the lightcurves used to build the data. It is 
+            necessary to build the grid of Fourier frequency over which to 
+            compute the model.
+        
+        seg_size: np.float, optional 
+            The size of the segments in which the lightcurves were divided 
+            to build the data. It is necessary to build the grid of Fourier 
+            frequency over which to compute the model.     
+        """
+        
         self.freq_bounds = freq_bounds
         self.n_freqs = self.freq_bounds.size-1
                 
@@ -1714,27 +1794,50 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             lc_length = (self.freqs.size+1)*2*time_res
             time_samples = int(lc_length/time_res)
             self._times = np.linspace(time_res,lc_length,time_samples)
-        #or we can explicitel pass a frequency grid alone, and the time grid is 
+        #or we can explicitely pass a frequency grid alone, and the time grid is 
         #reconstructed automatically 
         elif freq_grid is not None:
             self.freqs = freq_grid
-            #now revert the grid from frequency to time, and save in times
-            #this is needed to allocate the ndspec objects
             time_res = 0.5/(self.freqs[-1]+self.freqs[0])
             lc_length = (self.freqs.size+1)*2*time_res
             time_samples = int(lc_length/time_res)
-            #check the spacing of the frequency array, allocate time array accordingly
+            #switching between linearly/geometrically spaced grids allows 
+            #the crossspec class attribute to switch automatically between 
+            #sinc and fftw methods upon initialization 
             if (np.allclose(self.freqs, self.freqs[0]) is False):
                 self._times = np.geomspace(time_res,lc_length,time_samples)
             else:
                 self._times = np.linspace(time_res,lc_length,time_samples)              
         else:
-            print("Frequency and/or time grids undefined")    
-        #the reason setting the grids is flexible is to allow users to avoid numerical
-        #issues due to the discrete FFT at the highest and/or lowest frequency bins        
+            print("Frequency and/or time grids undefined")          
         return 
 
     def set_model(self,model,model_type="irf",params=None):
+        """
+        This method is used to pass the model users want to fit to the data. 
+        Users also need to specify what quantity the model actually computes - 
+        a time-dependent impulse respnse function, a Fourier-frequency dependent
+        function, or an explicit value for the cross spectrum. Based on the model 
+        type, the class then converts model output to the appropriate spectral 
+        timing products automatically. Optionally it is also possible to pass 
+        the initial parameter values of the model. 
+        
+        Parameters:
+        -----------            
+        model: lmfit.CompositeModel 
+            The lmfit wrapper of the model one wants to fit to the data. 
+            
+        model_type: str, default="irf" 
+            A string describing the type of models users want to define. Options 
+            are "irf" for an impuplse response function, "transfer" for a 
+            transfer functino, and "cross" for the actual cross spectrum.
+            
+        params: lmfit.Parameters, default: None 
+            The parameter values from which to start evalauting the model during
+            the fit. If it is not provided, all model parameters will default 
+            to 0, set to be free, and have no minimum or maximum bound. 
+        """
+    
         if model_type not in self._supported_models:
             raise AttributeError("Unsopprted model type")  
         self.model_type = model_type
@@ -1746,7 +1849,23 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             self.model_params = params
         return 
         
-    def set_psd_weights(self,psd_weights):       
+    def set_psd_weights(self,psd_weights): 
+        """
+        This method is necessary when users define models from an impulse 
+        response or transfer functins, and sets the power spectrum used as 
+        weights when calculating spectral timing products.
+        
+        Parameters:
+        -----------
+        
+        Parameters:
+        -----------
+        input_power: np.array(float) or PowerSpectrum
+            Either an array of size (n_freqs) that is to be used as the weighing  
+            power spectrum when computing the cross spectrum, or an nDspec 
+            PowerSpectrum object. Both have to be defined over the class internal 
+            Fourier frequency grid. 
+        """      
         if self.model_type != "cross":
             self.crossspec.set_psd_weights(psd_weights)
         else:
@@ -1754,6 +1873,36 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         return 
     
     def eval_model(self,params=None,ref_band=None,mask=True):
+        """
+        This method is used to evaluate and return the model values for a given 
+        set of parameters, over the internal energy and frequency grids. By 
+        default the model is evaluated using the parameters values stored 
+        internally in the model_params attribute, using the reference band 
+        stored in the ref_band attribute. The model is always folded through 
+        the instrument response, returning either all or only the noticed channels. 
+        
+        Parameters:
+        -----------                         
+        params: lmfit.Parameters, default None
+            The parameter values to use in evaluating the model. If none are 
+            provided, the model_params attribute is used.
+            
+        ref_band: [float,float], default None
+            The the photon energies over which the model reference band is defined.
+            By default, the one stored in the class fitter is used. 
+            
+        mask: bool, default True
+            A boolean switch to choose whether to mask the model output to only 
+            include the noticed energy channels, or to also return the ones 
+            that have been ignored by the users. 
+            
+        Returns:
+        --------
+        model: np.array(float)
+            The model evaluated over the given energy grid, for the given input 
+            parameters.  
+        """  
+        
         if ref_band is None:
             ref_band = self.ref_band
                 
@@ -1780,9 +1929,9 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         #return the appropriately structured products
         #filtering may be necessary ugh
         if self.dependence == "frequency":
-            eval = self._freq_dependent_model(folded_eval)
+            model = self._freq_dependent_model(folded_eval)
         elif self.dependence == "energy":
-            eval = self._energ_dependent_model(folded_eval,params)
+            model = self._energ_dependent_model(folded_eval,params)
         else:
             print("error")  
 
@@ -1793,16 +1942,39 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             if self.units != "lags":
                 model_first_dim = self._filter_2d_by_mask(eval[:self._all_bins],self.ebounds_mask)
                 model_second_dim = self._filter_2d_by_mask(eval[self._all_bins:],self.ebounds_mask)
-                eval = np.append(model_first_dim,model_second_dim)
+                model = np.append(model_first_dim,model_second_dim)
             else:
-                eval = self._filter_2d_by_mask(eval,self.ebounds_mask)
-        return eval
+                model = self._filter_2d_by_mask(model,self.ebounds_mask)
+        return model
 
     def _freq_dependent_model(self,folded_eval):
+        """
+        This method takes a model cross spectrum evaluated by the class and 
+        folded through the instrument response, and converts it to the 
+        Fourier-frequency dependent spectral timing products chosen by the user 
+        through the ``settings'' attribute. 
+        
+        Parameters:
+        -----------
+        folded_eval: np.array(float, float)
+            A matrix of size (n_freq,_all_chans) containing the model cross 
+            spectrum folded thruogh the instrument response matrix 
+            
+        Returns:
+        --------
+        model: np.array(float) 
+            A one-dimensional array of size (n_freq*_all_chans) if fitting lags 
+            and (2*n_freq*_all_chans) otherwise, containing the spectral timing 
+            products resulting from the model evaluation. This is the array that 
+            is compared to the data when fitting, and the two therefore must have 
+            the same format. 
+        """
+    
         model = []
         sub_bounds = np.array([self._ebounds_unmasked-0.5*self._ewidths_unmasked,
                                self._ebounds_unmasked+0.5*self._ewidths_unmasked])
         sub_bounds = np.transpose(sub_bounds)
+        
         if self.units == "lags":
             for i in range(self._all_chans):
                 model_eval = folded_eval.lag_frequency(sub_bounds[i])
@@ -1830,7 +2002,40 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         return model
 
     def _energ_dependent_model(self,folded_eval,params):
+        """
+        This method takes a model cross spectrum evaluated by the class and 
+        folded through the instrument response, and converts it to the energy
+        dependent spectral timing products chosen by the user through the
+        ``settings'' attribute. Depending on fitter settings, it also enables 
+        the automatic renormalization of phases and modulii to correct for 
+        instrument calibration and/or knowledge of the underlying physical 
+        powerspectrum responsible for the variability.  For more discussion,
+        see Appendix E in Mastroserio et al. 2018: 
+        https://ui.adsabs.harvard.edu/abs/2018MNRAS.475.4027M/abstract
+        
+        Parameters:
+        -----------
+        folded_eval: np.array(float, float)
+            A matrix of size (n_freq,_all_chans) containing the model cross 
+            spectrum folded thruogh the instrument response matrix 
+            
+        params: lmfit.parameters 
+            An lmfit parameters object used to store the model parameter values 
+            used for the evaluation. It is necessary when users choose to 
+            renormalize phases or modulii. 
+            
+        Returns:
+        --------
+        model: np.array(float) 
+            A one-dimensional array of size (n_freq*_all_chans) if fitting lags 
+            and (2*n_freq*_all_chans) otherwise, containing the spectral timing 
+            products resulting from the model evaluation. This is the array that 
+            is compared to the data when fitting, and the two therefore must have 
+            the same format. 
+        """
+        
         model = []
+        
         if self.units == "lags":   
             for i in range(self.n_freqs):
                 f_mean = 0.5*(self.freq_bounds[1:]+self.freq_bounds[:-1])
@@ -1896,31 +2101,114 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         return model
 
     def renorm_phases(self,value):
-        #add complaint if people activate this for freq dependency
+        """
+        Setter method to enable the phase renormalization when fitting energy 
+        depenent products. This renormalization is intended to correct for 
+        small uncertainties in the instrument response function, which can 
+        affect the phase of the cross spectrum. For more discussion, see  
+        Appendix E in Mastroserio et al. 2018: 
+        https://ui.adsabs.harvard.edu/abs/2018MNRAS.475.4027M/abstract
+        This setting will NOT affect the modulus of a cross spectrum, only the 
+        phase (and therefore it will affect the real and imaginary parts).
+        
+        Parameters:
+        -----------
+        value: bool 
+            A boolean to track whether phase renormalization is enabled or not.
+            If it is, the method modifies the defined model and its parameters 
+            automatically. 
+        """
+        #add complaint if people activate this for freq dependency        
         self.renorm_phase = value
         if self.renorm_phase is True:
+            #if we choose to renormalize the phase, we need to modify the model 
+            #definition and its parameters to include the phase renormalization 
+            #factors 
             self.phase_renorm_model = LM_Model(self._renorm_phase)
             phase_pars = LM_Parameters()
             for index in range(self.n_freqs):   
-                phase_pars.add('phase_renorm_'+str(index+1), value=0,min=-0.2,max=0.2,vary=True)            
+                phase_pars.add('phase_renorm_'+str(index+1), 
+                               value=0,min=-0.2,max=0.2,vary=True)            
             self.model_params = self.model_params + phase_pars
         return
         
     def _renorm_phase(self,array,renorm):
+        """
+        This method contains a model function to add a phase to an exisisting 
+        array, and is used exclusively after being wrapped by lmfit to renormalize 
+        the phases of energy-dependent cross spectral products.
+       
+        Parameters:
+        -----------
+        array: np.array(float)
+            The array of energy depdent cross spectrum phases in a given Fourier
+            frequnecy interval to be renormalized 
+            
+        renorm: float 
+            The small phase to be added to re-normalize the cross spectrum. 
+            
+        Returns:
+        --------
+        array+renorm 
+            The new, renormalized phase. 
+        """
+    
         return array + renorm
 
     def renorm_mods(self,value):
+        """
+        Setter method to enable the modulus renormalization when fitting energy 
+        depenent products. This renormalization is intended to correct for 
+        not knowing the correct shape of the power spectrum responsible the 
+        observed variability. See Mastroserio et al. 2018 for further discussion:
+        https://ui.adsabs.harvard.edu/abs/2018MNRAS.475.4027M/abstract
+        This setting will NOT affect the phase of a cross spectrum, only the 
+        modulus (and therefore it will affect the real and imaginary parts).   
+        
+        Parameters:
+        -----------
+        value: bool 
+            A boolean to track whether phase renormalization is enabled or not.
+            If it is, the method modifies the defined model and its parameters 
+            automatically. 
+        """
         #add complaint if people activate this for freq dependency
         self.renorm_modulus = value
         if self. renorm_modulus is True:
+            #if we choose to renormalize the modulus, we need to modify the model 
+            #definition and its parameters to include the modulus renormalization 
+            #factors 
             self.mod_renorm_model = LM_Model(self._renorm_modulus)
             mods_pars = LM_Parameters()
             for index in range(self.n_freqs):   
-                mods_pars.add('mods_renorm_'+str(index+1), value=1,min=0,max=1e5,vary=True)            
+                mods_pars.add('mods_renorm_'+str(index+1), 
+                               value=1,min=0,max=1e5,vary=True)            
             self.model_params = self.model_params + mods_pars            
         return
 
     def _renorm_modulus(self,array,renorm):
+        """
+        This method contains a model function to add renormalize the modulus of
+        an exisisting array, and is used exclusively after being wrapped by 
+        lmfit to renormalize the modulus of energy-dependent cross spectral
+        products.
+       
+        Parameters:
+        -----------
+        array: np.array(float)
+            The array of energy depdent cross spectrum modulus in a given Fourier
+            frequnecy interval to be renormalized 
+            
+        renorm: float 
+            The renormalization factor by which to multiply the modulus of the 
+            cross spectrum. 
+            
+        Returns:
+        --------
+        array*renorm 
+            The new, renormalized modulus. 
+        """
+    
         return renorm*array
 
     def _minimizer(self,params):
