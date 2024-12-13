@@ -2212,6 +2212,25 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         return renorm*array
 
     def _minimizer(self,params):
+        """
+        This method is used exclusively when running a minimization algorithm.
+        It evaluates the model for an input set of parameters, and then returns 
+        the residuals in units of contribution to the total chi squared 
+        statistic.
+        
+        Parameters:
+        -----------                         
+        params: lmfit.Parameters
+            The parameter values to use in evaluating the model. These will vary 
+            as the fit runs.
+            
+        Returns:
+        --------
+        residuals: np.array(float)
+            An array of the same size as the data, containing the model 
+            residuals in each bin.            
+        """
+    
         if self.likelihood is None:
             model = self.eval_model(params,ref_band=self.ref_band)
             residuals = (self.data-model)/self.data_err
@@ -2220,15 +2239,41 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         return residuals
     
     def plot_data_1d(self,return_plot=False):
+        """
+        This method plots the cross spectrum loaded by the user as a function of 
+        the unit dependence specified (ie, Fourier frequency or energy). If the 
+        data is loaded is two-dimensional - as is the case for frequency 
+        dependent products in multiple subject bands, or energy dependent products 
+        in multiple Fourier frequency bins, the method plots every loaded 
+        spectrum in a single plot. 
+        
+        Regardless of the data format, only the noticed energy channels are 
+        plotted. Note that if the user is ignoring energy bins that are not at 
+        the limit of the channel grid (e.g., between 5 and 7 keV for a grid of
+        channels between 0.5 and 10 keV), then the automated legend will not 
+        label the spectra correctly.         
+        
+        It is also possible to return the figure object, for instance in order 
+        to save it to file.
+        
+        Parameters:
+        -----------            
+        return_plot: bool, default=False
+            A boolean to decide whether to return the figure objected containing 
+            the plot or not.
+            
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
+        """
+    
         #depending on the units of the data, we need to set the number of 
         #spectra that were loaded, what goes on the x axis, and the bounds
         #of where one spectrum ends and the next begins
         if self.dependence == "frequency":
             x_axis = self.freqs
             x_axis_label = "Frequency (Hz)"
-            #here we need to look at the edges of each bin, NOT at the center
-            #which is contained in ebounds
-            #this is wrong, it needs to be the noticed channel bounds blergh
             bounds_min = self.ebounds-0.5*self.ewidths
             channel_bounds = np.append(bounds_min,self.ebounds[-1]+0.5*self.ewidths[-1])
             labels = np.round(channel_bounds,1)
@@ -2258,11 +2303,11 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             for i in range(spec_number):
                 ax1.errorbar(x_axis,self.data[i*data_bound:(i+1)*data_bound],
                              yerr=self.data_err[i*data_bound:(i+1)*data_bound],
-                             marker='o',linestyle='',#drawstyle="steps-mid",
+                             marker='o',linestyle='',
                              label=f"{labels[i]}-{labels[i+1]} {units}")
                 ax2.errorbar(x_axis,self.data[self.n_bins+i*data_bound:self.n_bins+(i+1)*data_bound],
                              yerr=self.data_err[self.n_bins+i*data_bound:self.n_bins+(i+1)*data_bound],
-                             marker='o',linestyle='',#drawstyle="steps-mid",
+                             marker='o',linestyle='',
                              label=f"{labels[i]}-{labels[i+1]} {units}") 
                 
             ax1.set_yscale("log")
@@ -2281,7 +2326,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             for i in range(spec_number):
                 ax1.errorbar(x_axis,self.data[i*data_bound:(i+1)*data_bound],
                              yerr=self.data_err[i*data_bound:(i+1)*data_bound],
-                             marker='o',linestyle='',#drawstyle="steps-mid",
+                             marker='o',linestyle='',
                              label=f"{labels[i]}-{labels[i+1]} {units}") 
             
             ax1.set_xscale("log")
@@ -2295,10 +2340,34 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         else:
             return 
 
-    def plot_data_2d(self,use_phase=False,return_plot=False):        
-        #depending on the units of the data, we need to set the number of 
-        #spectra that were loaded, what goes on the x axis, and the bounds
-        #of where one spectrum ends and the next begins
+    def plot_data_2d(self,use_phase=False,return_plot=False): 
+        """
+        This method plots the cross spectrum loaded by the user in two dimensions 
+        as a function of both Fourier frequency or energy. Regardless of the data
+        format, only the noticed energy channels are plotted. Note that due to 
+        how matplotlib handles two-dimensional plots, the bounds of the bins 
+        shown in the plot will differ slightly from those where the data is 
+        defined.  
+        
+        It is also possible to return the figure object, for instance in order 
+        to save it to file.
+        
+        Parameters:
+        -----------
+        use_phase: bool, default=False
+            A boolean used exclusively when plotting time lags. If it is true, 
+            it converts the lags to phases for ease of visualization over a large 
+            range in lag timescales.
+                    
+        return_plot: bool, default=False
+            A boolean to decide whether to return the figure objected containing 
+            the plot or not.
+            
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
+        """
 
         if self.dependence == "frequency":
             x_axis = self.freqs
@@ -2314,6 +2383,9 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             data_bound = self.n_chans        
         
         if self.units != "lags":
+            #all the reshaping/transposing is necessary to convert from one-dimensional
+            #arrays, to two-d arrays with the data stored in the right order for 
+            #2d plotting with colormesh
             if self.dependence=="energy":
                 mask_twod = np.tile(self.ebounds_mask,self.n_freqs)
                 left_data = self._data_unmasked[:self._all_bins].reshape((self.n_freqs,self._all_chans))
@@ -2363,6 +2435,9 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             ax2.set_ylabel("Energy (keV)")
         else:   
             fig, ((ax1)) = plt.subplots(1,1,figsize=(6.,4.5))
+            #all the reshaping/transposing is necessary to convert from one-dimensional
+            #arrays, to two-d arrays with the data stored in the right order for 
+            #2d plotting with colormesh
             if self.dependence == "energy":               
                 mask_twod = np.tile(self.ebounds_mask,self.n_freqs)
                 plot_data = self._data_unmasked.reshape((self.n_freqs,self._all_chans))
@@ -2399,13 +2474,56 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             return      
 
     def plot_model_1d(self,plot_data=True,params=None,residuals="delchi",return_plot=False):
+        """
+        This method plots the model defined by the user as a function of  the  
+        unit dependence specified (ie, Fourier frequency or energy). 
+        
+        By default the method also plots the data loaded as well as the 
+        residuals. Additionally, by default the model is evaluated using the 
+        parameter values currently stored in the class, but it is also posssible 
+        to pass a different set of parameters for model evaluation.
+        
+        If the  data is loaded is two-dimensional - as is the case for  
+        frequency dependent products in multiple subject bands, or energy
+        dependent products in multiple Fourier frequency bins, the method plots 
+        every loaded spectrum in a single plot. 
+        
+        Regardless of the data format, only the noticed energy channels are 
+        plotted. Note that if the user is ignoring energy bins that are not at 
+        the limit of the channel grid (e.g., between 5 and 7 keV for a grid of
+        channels between 0.5 and 10 keV), then the automated legend will not 
+        label the spectra correctly.         
+        
+        It is also possible to return the figure object, for instance in order 
+        to save it to file.
+        
+        Parameters:
+        -----------            
+        plot_data: bool, default=True
+            If true, both model and data are plotted; if false, just the model. 
+                        
+        params: lmfit.parameters, default=None 
+            The parameters to be used to evaluate the model. If False, the set 
+            of parameters stored in the class is used   
+            
+        residuals: str, default="delchi"
+            The units to use for the residuals. If residuals="delchi", the plot 
+            shows the residuals in units of data-model/error; if residuals="ratio",
+            the plot instead uses units of data/model.
+            
+        return_plot: bool, default=False
+            A boolean to decide whether to return the figure objected containing 
+            the plot or not.
+            
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
+        """
         
         if self.dependence == "frequency":
             x_axis = self.freqs
             x_axis_label = "Frequency (Hz)"
-            #here we need to look at the edges of each bin, NOT at the center
-            #which is contained in ebounds
-            #this is wrong, it needs to be the noticed channel bounds blergh
             bounds_min = self.ebounds-0.5*self.ewidths
             channel_bounds = np.append(bounds_min,self.ebounds[-1]+0.5*self.ewidths[-1])
             labels = np.round(channel_bounds,1)
@@ -2415,19 +2533,14 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         elif self.dependence == "energy":
             x_axis = self.ebounds
             x_axis_label = "Energy (keV)"
-            #same issue as above for the bins, this will break when we
-            #mask out frequency bins in the middle 
             labels = np.round(self.freq_bounds,1)
             units = "Hz"
             spec_number = self.n_freqs    
             data_bound = self.n_chans
 
-        #this returns on the un-masked channel
         model = self.eval_model(params=params)
         
-        #if we're plotting data, also get the residuals
         if plot_data is True:
-            #these residuals are stupid
             model_res,res_errors = self.get_residuals(self.model,residuals)
             if residuals == "delchi":
                 reslabel = "$\\Delta\\chi$"
@@ -2554,12 +2667,46 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             return 
 
     def plot_model_2d(self,params=None,use_phase=False,residuals="delchi",return_plot=False):
+        """
+        This method plots the model and data loaded by the user in two dimensions 
+        as a function of both Fourier frequency or energy. Regardless of the data
+        format, only the noticed energy channels are plotted. Note that due to 
+        how matplotlib handles two-dimensional plots, the bounds of the bins 
+        shown in the plot will differ slightly from those where the data is 
+        defined.           
+        
+        It is also possible to return the figure object, for instance in order 
+        to save it to file.
+        
+        Parameters:
+        -----------            
+        params: lmfit.parameters, default=None 
+            The parameters to be used to evaluate the model. If False, the set 
+            of parameters stored in the class is used   
+            
+        use_phase: bool, default=False
+            A boolean used exclusively when plotting time lags. If it is true, 
+            it converts the lags to phases for ease of visualization over a large 
+            range in lag timescales.
+
+        residuals: str, default="delchi"
+            The units to use for the residuals. If residuals="delchi", the plot 
+            shows the residuals in units of data-model/error; if residuals="ratio",
+            the plot instead uses units of data/model.
+            
+        return_plot: bool, default=False
+            A boolean to decide whether to return the figure objected containing 
+            the plot or not.
+            
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
+        """
     
         if self.dependence == "frequency":
             x_axis = self.freqs
             y_axis = self._ebounds_unmasked
-            #here we need to look at the edges of each bin, NOT at the center
-            #which is contained in ebounds
             channel_bounds = np.append(self.response.emin,self.response.emax[-1])
             labels = np.round(channel_bounds,1)
             units = "keV"
@@ -2575,24 +2722,18 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         model = self.eval_model(params=params,mask=False)
         model_res,_ = self.get_residuals(model,residuals,use_masked=False)
 
+        #the output of eval_model and get_residuals is not masked because we 
+        #need to mask by hand here to get a correct 2d plots when ignoring bins
         if self.units != "lags":
             if self.units == "polar":
                 left_title = "Modulus"
                 mid_title = "Phase"
             else:
                 left_title = "Real"
-                mid_title = "Imaginary" 
-
-            '''
-               elif self.dependence == "frequency":
-                mask_twod = np.transpose(np.tile(self.ebounds_mask,self.n_freqs))
-                plot_data = np.transpose(self._data_unmasked.reshape((self._all_chans,self.n_freqs)))
-                plot_model = np.transpose(model.reshape((self._all_chans,self.n_freqs)))
-                plot_res = np.transpose(model_res.reshape((self._all_chans,self.n_freqs)))
-            mask_twod = mask_twod.reshape((self.n_freqs,self._all_chans))
-            mask_twod = np.logical_not(mask_twod)          
-            '''
-            
+                mid_title = "Imaginary"    
+            #all the reshaping/transposing is necessary to convert from one-dimensional
+            #arrays, to two-d arrays with the data stored in the right order for 
+            #2d plotting with colormesh
             if self.dependence == "energy":
                 mask_twod = np.tile(self.ebounds_mask,self.n_freqs)
                 data_reformat = self._data_unmasked[:self._all_bins].reshape((self.n_freqs,self._all_chans))
@@ -2625,7 +2766,10 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             fig.subplots_adjust(wspace=0.075)
             cbar = fig.colorbar(left_plot, ax=axs[0:2,0],aspect = 40)
             cbar.formatter.set_powerlimits((0, 0))
-            
+ 
+            #all the reshaping/transposing is necessary to convert from one-dimensional
+            #arrays, to two-d arrays with the data stored in the right order for 
+            #2d plotting with colormesh           
             if self.dependence == "energy":
                 data_reformat = self._data_unmasked[self._all_bins:].reshape((self.n_freqs,self._all_chans))
                 model_reformat = model[self._all_bins:].reshape((self.n_freqs,self._all_chans))
@@ -2653,6 +2797,9 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             cbar = fig.colorbar(mid_plot, ax=axs[0:2,1],aspect = 40)
             cbar.formatter.set_powerlimits((0, 0))
 
+            #all the reshaping/transposing is necessary to convert from one-dimensional
+            #arrays, to two-d arrays with the data stored in the right order for 
+            #2d plotting with colormesh
             if self.dependence == "energy":
                 top_res = model_res[self._all_bins:].reshape((self._all_chans,self.n_freqs))
                 bot_res = model_res[:self._all_bins].reshape((self._all_chans,self.n_freqs))
@@ -2669,8 +2816,6 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                 res_min = np.min([np.min(filtered_row),-1])
                 res_max = np.max([np.max(filtered_row),1])
                 
-                #res_min = np.min(np.append(plot_info[row].reshape(self._all_bins),-0.1))
-                #res_max = np.max(np.append(plot_info[row].reshape(self._all_bins),0.1))
                 res_norm = TwoSlopeNorm(vmin=res_min,vcenter=0,vmax=res_max) 
                 mid_plot = ax.pcolormesh(x_axis,y_axis,plot_info[row],cmap="BrBG",
                                             shading='auto',rasterized=True,norm=res_norm)
@@ -2686,6 +2831,10 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             ax.set_xlabel("Frequency (Hz)")
         else:
             fig, ((ax1),(ax2),(ax3)) = plt.subplots(1, 3, figsize=(15.,4.), sharex=True)             
+
+            #all the reshaping/transposing is necessary to convert from one-dimensional
+            #arrays, to two-d arrays with the data stored in the right order for 
+            #2d plotting with colormesh
             if self.dependence == "energy":               
                 mask_twod = np.tile(self.ebounds_mask,self.n_freqs)
                 plot_data = self._data_unmasked.reshape((self.n_freqs,self._all_chans))
@@ -2730,19 +2879,22 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             
             ax1.set_xscale("log")
             ax1.set_yscale("log")
-            ax1.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],self.ebounds[-1]+0.5*self.ewidths[-1]])
+            ax1.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],
+                          self.ebounds[-1]+0.5*self.ewidths[-1]])
             ax1.set_xlabel("Frequency (Hz)")
             ax1.set_ylabel("Energy (keV)")
             
             ax2.set_xscale("log")
             ax2.set_yscale("log")
-            ax2.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],1.05*self.ebounds[-1]+0.5*self.ewidths[-1]])
+            ax2.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],
+                          self.ebounds[-1]+0.5*self.ewidths[-1]])
             ax2.set_yticklabels([])
             ax2.set_xlabel("Frequency (Hz)")
             
             ax3.set_xscale("log")
             ax3.set_yscale("log")
-            ax3.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],self.ebounds[-1]+0.5*self.ewidths[-1]])
+            ax3.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],
+                          self.ebounds[-1]+0.5*self.ewidths[-1]])
             ax3.set_yticklabels([])
             ax3.set_xlabel("Frequency (Hz)")
         
