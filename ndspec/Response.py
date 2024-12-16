@@ -82,7 +82,13 @@ class ResponseMatrix(nDspecOperator):
         
     has_arf: bool
         A flag to check whether only a rmf file has been loaded, or a full 
-        rmf+arf response. This varies between observatories.           
+        rmf+arf response. This varies between observatories.  
+        
+    mission: str 
+        A string which tracks the observatory for which the response is defined. 
+        
+    instrument: str 
+        A string which tracks the instrument for which the response is defined.         
     """ 
     
     def __init__(self, resp_path, arf_path=None):
@@ -128,6 +134,8 @@ class ResponseMatrix(nDspecOperator):
                 raise AttributeError(hdr["TELESCOP"],"data not supported, aborting!")
             if hdr["HDUCLASS"] != "OGIP":
                 raise TypeError("File is not OGIP compliant")   
+            self.mission = hdr["TELESCOP"]
+            self.instrument = hdr["INSTRUME"]
         
         self.emin = np.array(channel_info.field("E_MIN"))
         self.emax = np.array(channel_info.field("E_MAX"))

@@ -12,7 +12,7 @@ plt.rcParams.update({'font.size': fi-5})
 
 colorscale = pl.cm.PuRd(np.linspace(0.,1.,5))
 
-from lmfit import fit_report, minimize
+from lmfit import fit_report, minimize#, CompositeModel, Parameters 
 from lmfit.model import ModelResult as LM_result
 
 class SimpleFit():
@@ -74,8 +74,10 @@ class SimpleFit():
             the fit. If it is not provided, all model parameters will default 
             to 0, set to be free, and have no minimum or maximum bound. 
         """
-    
-        #this should be an lmfit model object
+        if getattr(model, '__module__', None) != "lmfit.compositemodel":  
+        #if isinstance(model,lmfit.CompositeModel) is False:
+            raise AttributeError("The model input must be an LMFit CompositeModel object")
+        
         self.model = model 
         if params is None:
             self.model_params = self.model.make_params(verbose=True)
@@ -96,10 +98,16 @@ class SimpleFit():
             the fit.  
         """
         
+        #maybe find a way to go through the parameters of the model, and make sure 
+        #the object passed contains the same parameters?
+        if getattr(params, '__module__', None) != "lmfit.parameters":  
+#        if isinstance(params,lmfit.Parameters) is False:
+            raise AttributeError("The parameters input must be an LMFit Parameters object")
+        
         self.model_params = params
         return 
 
-    def get_residuals(self,model,res_type,use_masked=True):    
+    def get_residuals(self,res_type,model=None,use_masked=True):    
         """
         This methods return the residuals (either as data/model, or as 
         contribution to the total chi squared) of the input model, given the 
@@ -107,13 +115,15 @@ class SimpleFit():
         
         Parameters:
         -----------
-        model_vals: np.array(float)
-            An array of model values to be compared against the data.
-            
         res_type: string 
             If set to "ratio", the method returns the residuals defined as 
             data/model. If set to "delchi", it returns the contribution of 
             each energy channel to the total chi squared.
+
+        model: np.array(float), default None 
+            If specified, this is an array of the same size/format as the data, 
+            from which to compute the residuals. If the array is not specified 
+            the method evaluates the model stored in the class instance. 
             
         Returns:
         --------
@@ -126,7 +136,7 @@ class SimpleFit():
             range for each contribution to the residuals.           
         """
 
-        if (isinstance(model,LM_Model)):
+        if model is None:
             model = self.eval_model()
         
         if use_masked is True:
@@ -138,6 +148,7 @@ class SimpleFit():
         
         if isinstance(self,FitTimeAvgSpectrum):
             model = np.extract(self.ebounds_mask,model)
+
         if res_type == "ratio":
             residuals = data/model
             bars = error/model
@@ -145,7 +156,8 @@ class SimpleFit():
             residuals = (data-model)/error
             bars = np.ones(len(data))
         else:
-            print("can only return delta chi squared or ratio")
+            raise ValueError("The only supported residual types are ratio and delta chi")
+            
         return residuals, bars
 
     def print_fit_stat(self):
@@ -157,7 +169,7 @@ class SimpleFit():
         """
         
         if self.likelihood is None:
-            res, err = self.get_residuals(self.model,"delchi")
+            res, err = self.get_residuals("delchi")
             chi_squared = np.sum(np.power(res.reshape(len(self.data)),2))
             freepars = 0
             for key, value in self.model_params.items():
@@ -430,6 +442,7 @@ class EnergyDependentFit():
         else:
             self.data = np.extract(self.ebounds_mask,self._data_unmasked)
             self.data_err = np.extract(self.ebounds_mask,self._data_err_unmasked)               
+
         return
 
     def _filter_2d_by_mask(self,arr,mask):
@@ -454,7 +467,7 @@ class EnergyDependentFit():
             The input two-d array, reduced and filtered to include only the 
             noticed energy channels 
         """    
-        
+       
         filtered_array = [] 
         if self.dependence == "energy":
             arr_reshape = arr.reshape((self.n_freqs,self._all_chans))
@@ -465,6 +478,7 @@ class EnergyDependentFit():
             arr_reshape = arr.reshape((self._all_chans,self.n_freqs))
             filtered_array = arr_reshape[mask,:]
             filtered_array = filtered_array.reshape(self.n_bins)
+                    
         return filtered_array
 
 class FitPowerSpectrum(SimpleFit):
@@ -543,12 +557,17 @@ class FitPowerSpectrum(SimpleFit):
             defined. If passing a stingray object, this is not necessary and is 
             therefore ignored      
         """
-        
-        if data.__module__ == "stingray.powerspectrum":
+ 
+        if getattr(data, '__module__', None) != "stingray.powerspectrum":         
+#        if data.__module__ == "stingray.powerspectrum":
             self.data = data.power
             self.data_err = data.power_err
             self.freqs = data.freq            
         else:
+            if len(data) != len(data_err):
+                raise AttributeError("Input data and error arrays are different")
+            if len(data) != len(data_grid):
+                raise AttributeError("Input data and frequency arrays are different")        
             self.data = data
             self.data_err = data_err
             self.freqs = data_grid
@@ -612,7 +631,7 @@ class FitPowerSpectrum(SimpleFit):
             model = self.model.eval(params,freq=self.freqs)
             residuals = (self.data-model)/self.data_err
         else:
-            raise TypeError("custom likelihood not implemented yet")
+            raise AttributeError("custom likelihood not implemented yet")
         return residuals
     
     def plot_data(self,units="fpower",return_plot=False):
@@ -718,23 +737,26 @@ class FitPowerSpectrum(SimpleFit):
             model = self.eval_model(params=params)
 
         if plot_data is True:
-            model_res, res_errors = self.get_residuals(model,res_type=residuals)
-            if residuals == "delchi":
-                reslabel = "$\\Delta\\chi$"
-            else:
-                reslabel = "Data/model"
-            if units == "power":
-                data = self.data
-                error = self.data_err
-            elif units == "fpower":
-                data = self.data*self.freqs
-                error = self.data_err*self.freqs
-                model = model*self.freqs
-        
+            model_res, res_errors = self.get_residuals(res_type=residuals,model=model)
+
+        if residuals == "delchi":
+            reslabel = "$\\Delta\\chi$"
+        elif residuals == "ratio":
+            reslabel = "Data/model"
+        else:
+            raise ValueError("Residual format not supported")
+            
         if units == "power":
+            data = self.data
+            error = self.data_err
             ylabel = "Power"
         elif units == "fpower":
+            data = self.data*self.freqs
+            error = self.data_err*self.freqs
+            model = model*self.freqs
             ylabel= "Power$\\times$frequency"
+        else:
+            raise ValueError("Y axis units not supported")
             
         if plot_data is False:
             fig, (ax1) = plt.subplots(1,1,figsize=(6.,4.5))   
@@ -989,7 +1011,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
             convolve = np.extract(self.ebounds_mask,model)
             residuals = (self.data-convolve)/self.data_err
         else:
-            raise TypeError("custom likelihood not implemented yet")
+            raise AttributeError("custom likelihood not implemented yet")
         return residuals
 
     def plot_data(self,units="data",return_plot=False):
@@ -1057,6 +1079,8 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
             #with weird units, use a generic label
             else:
                 ylabel == "keV^{}/s/keV/cm$^{2}$".format(str(power))
+        else:
+            raise ValueError("Y axis units not supported")
         
         fig, ((ax1)) = plt.subplots(1,1,figsize=(6.,4.5))   
         
@@ -1156,15 +1180,20 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
                 ylabel == "keV^{}/s/keV/cm$^{2}$".format(str(power))  
             model = np.extract(self.ebounds_mask,model)
             model = model*self.ebounds**power
-
+        else:
+            raise ValueError("Y axis units not supported")
+            
         #if we're also plotting data, get the data in the same units
         #as well as the residuals
         if plot_data is True:
-            model_res,res_errors = self.get_residuals(self.model,residuals)
+            model_res,res_errors = self.get_residuals(residuals)
             if residuals == "delchi":
                 reslabel = "$\\Delta\\chi$"
+            elif residuals == "ratio":
+                reslabel = "Data/model"
             else:
-                reslabel = "Data/model"                
+                raise ValueError("Residual format not supported")   
+                            
             if units == "data":
                 data = self.data
                 yerror = self.data_err
@@ -1438,7 +1467,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             supported dependence stored in the class - ie "frequency" or "energy".
         """
         if depend not in self._supported_products:
-            raise AttributeError("Unsopprted products for the cross spectrum")
+            raise TypeError("Unsopprted products for the cross spectrum")
         else:
             self.dependence = depend
         return 
@@ -1458,7 +1487,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             "cartesian".
         """      
         if units not in self._supported_coordinates:
-            raise AttributeError("Unsopprted units for the cross spectrum")
+            raise TypeError("Unsopprted units for the cross spectrum")
         else:
             self.units = units
         return 
@@ -1568,6 +1597,18 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         bounds_lo = rebin_bounds[:-1]
         bounds_hi = rebin_bounds[1:] 
         self.response = response.rebin_channels(bounds_lo,bounds_hi) 
+
+        if ref_bounds[0] < self.response.energ_lo[0]:
+            ref_bounds[0] = self.response.energ_lo[0]
+            raise UserWarning("Lower bound of the reference band defined below the "\
+                              "start of the instrument response; re-setting to the lowest"\
+                              "energy bin instead" )
+        if ref_bounds[1] > self.response.energ_hi[-1]:
+            ref_bounds[1] = self.response.energ_hi[-1]
+            raise UserWarning("Upper bound of the reference band defined above the "\
+                              "start of the instrument response; re-setting to the highest"\
+                              "energy bin instead")                                
+                
         self.ref_band = ref_bounds
         EnergyDependentFit.__init__(self)  
         self.n_chans = self.ebounds_mask[self.ebounds_mask==True].size
@@ -1634,7 +1675,13 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         """
         
         if getattr(data, '__module__', None) == "stingray.events":
-            #check here that timeres, seg size and norm are all defined
+            if time_res is None: 
+                raise ValueError("time_res needs to be defined to load from an event file")
+            if seg_size is None:
+                raise ValueError("seg_size needs to be defined to load from an event file")
+            if norm is None:
+                raise ValueError("norm needs to be defined to load from an event file")
+
             events_ref = data.filter_energy_range(self.ref_band)
             ps_ref = AveragedPowerspectrum.from_events(events_ref,
                                                        segment_size=seg_size,
@@ -1678,8 +1725,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                     elif norm == "abs":
                         N = 2.*noise_sub
                     else:
-                        print("Normalization is wrong")
-                        N = 1.
+                        raise ValueError("Normalization not supported, choose between"\
+                                          "fractional and absolute rms")
                 
                     if self.units == "cartesian":    
                         data_first_dim = np.real(cs.power)
@@ -1724,7 +1771,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                 else:
                     self._times = np.linspace(time_res,lc_length,time_samples)              
             else:
-                print("Frequency and/or time grids undefined")
+                raise ValueError("Frequency and/or time grids undefined")
             self.data = data
             self.data_err = data_err  
         
@@ -2541,7 +2588,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         model = self.eval_model(params=params)
         
         if plot_data is True:
-            model_res,res_errors = self.get_residuals(self.model,residuals)
+            model_res,res_errors = self.get_residuals(residuals)
             if residuals == "delchi":
                 reslabel = "$\\Delta\\chi$"
             else:
@@ -2720,7 +2767,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             data_bound = self.n_chans 
 
         model = self.eval_model(params=params,mask=False)
-        model_res,_ = self.get_residuals(model,residuals,use_masked=False)
+        model_res,_ = self.get_residuals(res_type=residuals,model=model,use_masked=False)
 
         #the output of eval_model and get_residuals is not masked because we 
         #need to mask by hand here to get a correct 2d plots when ignoring bins
@@ -2949,6 +2996,15 @@ def load_pha(path,response):
         spectrum_data = spectrum['SPECTRUM'].data
         channels = spectrum_data['CHANNEL']
         counts = spectrum_data['COUNTS']
+        #check that the spectrum and response have the same mission and channel 
+        #number 
+        mission_spectrum = h.header["TELESCOP"]
+        instrument_spectrum = h.header["INSTRUME"]
+        if mission_spectrum != response.mission:
+            raise NameError("Observatory in the spectrum different from the response")
+        if instrument_spectrum != response.instrument:
+            raise NameError("Instrument in the spectrum different from the response")        
+        
         #check if exposure is present in either the primary or spectrum headers
         try:
             exposure = spectrum['PRIMARY'].header['EXPOSURE']
