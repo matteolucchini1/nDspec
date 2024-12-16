@@ -632,6 +632,7 @@ class FitPowerSpectrum(SimpleFit):
             residuals = (self.data-model)/self.data_err
         else:
             raise AttributeError("custom likelihood not implemented yet")
+            
         return residuals
     
     def plot_data(self,units="fpower",return_plot=False):
@@ -1774,6 +1775,11 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                 raise ValueError("Frequency and/or time grids undefined")
             self.data = data
             self.data_err = data_err  
+
+        if len(self.data) != len(self.data_err):
+            raise AttributeError("Size of data and error are not the same")
+        if len(self.data)/self.n_chans != len(self.n_freqs):
+            raise AttributeError("Size of frequency grid does not match the data")
         
         self.n_freqs = self.freqs.size
         return
@@ -1856,7 +1862,12 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             else:
                 self._times = np.linspace(time_res,lc_length,time_samples)              
         else:
-            print("Frequency and/or time grids undefined")          
+            raise ValueError("Frequency and/or time grids undefined")         
+
+        if len(self.data) != len(self.data_err):
+            raise AttributeError("Size of data and error are not the same")
+        if len(self.data)/self.n_freqs != len(self.n_chans):
+            raise AttributeError("Size of energy grid does not match the data")
         return 
 
     def set_model(self,model,model_type="irf",params=None):
@@ -1916,7 +1927,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         if self.model_type != "cross":
             self.crossspec.set_psd_weights(psd_weights)
         else:
-            print("Power spectrum weight not needed")
+            raise UserWarning("Power spectrum weights not needed, skipping")
         return 
     
     def eval_model(self,params=None,ref_band=None,mask=True):
@@ -1952,6 +1963,17 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         
         if ref_band is None:
             ref_band = self.ref_band
+        else:
+            if ref_band[0] < self.response.energ_lo[0]:
+                ref_band[0] = self.response.energ_lo[0]
+                raise UserWarning("Lower bound of the reference band defined below the "\
+                                  "start of the instrument response; re-setting to the lowest"\
+                                  "energy bin instead" )
+            if ref_band[1] > self.response.energ_hi[-1]:
+                ref_band[1] = self.response.energ_hi[-1]
+                raise UserWarning("Upper bound of the reference band defined above the "\
+                                  "start of the instrument response; re-setting to the highest"\
+                                  "energy bin instead") 
                 
         #evaluate the model for the chosen parameters
         if params is None:
@@ -1969,22 +1991,20 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         elif self.model_type == "cross":
             #transposing is required to ensure the units are correct 
             self.crossspec.cross = np.transpose(model_eval)
+        else:
+            raise AttributeError("Model type not supported")
             
         #fold the instrument response:
         folded_eval = self.response.convolve_response(self.crossspec,units_in="rate",units_out="channel")  
 
         #return the appropriately structured products
-        #filtering may be necessary ugh
         if self.dependence == "frequency":
             model = self._freq_dependent_model(folded_eval)
         elif self.dependence == "energy":
             model = self._energ_dependent_model(folded_eval,params)
         else:
-            print("error")  
+            raise AttributeError("Product dependency not supported")
 
-        #tbd: only do this if some elements in ebounds_mask are False
-        #make sure that this works for freq dependent stuff 
-        #also check that the synthax/wording is consistent with the other classes
         if mask is True:
             if self.units != "lags":
                 model_first_dim = self._filter_2d_by_mask(eval[:self._all_bins],self.ebounds_mask)
@@ -2045,7 +2065,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                 phase = np.append(phase,phase_eval)            
             model = np.concatenate((mod,phase))
         else:
-            print("error")    
+            raise AttributeError("Incorrect model units, set lags, cartesian or polar")               
         return model
 
     def _energ_dependent_model(self,folded_eval,params):
@@ -2144,7 +2164,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                 phase = np.append(phase,phase_model)
             model = np.concatenate((mod,phase))
         else:
-            print("weird units raise proper error tbd")            
+            raise AttributeError("Incorrect model units, set lags, cartesian or polar")                  
         return model
 
     def renorm_phases(self,value):
@@ -2176,7 +2196,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             for index in range(self.n_freqs):   
                 phase_pars.add('phase_renorm_'+str(index+1), 
                                value=0,min=-0.2,max=0.2,vary=True)            
-            self.model_params = self.model_params + phase_pars
+            self.model_params = self.model_params + phase_pars       
         return
         
     def _renorm_phase(self,array,renorm):
@@ -2230,7 +2250,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             for index in range(self.n_freqs):   
                 mods_pars.add('mods_renorm_'+str(index+1), 
                                value=1,min=0,max=1e5,vary=True)            
-            self.model_params = self.model_params + mods_pars            
+            self.model_params = self.model_params + mods_pars               
         return
 
     def _renorm_modulus(self,array,renorm):
@@ -2282,7 +2302,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             model = self.eval_model(params,ref_band=self.ref_band)
             residuals = (self.data-model)/self.data_err
         else:
-            raise TypeError("custom likelihood not implemented yet")
+            raise AttributeError("custom likelihood not implemented yet")
+        
         return residuals
     
     def plot_data_1d(self,return_plot=False):
