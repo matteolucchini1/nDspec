@@ -1916,9 +1916,6 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         
         Parameters:
         -----------
-        
-        Parameters:
-        -----------
         input_power: np.array(float) or PowerSpectrum
             Either an array of size (n_freqs) that is to be used as the weighing  
             power spectrum when computing the cross spectrum, or an nDspec 
