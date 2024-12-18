@@ -19,12 +19,9 @@ def lorentz(array, params):
     This model is a Lorentzian function, defined identically to Uttley and Malzac
     2023. The input parameters are:
     
-    array: the array over which the Lorentzian is to be computed
-    
-    f_pk: the peak frequency of the Lorentzian
-    
-    q: the q-factor of the Lorentzian 
-    
+    array: the array over which the Lorentzian is to be computed \n
+    f_pk: the peak frequency of the Lorentzian \n   
+    q: the q-factor of the Lorentzian \n    
     rms: the normalization of the Lorentzian 
     """
     if params.ndim == 1:
@@ -50,14 +47,10 @@ def cross_lorentz(array1,array2,params):
     and Malzac 2023, and shifted by a fixed phase, defined identically to Mendez
     et al. 2023. The input parameters are:
     
-    array: the array over which the Lorentzian is to be computed
-    
-    f_pk: the peak frequency of the Lorentzian
-    
-    q: the q-factor of the Lorentzian 
-    
-    rms: the normalization of the Lorentzian 
-    
+    array: the array over which the Lorentzian is to be computed \n    
+    f_pk: the peak frequency of the Lorentzian \n    
+    q: the q-factor of the Lorentzian  \n    
+    rms: the normalization of the Lorentzian \n    
     phase: the phase lag associated with the Lorentzian
     """
     n_energs = len(array1)
@@ -83,10 +76,8 @@ def powerlaw(array, params):
     """
     This model is a standard power-law. The input parameters are: 
     
-    array: the array grid over which to compute the power-law 
-    
-    norm: the normalization of the powerlaw 
-    
+    array: the array grid over which to compute the power-law \n    
+    norm: the normalization of the powerlaw \n    
     slope: the slope over the powerlaw. Unlike in Xspec, this parameter does not 
     implicitely assume a minus sign; it must be specified by the user.
     """
@@ -107,14 +98,10 @@ def brokenpower(array,params):
     This model is a smoothly broken powerlaw, defined identically to eq. 10 in 
     Ghisellini and Tavecchio 2009. The input parameters are:
     
-    array: the array over which to compute the broken powerlaw 
-    
-    norm: the normalization of the broken powerlaw 
-    
-    slope1: the slope of the broken powerlaw before the break
-    
-    slope2: the slope of the broken powerlaw after the break  
-    
+    array: the array over which to compute the broken powerlaw \n    
+    norm: the normalization of the broken powerlaw \n    
+    slope1: the slope of the broken powerlaw before the break \n    
+    slope2: the slope of the broken powerlaw after the break \n    
     brk: the location of the break in the powerlaw 
     """
     if params.ndim == 1:
@@ -143,10 +130,8 @@ def gaussian(array, params):
     """
     This model is a Gaussian function. The input parameters are: 
     
-    array: the array over which the Gaussian is defined 
-    
-    center: the centroid of the Gaussian 
-    
+    array: the array over which the Gaussian is defined \n    
+    center: the centroid of the Gaussian \n    
     width: the width of the Gaussian
     """
     if params.ndim == 1:
@@ -166,11 +151,9 @@ def bbody(array, params):
     """
     This model is a constant black body. The input parameters are:
     
-    array: the array over which the spectrum is defined 
-    
+    array: the array over which the spectrum is defined \n    
     norm: the normalization of the black body, defined identically to that of 
-    the Xspec model 
-    
+    the Xspec model \n    
     temp: the temperature in keV
     """
     if params.ndim == 1:
@@ -190,11 +173,9 @@ def varbbody(array, params):
     This model is a variable black body, defined identically to Uttley and 
     Malzac 2023. The input parameters are:
     
-    array: the array over which the spectrum is defined 
-    
+    array: the array over which the spectrum is defined \n    
     norm: the normalization of the black body, defined identically to that of 
-    the Xspec model 
-    
+    the Xspec model \n    
     temp: the temperature in keV
     """
     if params.ndim == 1:
@@ -217,22 +198,14 @@ def gauss_fred(array1,array2,params,return_full=False):
     following a powerlaw. The total model is the product of the two dependences. 
     The input paramters are:
     
-    array1: the time over which the pulse is defined 
-    
-    array2: the second direction over which the model is defined
-    
-    norm: the total model normalization
-    
-    width: the initial width of the Gaussian
-    
-    center: the centroid of the Gaussian 
-    
-    rise_t: the rise pulse timescale 
-    
-    decay_t: the decay pulse timescale 
-    
-    decay_w: the slope of the energy width powerlaw decay
-    
+    array1: the time over which the pulse is defined \n    
+    array2: the second direction over which the model is defined \n    
+    norm: the total model normalization \n
+    width: the initial width of the Gaussian \n    
+    center: the centroid of the Gaussian \n    
+    rise_t: the rise pulse timescale \n    
+    decay_t: the decay pulse timescale \n    
+    decay_w: the slope of the energy width powerlaw decay \n    
     return_full: a boolean to choose whether to return just the 2d model (done 
     by default), or the additional projections over the two model axis
     """
@@ -296,25 +269,16 @@ def gauss_bkn(array1,array2,params,return_full=False):
     following a powerlaw. The total model is the product of the two dependences. 
     The input paramters are:
     
-    array1: the time over which the pulse is defined 
-    
-    array2: the second direction over which the model is defined
-    
-    norm: the total model normalization
-    
-    center: the centroid of the Gaussian 
-    
-    width: the initial width of the Gaussian
-    
-    rise_slope: the rise pulse slope  
-    
-    decay_slope: the decay pulse slope 
-    
+    array1: the time over which the pulse is defined \n    
+    array2: the second direction over which the model is defined \n    
+    norm: the total model normalization \n    
+    center: the centroid of the Gaussian \n    
+    width: the initial width of the Gaussian \n    
+    rise_slope: the rise pulse slope \n    
+    decay_slope: the decay pulse slope \n    
     break_time: the time at which the broken powerlaw changes from rise to decay 
-    slope
-    
-    decay_w: the slope of the energy width powerlaw decay
-    
+    slope \n    
+    decay_w: the slope of the energy width powerlaw decay \n    
     return_full: a boolean to choose whether to return just the 2d model (done 
     by default), or the additional projections over the two model axis
     """
@@ -376,23 +340,15 @@ def bbody_fred(array1,array2,params,return_full=False):
     powerlaw. The total model is the product of the two dependences. The input  
     paramters are:
     
-    array1: the time over which the pulse is defined 
-    
-    array2: the second direction over which the model is defined
-    
-    norm: the total model normalization
-    
-    temp: the initial temperature 
-    
-    rise_slope: the rise pulse slope  
-    
-    decay_slope: the decay pulse slope 
-    
+    array1: the time over which the pulse is defined \n    
+    array2: the second direction over which the model is defined \n    
+    norm: the total model normalization \n    
+    temp: the initial temperature \n    
+    rise_slope: the rise pulse slope \n    
+    decay_slope: the decay pulse slope \n    
     break_time: the time at which the broken powerlaw changes from rise to decay 
-    slope
-    
-    decay_temp: the slope of the temperature powerlaw decay
-    
+    slope \n    
+    decay_temp: the slope of the temperature powerlaw decay \n    
     return_full: a boolean to choose whether to return just the 2d model (done 
     by default), or the additional projections over the two model axis
     """
@@ -451,22 +407,15 @@ def bbody_bkn(array1,array2,params,return_full=False):
     powerlaw. The total model is the product of the two dependences. The input  
     paramters are:
     
-    array1: the time over which the pulse is defined 
-    
-    array2: the second direction over which the model is defined
-    
-    norm: the total model normalization
-    
-    temp: the initial temperature 
-    
-    rise_slope: the rise pulse slope  
-    
-    decay_slope: the decay pulse slope 
-    
+    array1: the time over which the pulse is defined \n    
+    array2: the second grid over which the model is defined \n    
+    norm: the total model normalization \n    
+    temp: the initial temperature \n    
+    rise_slope: the rise pulse slope \n      
+    decay_slope: the decay pulse slope \n    
     break_time: the time at which the broken powerlaw changes from rise to decay 
-    slope
-    
-    decay_temp: the slope of the temperature powerlaw decay
+    slope\n    
+    decay_temp: the slope of the temperature powerlaw decay\n
     return_full: a boolean to choose whether to return just the 2d model (done 
     by default), or the additional projections over the two model axis
     """
@@ -523,24 +472,17 @@ def pivoting_pl(array1,array2,params):
     expresses the dependence of the paramters gamma and phi_ab (in the paper 
     above) explicitely. The input paramters are:
     
-    array1: the Fourier frequencies over which to compute the model 
-    
+    array1: the Fourier frequencies over which to compute the model \n    
     array2: the second direction (typically energy) over which to compute the 
-    model
-    
-    norm: the model normalzation
-    
-    pl_index: the slope over the powerlaw 
-    
+    model \n    
+    norm: the model normalzation \n    
+    pl_index: the slope over the powerlaw \n    
     gamma_0: the gamma parameter in Mastroserio et al. 2021, defined at a 
-    frequency nu_0 
-    
+    frequency nu_0 \n    
     gamma_slope: the dependence of the gamma parameter with Fourier frequency, 
-    which is assumed to be log-linear 
-    
+    which is assumed to be log-linear \n    
     phi_0: the phi_AB parameter in Mastroserio et al. 2021, defined at a 
-    frequency nu_0 
-    
+    frequency nu_0 \n    
     nu_0: the initial frequency from which the pivoting parameters are defined
     """
     freqs = array1
@@ -603,18 +545,12 @@ def plot_2d(xaxis,yaxis,impulse_2d,impulse_x,impulse_y,
     A simple automated plotter for the impulse response function models above. 
     The input parameters are:
     
-    xaxis, yaxis: the two grids over which the model is defined 
-    
-    impulsed_2d: the two-dimensional model to plot     
-    
-    impulse_x,impulse_y: the projections of the model over the x/y axis 
-    
-    xlim,ylim: the limits of the x/y axis to show in the plot
-    
-    xlog,ylog: booleans to switch between linera and log scales in each axis 
-    
-    return_plot: boolean to return the figure object for storage/saving 
-    
+    xaxis, yaxis: the two grids over which the model is defined \n    
+    impulsed_2d: the two-dimensional model to plot \n
+    impulse_x,impulse_y: the projections of the model over the x/y axis \n    
+    xlim,ylim: the limits of the x/y axis to show in the plot \n    
+    xlog,ylog: booleans to switch between linera and log scales in each axis \n    
+    return_plot: boolean to return the figure object for storage/saving \n    
     normalize_en: boolean to multiply the energy dependence (on the y axis) by 
     the y axis values squared. Useful to highlight the model energy dependence.
     """
