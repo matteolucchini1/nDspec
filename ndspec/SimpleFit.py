@@ -12,7 +12,7 @@ plt.rcParams.update({'font.size': fi-5})
 
 colorscale = pl.cm.PuRd(np.linspace(0.,1.,5))
 
-from lmfit import fit_report, minimize#, CompositeModel, Parameters 
+from lmfit import fit_report, minimize, CompositeModel, Parameters 
 from lmfit.model import ModelResult as LM_result
 
 class SimpleFit():
@@ -66,7 +66,7 @@ class SimpleFit():
         
         Parameters:
         -----------            
-        model: lmfit.CompositeModel 
+        model: lmfit.model or lmfit.compositemodel 
             The lmfit wrapper of the model one wants to fit to the data. 
             
         params: lmfit.Parameters, default: None 
@@ -74,9 +74,11 @@ class SimpleFit():
             the fit. If it is not provided, all model parameters will default 
             to 0, set to be free, and have no minimum or maximum bound. 
         """
-        if getattr(model, '__module__', None) != "lmfit.compositemodel":  
+
+        if ((getattr(model, '__module__', None) != "lmfit.compositemodel")&
+            (getattr(model, '__module__', None) != "lmfit.model")):  
         #if isinstance(model,lmfit.CompositeModel) is False:
-            raise AttributeError("The model input must be an LMFit CompositeModel object")
+            raise AttributeError("The model input must be an LMFit Model or CompositeModel object")
         
         self.model = model 
         if params is None:
@@ -93,14 +95,14 @@ class SimpleFit():
         
         Parameters:
         -----------                       
-        params: lmfit.Parameters
+        params: lmfit.parameter
             The parameter values from which to start evalauting the model during
             the fit.  
         """
         
         #maybe find a way to go through the parameters of the model, and make sure 
         #the object passed contains the same parameters?
-        if getattr(params, '__module__', None) != "lmfit.parameters":  
+        if getattr(params, '__module__', None) != "lmfit.parameter":  
 #        if isinstance(params,lmfit.Parameters) is False:
             raise AttributeError("The parameters input must be an LMFit Parameters object")
         
@@ -557,9 +559,8 @@ class FitPowerSpectrum(SimpleFit):
             defined. If passing a stingray object, this is not necessary and is 
             therefore ignored      
         """
- 
-        if getattr(data, '__module__', None) != "stingray.powerspectrum":         
-#        if data.__module__ == "stingray.powerspectrum":
+
+        if getattr(data, '__module__', None) == "stingray.powerspectrum":         
             self.data = data.power
             self.data_err = data.power_err
             self.freqs = data.freq            
