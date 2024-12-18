@@ -3015,13 +3015,14 @@ def load_pha(path,response):
     
     with fits.open(path,filemap=False) as spectrum:
         extnames = np.array([h.name for h in spectrum])
+        hdr = spectrum["SPECTRUM"].header
         spectrum_data = spectrum['SPECTRUM'].data
         channels = spectrum_data['CHANNEL']
         counts = spectrum_data['COUNTS']
         #check that the spectrum and response have the same mission and channel 
-        #number 
-        mission_spectrum = h.header["TELESCOP"]
-        instrument_spectrum = h.header["INSTRUME"]
+        #number         
+        mission_spectrum = hdr["TELESCOP"]
+        instrument_spectrum = hdr["INSTRUME"]
         if mission_spectrum != response.mission:
             raise NameError("Observatory in the spectrum different from the response")
         if instrument_spectrum != response.instrument:

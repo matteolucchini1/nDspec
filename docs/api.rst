@@ -34,3 +34,33 @@ CrossSpectrum Class
 
 .. autoclass:: ndspec.Timing.CrossSpectrum
    :members:
+   
+SimpleFit Class 
+~~~~~~~~~~~~~~~
+
+.. autoclass:: ndspec.SimpleFit.SimpleFit
+   :members:
+   
+EnergyDependentFit Class
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: ndspec.SimpleFit.EnergyDependentFit
+   :members:
+   
+FitPowerSpectrum Class
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: ndspec.SimpleFit.FitPowerSpectrum
+   :members:
+   
+FitTimeAvgSpectrum Class
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: ndspec.SimpleFit.FitTimeAvgSpectrum
+   :members:
+   
+FitCrossSpectrum Class
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: ndspec.SimpleFit.FitCrossSpectrum
+   :members:

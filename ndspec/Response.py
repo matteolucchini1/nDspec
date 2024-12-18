@@ -131,7 +131,7 @@ class ResponseMatrix(nDspecOperator):
             data = h.data
             hdr = h.header
             if (hdr["TELESCOP"] == "ATHENA") or (hdr["TELESCOP"] == "XRiSM"):
-                raise AttributeError(hdr["TELESCOP"],"data not supported, aborting!")
+                raise AttributeError(hdr["TELESCOP"],"data not supported!")
             if hdr["HDUCLASS"] != "OGIP":
                 raise TypeError("File is not OGIP compliant")   
             self.mission = hdr["TELESCOP"]
