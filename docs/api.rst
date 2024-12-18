@@ -64,3 +64,10 @@ FitCrossSpectrum Class
 
 .. autoclass:: ndspec.SimpleFit.FitCrossSpectrum
    :members:
+   
+Data loading utilities:
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: ndspec.SimpleFit.load_lc
+
+.. autofunction:: ndspec.SimpleFit.load_pha  
