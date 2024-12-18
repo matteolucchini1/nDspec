@@ -380,14 +380,17 @@ class ResponseMatrix(nDspecOperator):
             self object, but rebinned over the energy axis to the input grid.
         """    
         
-        warnings.warn("WARNING: rebinning a response in energy is dangerous, use at your own risk!",
-                      UserWarning)    
-        
-        new_bounds_lo = self._integer_slice(self.energ_lo,factor)
-        new_bounds_hi = np.append(new_bounds_lo[1:],self.energ_hi[-1])#self._integer_slice(self.energ_hi,factor)
-
         if factor < 1:
             raise ValueError("You can not rebin to a finer energy grid")
+
+        if (isinstance(factor, int) != True):
+            raise TypeError("Rebinning factor must be an integer!") 
+
+        warnings.warn("WARNING: rebinning a response in energy is dangerous, use at your own risk!",
+                      UserWarning) 
+
+        new_bounds_lo = self._integer_slice(self.energ_lo,factor)
+        new_bounds_hi = np.append(new_bounds_lo[1:],self.energ_hi[-1])#self._integer_slice(self.energ_hi,factor)
         
         rebinned_response = np.zeros((len(new_bounds_lo),self.n_chans))
         

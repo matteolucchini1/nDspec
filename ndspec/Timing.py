@@ -379,6 +379,9 @@ class PowerSpectrum(FourierProduct):
         "fft", for a standard Fast Fourier Transform  as implemented by 
         numpy.fft, and "sinc", for the sinc function decomposition described in 
         Uttley and Malzac 2023 (arXiv:2312.08302).
+        
+    verbose: bool
+        A setting to display initialization warnings.
      
     Attributes inherited from FourierProduct:  
     -----------------------------------------  
@@ -420,8 +423,8 @@ class PowerSpectrum(FourierProduct):
         an input signal.     
     """
     
-    def __init__(self,times,freqs=0,method='fft'):        
-        FourierProduct.__init__(self,times,freqs,method)        
+    def __init__(self,times,freqs=0,method='fft',verbose=False):        
+        FourierProduct.__init__(self,times,freqs,method,verbose)        
         pass 
 
     def compute_psd(self,signal):
@@ -531,9 +534,12 @@ class CrossSpectrum(FourierProduct):
         The computational method to calculate the cross spectrum. Options are 
         "fft", for a standard Fast Fourier Transform  as implemented by 
         numpy.fft, and "sinc", for the sinc function decomposition described in 
-        Uttley and Malzac 2023 (arXiv:2312.08302).    
+        Uttley and Malzac 2023 (arXiv:2312.08302). 
+        
+    verbose: bool
+        A setting to trigger initialization warnings.   
 
-    Other parameters; 
+    Other parameters: 
     ----------------- 
     energ: np.array(float) 
         The array of energy (or energy channels) bin mid-points over which a
@@ -625,8 +631,8 @@ class CrossSpectrum(FourierProduct):
         space).     
     """
     
-    def __init__(self,times,freqs=0,energ=None,method='fft'):
-        FourierProduct.__init__(self,times,freqs,method)
+    def __init__(self,times,freqs=0,energ=None,method='fft',verbose=False):
+        FourierProduct.__init__(self,times,freqs,method,verbose)
         self.energ = energ
         #energ=none is used to treat 1-d cross spectra between only two energy
         #channels
