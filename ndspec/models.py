@@ -322,79 +322,7 @@ def gauss_bkn(array1,array2,params,return_full=False):
         return brk_pulse, line_profile, pulse_profile
     else:
         return brk_pulse
-    
-def pivoting_pl(array1,array2,params):
-    """
-    This is a pivoting power-law model similar to that implemented in reltrans
-    (Mastroserio et al. 2021). The main difference is that this implementation 
-    expresses the dependence of the paramters gamma and phi_ab (in the paper 
-    above) explicitely. The input paramters are:
-    array1: the Fourier frequencies over which to compute the model 
-    array2: the second direction (typically energy) over which to compute the 
-    model
-    norm: the model normalzation
-    pl_index: the slope over the powerlaw 
-    gamma_0: the gamma parameter in Mastroserio et al. 2021, defined at a 
-    frequency nu_0 
-    gamma_slope: the dependence of the gamma parameter with Fourier frequency, 
-    which is assumed to be log-linear 
-    phi_0: the phi_AB parameter in Mastroserio et al. 2021, defined at a 
-    frequency nu_0 
-    nu_0: the initial frequency from which the pivoting parameters are defined
-    """
-    freqs = array1
-    energy = array2
-    if params.ndim == 1:
-        norm = params[0]
-        pl_index = params[1]
-        gamma_0 = params[2]
-        gamma_slope = params[3]
-        phi_0 = params[4]
-        phi_slope = params[5]
-        nu_0 = params[6]
-        pivoting = np.zeros((len(energy),len(freqs)),dtype=complex)
-        powerlaw_shape = norm*powerlaw(energy,np.array([norm,pl_index]))
-        phase = phi_0 + np.log10(freqs/nu_0)*phi_slope
-        if phi_0 < 0:
-            phase[phase<-0.99*np.pi] = -0.99*np.pi
-        elif phi_0 > 0:
-            phase[phase>0.99*np.pi] = 0.99*np.pi
-        gamma = gamma_0 + np.log10(freqs/nu_0)*gamma_slope
-        gamma[gamma<0] = 0
-        #attempting new formalism for phi_0
-        #*powerlaw(freqs/nu_0,np.array([1.,phi_slope]))
-        #temp hack to avoid phase wrapping
-
-        #the reshaping is to avoid for loops and to use matrix multiplication instead
-        piv_factor = 1 - gamma*np.exp(1j*phase).reshape((1,len(freqs)))*np.log(energy).reshape((len(energy),1))
-        pivoting = piv_factor*powerlaw_shape.reshape(len(energy),1)
-    elif params.ndim == 2:
-        norm = params[:,0][:,np.newaxis]
-        pl_index = params[:,1][:,np.newaxis]
-        gamma_0 = params[:,2][:,np.newaxis]
-        gamma_slope = params[:,4][:,np.newaxis]
-        phi_0 = params[:,4][:,np.newaxis]
-        phi_slope = params[:,5][:,np.newaxis]
-        nu_0 = params[:,6][:,np.newaxis]
-        pivoting = np.zeros((len(energy),len(freqs)),dtype=complex)
-        powerlaw_shape = norm*powerlaw(energy,
-                                       np.concatenate([norm,pl_index],axis=1))
-        #really not sure that this is correct 
-        phase = phi_0 + np.log10(freqs/nu_0)*np.concatenate(phi_slope,axis=1)
-        gamma = gamma_0 + np.log10(freqs/nu_0)*np.concatenate(gamma_slope,axis=1)
-        gamma[gamma<0] = 0
-        #phase = phi_0*powerlaw(freqs/nu_0,
-        #                       np.concatenate([np.ones(phi_slope.shape),
-        #                                       phi_slope],axis=1)) 
-        #the reshaping is to avoid for loops and to use matrix multiplication instead
-        log_energ = np.repeat(np.log(energy)[np.newaxis,:,np.newaxis],
-                              params.shape[0],axis=0)
-        piv_factor = 1 - (gamma*np.exp(1j*phase))[:,np.newaxis,:]*log_energ
-        pivoting = piv_factor*powerlaw_shape[:,:,np.newaxis]
-    else:
-        raise TypeError("Params has too many dimensions, limit to 1 or 2 dimensions")      
-    return pivoting    
-    
+       
 def bbody_fred(array1,array2,params,return_full=False):
     """
     This is a two-dimensional model for an impulse response function. The time 
@@ -525,6 +453,78 @@ def bbody_bkn(array1,array2,params,return_full=False):
         return brk_pulse, model_profile, pulse_profile
     else:
         return brk_pulse  
+
+def pivoting_pl(array1,array2,params):
+    """
+    This is a pivoting power-law model similar to that implemented in reltrans
+    (Mastroserio et al. 2021). The main difference is that this implementation 
+    expresses the dependence of the paramters gamma and phi_ab (in the paper 
+    above) explicitely. The input paramters are:
+    array1: the Fourier frequencies over which to compute the model 
+    array2: the second direction (typically energy) over which to compute the 
+    model
+    norm: the model normalzation
+    pl_index: the slope over the powerlaw 
+    gamma_0: the gamma parameter in Mastroserio et al. 2021, defined at a 
+    frequency nu_0 
+    gamma_slope: the dependence of the gamma parameter with Fourier frequency, 
+    which is assumed to be log-linear 
+    phi_0: the phi_AB parameter in Mastroserio et al. 2021, defined at a 
+    frequency nu_0 
+    nu_0: the initial frequency from which the pivoting parameters are defined
+    """
+    freqs = array1
+    energy = array2
+    if params.ndim == 1:
+        norm = params[0]
+        pl_index = params[1]
+        gamma_0 = params[2]
+        gamma_slope = params[3]
+        phi_0 = params[4]
+        phi_slope = params[5]
+        nu_0 = params[6]
+        pivoting = np.zeros((len(energy),len(freqs)),dtype=complex)
+        powerlaw_shape = norm*powerlaw(energy,np.array([norm,pl_index]))
+        phase = phi_0 + np.log10(freqs/nu_0)*phi_slope
+        if phi_0 < 0:
+            phase[phase<-0.99*np.pi] = -0.99*np.pi
+        elif phi_0 > 0:
+            phase[phase>0.99*np.pi] = 0.99*np.pi
+        gamma = gamma_0 + np.log10(freqs/nu_0)*gamma_slope
+        gamma[gamma<0] = 0
+        #attempting new formalism for phi_0
+        #*powerlaw(freqs/nu_0,np.array([1.,phi_slope]))
+        #temp hack to avoid phase wrapping
+
+        #the reshaping is to avoid for loops and to use matrix multiplication instead
+        piv_factor = 1 - gamma*np.exp(1j*phase).reshape((1,len(freqs)))*np.log(energy).reshape((len(energy),1))
+        pivoting = piv_factor*powerlaw_shape.reshape(len(energy),1)
+    elif params.ndim == 2:
+        norm = params[:,0][:,np.newaxis]
+        pl_index = params[:,1][:,np.newaxis]
+        gamma_0 = params[:,2][:,np.newaxis]
+        gamma_slope = params[:,4][:,np.newaxis]
+        phi_0 = params[:,4][:,np.newaxis]
+        phi_slope = params[:,5][:,np.newaxis]
+        nu_0 = params[:,6][:,np.newaxis]
+        pivoting = np.zeros((len(energy),len(freqs)),dtype=complex)
+        powerlaw_shape = norm*powerlaw(energy,
+                                       np.concatenate([norm,pl_index],axis=1))
+        #really not sure that this is correct 
+        phase = phi_0 + np.log10(freqs/nu_0)*np.concatenate(phi_slope,axis=1)
+        gamma = gamma_0 + np.log10(freqs/nu_0)*np.concatenate(gamma_slope,axis=1)
+        gamma[gamma<0] = 0
+        #phase = phi_0*powerlaw(freqs/nu_0,
+        #                       np.concatenate([np.ones(phi_slope.shape),
+        #                                       phi_slope],axis=1)) 
+        #the reshaping is to avoid for loops and to use matrix multiplication instead
+        log_energ = np.repeat(np.log(energy)[np.newaxis,:,np.newaxis],
+                              params.shape[0],axis=0)
+        piv_factor = 1 - (gamma*np.exp(1j*phase))[:,np.newaxis,:]*log_energ
+        pivoting = piv_factor*powerlaw_shape[:,:,np.newaxis]
+    else:
+        raise TypeError("Params has too many dimensions, limit to 1 or 2 dimensions")      
+    return pivoting    
     
 def plot_2d(xaxis,yaxis,impulse_2d,impulse_x,impulse_y,
             xlim=[0.,400.],ylim=[0.1,10.5],xlog=False,ylog=False,
