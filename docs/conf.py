@@ -69,6 +69,6 @@ conf.read([os.path.join(os.path.dirname(__file__), "..", "setup.cfg")])
 setup_cfg = dict(conf.items("metadata"))
 
 autodoc_mock_imports = ['bs4', 'requests','numpy','astropy','matplotlib',
-                        'scipy','pyfftw','copy','warnings',]
+                        'scipy','pyfftw','copy','warnings','lmfit']
 
 html_static_path = ['_static']
