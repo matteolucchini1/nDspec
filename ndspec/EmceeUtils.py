@@ -1,6 +1,7 @@
 import numpy as np 
 import corner
 import copy
+import math
 
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pl
@@ -100,14 +101,14 @@ class priorLogNormal():
     def logprob(self,theta):
         logprior = -0.5*(np.log(theta)-mu)**2/sigma**2-0.5*np.log(2.*np.pi*sigma**2/theta**2)
         return logprior
+
         
 def log_priors(theta, prior_dict):
     logprior = 0
     for (key, obj), val in zip(prior_dict.items(), theta):        
         logprior = logprior + obj.logprob(val) 
     return logprior
- 
- 
+
     
 def chi_square_likelihood(theta):
     global global_priors
@@ -130,6 +131,7 @@ def chi_square_likelihood(theta):
     likelihood = statistic + logpriors
     return likelihood
 
+#note: this appears to be horribly messed up for power spectra 
 def poisson_likelihood(theta,obs_time):
     global global_priors
     global names 
@@ -148,6 +150,7 @@ def poisson_likelihood(theta,obs_time):
     likelihood = statistic + logpriors
     return likelihood
 
+#this isn't terrible for now? uh
 def whittle_likelihood(theta,segments):
     global global_priors
     global names 
@@ -162,7 +165,6 @@ def whittle_likelihood(theta,segments):
         emcee_params[name].value = val    
     model = emcee_model(params=emcee_params)
     nu = 2.*segments
-    #I are data points, S are model values
     whittle = emcee_data/model + np.log(model) + (2./nu -1)*np.log(emcee_data)
     statistic = -nu*np.sum(whittle)
     likelihood = statistic + logpriors
@@ -175,7 +177,8 @@ def process_emcee(sampler,labels=None,discard=2000,thin=15,values=None):
         print("Autocorrelation lengths: ",tau)
     #print trace plots
     ndim = len(tau)
-    fig, axes = plt.subplots(ndim, figsize=(10, 14), sharex=True)
+    size = math.ceil(14/9*ndim)
+    fig, axes = plt.subplots(ndim, figsize=(9, size), sharex=True)
     samples = sampler.get_chain()    
     for i in range(ndim):
         ax = axes[i]
