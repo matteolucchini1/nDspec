@@ -1,5 +1,6 @@
 import numpy as np 
 import corner
+import copy
 
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pl
@@ -10,17 +11,47 @@ rc('font',**{'family':'serif','serif':['Computer Modern']})
 fi = 22
 plt.rcParams.update({'font.size': fi-5})
 
-def initialize_parameters(params):
-    theta = []
+names = None 
+global_priors = None
+emcee_data = None 
+emcee_data_err = None
+emcee_model = None 
+
+def set_emcee_priors(priors):
+    global global_priors
+    global_priors = priors 
+    return 
+
+def set_emcee_model(model): 
+    global emcee_model
+    emcee_model = model  
+    return 
+    
+def set_emcee_data(data,error):
+    global emcee_data
+    global emcee_data_err
+    emcee_data = data 
+    emcee_data_err = error 
+    return     
+
+def set_emcee_parameters(params):
+    """
+    asdf
+    """
+    global names 
+    global values 
+    global emcee_params
+    
+    emcee_params = copy.copy(params) 
     values = []
     names = []
+    theta = []
     for key in params:
         names = np.append(names,params[key].name)
         values = np.append(values,params[key].value)
         if params[key].vary is True:
             theta = np.append(theta,params[key].value)  
-    return theta, values, names
-
+    return theta
     
 class priorUniform():
     
@@ -34,6 +65,7 @@ class priorUniform():
             return 0.0
         return -np.inf
 
+
 class priorLogUniform():
     
     def __init__(self,min,max):
@@ -46,6 +78,7 @@ class priorLogUniform():
             return -np.log(theta)
         return -np.inf
 
+
 class priorNormal():
     
     def __init__(self,sigma,mu):
@@ -56,6 +89,7 @@ class priorNormal():
     def logprob(self,theta):
         logprior = -0.5*(theta-self.mu)**2/self.sigma**2-0.5*np.log(2.*np.pi*self.sigma**2)
         return logprior
+
 
 class priorLogNormal():
     def __init__(sigma,mu):
@@ -72,8 +106,17 @@ def log_priors(theta, prior_dict):
     for (key, obj), val in zip(prior_dict.items(), theta):        
         logprior = logprior + obj.logprob(val) 
     return logprior
+ 
+ 
     
-    def chi_square_likelihood(theta):
+def chi_square_likelihood(theta):
+    global global_priors
+    global names 
+    global emcee_params
+    global emcee_data
+    global emcee_data_err
+    global emcee_model 
+    
     logpriors = log_priors(theta, global_priors)
     if not np.isfinite(logpriors):
         return -np.inf        
@@ -88,6 +131,12 @@ def log_priors(theta, prior_dict):
     return likelihood
 
 def poisson_likelihood(theta,obs_time):
+    global global_priors
+    global names 
+    global emcee_params
+    global emcee_data
+    global emcee_model 
+
     logpriors = log_priors(theta, global_priors)
     if not np.isfinite(logpriors):
         return -np.inf       
@@ -100,6 +149,12 @@ def poisson_likelihood(theta,obs_time):
     return likelihood
 
 def whittle_likelihood(theta,segments):
+    global global_priors
+    global names 
+    global emcee_params
+    global emcee_data
+    global emcee_model 
+    
     logpriors = -log_priors(theta, global_priors)
     if not np.isfinite(logpriors):
         return -np.inf       
@@ -119,6 +174,7 @@ def process_emcee(sampler,labels=None,discard=2000,thin=15,values=None):
     with np.printoptions(threshold=np.inf):
         print("Autocorrelation lengths: ",tau)
     #print trace plots
+    ndim = len(tau)
     fig, axes = plt.subplots(ndim, figsize=(10, 14), sharex=True)
     samples = sampler.get_chain()    
     for i in range(ndim):
@@ -130,7 +186,8 @@ def process_emcee(sampler,labels=None,discard=2000,thin=15,values=None):
         ax.yaxis.set_label_coords(-0.1, 0.5)    
     axes[-1].set_xlabel("Step number");
     #print acceptance fraction
-    frac = sampler.acceptance_fraction    
+    frac = sampler.acceptance_fraction
+    nwalkers = len(frac)    
     fig, ax = plt.subplots(1, figsize=(6, 4), sharex=True)
     ax.scatter(np.linspace(0,nwalkers,nwalkers), frac, marker='o', alpha=0.8,color='black')
     ax.set_xlim(-1, nwalkers+1)
