@@ -12,23 +12,64 @@ rc('font',**{'family':'serif','serif':['Computer Modern']})
 fi = 22
 plt.rcParams.update({'font.size': fi-5})
 
-names = None 
-global_priors = None
+emcee_names = None 
+emcee_values = None
+emcee_priors = None
 emcee_data = None 
 emcee_data_err = None
 emcee_model = None 
 
 def set_emcee_priors(priors):
-    global global_priors
-    global_priors = priors 
+    """
+    This function is used to set the priors to be used with emcee sampling.  
+    These priors are saved in a global variable called emcee_priors; therefore,  
+    users should never re-use the variable name emcee_priors in their code.
+    
+    Input:
+    ------
+    priors: dict 
+        A dictionary of priors to be used in emcee. The key of each dictionary 
+        should be the name of the parameter. Each key should contain an object 
+        with a method called "logprob", which returns the (negative) logarithm 
+        of the prior evaluated at a given point.
+    """
+    global emcee_priors
+    emcee_priors = priors 
     return 
 
 def set_emcee_model(model): 
+    """
+    This function is used to set the model to be used with emcee sampling.  
+    This model is saved in a global variable called emcee_model; therefore,  
+    users should never re-use the variable name emcee_model in their code.
+    
+    Input:
+    ------
+    model: lmfit.model or lmfit.compositemodel  
+        The lmfit model (or composite model) object defined by the user to be 
+        used in the emcee sampling. 
+    """
     global emcee_model
     emcee_model = model  
     return 
     
 def set_emcee_data(data,error):
+    """
+    This function is used to set the data and its error to be used with emcee 
+    sampling. These are saved in global variables called emcee_data and 
+    emcee_data_err; therefore, users should never re-use the variable names 
+    emcee_data and emcee_data_err in their code.
+    
+    Input:
+    ------
+    data: np.array(float)  
+        A one-dimensional array of floats containing the data points to be used 
+        in the sampling. 
+        
+    error: np.array(float) 
+        A one-dimensional array of floats containing the errors on the data 
+        points to be used in the sampling.     
+    """
     global emcee_data
     global emcee_data_err
     emcee_data = data 
@@ -37,69 +78,184 @@ def set_emcee_data(data,error):
 
 def set_emcee_parameters(params):
     """
-    asdf
+    This function is used to set the parameters of the model to be used with
+    emcee sampling. The parameter object, names and values are saved in global 
+    variables called emcee_names, emcee_values and emcee_params; therefore, 
+    users should never re-use these variable names in their code.
+    
+    Input:
+    ------
+    params: lmfit.Parameters
+        The lmfit parameters object used in the model. 
+        
+    Output:
+    -------
+    theta: np.array 
+        A numpy array containing the values of the free parameters in the model.
     """
-    global names 
-    global values 
+    global emcee_names 
+    global emcee_values 
     global emcee_params
     
     emcee_params = copy.copy(params) 
-    values = []
-    names = []
+    emcee_values = []
+    emcee_names = []
     theta = []
     for key in params:
-        names = np.append(names,params[key].name)
-        values = np.append(values,params[key].value)
+        emcee_names = np.append(emcee_names,params[key].name)
+        emcee_values = np.append(emcee_values,params[key].value)
         if params[key].vary is True:
             theta = np.append(theta,params[key].value)  
     return theta
     
 class priorUniform():
+    """
+    This class is used to compute a uniform prior distribution during Bayesian
+    sampling, for a given model parameter. 
     
+    Parameters:
+    -----------
+    min: float 
+        The lower bound of the distribution. 
+        
+    max: float 
+        The upper bound of the distribution. 
+    """
     def __init__(self,min,max):
         self.min = min
         self.max = max
         pass 
         
     def logprob(self,theta):
+        """
+        This method returns the log probability of the distribution - in this 
+        case, an (arbitrary, for the purpose of likelihood optimization) 
+        constant. 
+        
+        Parameters:
+        -----------
+        theta: float 
+            The parameter value for which the likelihood is to be computed. 
+            
+        Returns:
+        --------
+            The value of the likelihood for the input parameter.
+        """
         if self.min < theta < self.max:
             return 0.0
         return -np.inf
 
 
 class priorLogUniform():
+    """
+    This class is used to compute a log-uniform prior distribution (in base e)
+    during Bayesian sampling, for a given model parameter.
     
+    Parameters:
+    -----------
+    min: float 
+        The lower bound of the distribution 
+        
+    max: float 
+        The upper bound of the distribution 
+    """    
     def __init__(self,min,max):
         self.min = min
         self.max = max
         pass
     
     def logprob(self,theta):
+        """
+        This method returns the log probability of the distribution - in this 
+        case, an (arbitrary, for the purpose of likelihood optimization) 
+        constant. More explicitely, if x is our parameter and log(x) is uniform,
+        then p(log(x)) = const, p(x) = p(log(x))*dlog(x)/dx = const/x.
+        Therefore, the log-probability is (minus a constant)
+        log(p(x)) = log(1/x) = -log(x). 
+        
+        Parameters:
+        -----------
+        theta: float 
+            The parameter value for which the likelihood is to be computed. 
+            
+        Returns:
+        --------
+            The value of the likelihood for the input parameter.
+        """        
         if self.min < theta < self.max:
             return -np.log(theta)
         return -np.inf
 
 
 class priorNormal():
+    """
+    This class is used to compute a normal prior distribution during Bayesian
+    sampling, for a given model parameter. 
     
+    Parameters:
+    -----------
+    sigma: float 
+        The standard deviation of the distribution. 
+        
+    mu: float 
+        The expectation of the distribution. 
+    """    
     def __init__(self,sigma,mu):
         self.sigma = sigma
         self.mu = mu
         pass 
 
     def logprob(self,theta):
-        logprior = -0.5*(theta-self.mu)**2/self.sigma**2-0.5*np.log(2.*np.pi*self.sigma**2)
+        """
+        This method returns the log probability of the distribution for the 
+        given parameter theta.
+        
+        Parameters:
+        -----------
+        theta: float 
+            The parameter value for which the likelihood is to be computed. 
+            
+        Returns:
+        --------
+            The value of the likelihood for the input parameter.
+        """
+        logprior = -0.5*(theta-self.mu)**2/self.sigma**2+0.5*np.log(2.*np.pi*self.sigma**2)
         return logprior
 
 
 class priorLogNormal():
+    """
+    This class is used to compute a lognormal prior distribution during Bayesian
+    sampling, for a given model parameter. 
+    
+    Parameters:
+    -----------
+    sigma: float 
+        The standard deviation of the distribution. 
+        
+    mu: float 
+        The expectation of the distribution. 
+    """    
     def __init__(sigma,mu):
         self.sigma = sigma
         self.mu = mu
         pass 
 
     def logprob(self,theta):
-        logprior = -0.5*(np.log(theta)-mu)**2/sigma**2-0.5*np.log(2.*np.pi*sigma**2/theta**2)
+        """
+        This method returns the log probability of the distribution for the 
+        given parameter theta.
+        
+        Parameters:
+        -----------
+        theta: float 
+            The parameter value for which the likelihood is to be computed. 
+            
+        Returns:
+        --------
+            The value of the likelihood for the input parameter.
+        """
+        logprior = -0.5*(np.log(theta)-mu)**2/sigma**2+0.5*np.log(2.*np.pi*sigma**2/theta**2)
         return logprior
 
         
@@ -111,17 +267,17 @@ def log_priors(theta, prior_dict):
 
     
 def chi_square_likelihood(theta):
-    global global_priors
-    global names 
+    global emcee_priors
+    global emcee_names 
     global emcee_params
     global emcee_data
     global emcee_data_err
     global emcee_model 
     
-    logpriors = log_priors(theta, global_priors)
+    logpriors = log_priors(theta, emcee_priors)
     if not np.isfinite(logpriors):
         return -np.inf        
-    for name, val in zip(names, theta):
+    for name, val in zip(emcee_names, theta):
         emcee_params[name].value = val    
     model = emcee_model(params=emcee_params)
     residual = (emcee_data-model)/emcee_data_err
@@ -133,16 +289,16 @@ def chi_square_likelihood(theta):
 
 #note: this appears to be horribly messed up for power spectra 
 def poisson_likelihood(theta,obs_time):
-    global global_priors
-    global names 
+    global emcee_priors
+    global emcee_names 
     global emcee_params
     global emcee_data
     global emcee_model 
 
-    logpriors = log_priors(theta, global_priors)
+    logpriors = log_priors(theta, emcee_priors)
     if not np.isfinite(logpriors):
         return -np.inf       
-    for name, val in zip(names, theta):
+    for name, val in zip(emcee_names, theta):
         emcee_params[name].value = val    
     model = emcee_model(params=emcee_params)
     cash = model - emcee_data/obs_time + emcee_data/obs_time*(np.log(emcee_data/obs_time)-np.log(model))
@@ -152,16 +308,16 @@ def poisson_likelihood(theta,obs_time):
 
 #this isn't terrible for now? uh
 def whittle_likelihood(theta,segments):
-    global global_priors
-    global names 
+    global emcee_priors
+    global emcee_names 
     global emcee_params
     global emcee_data
     global emcee_model 
     
-    logpriors = -log_priors(theta, global_priors)
+    logpriors = -log_priors(theta, emcee_priors)
     if not np.isfinite(logpriors):
         return -np.inf       
-    for name, val in zip(names, theta):
+    for name, val in zip(emcee_names, theta):
         emcee_params[name].value = val    
     model = emcee_model(params=emcee_params)
     nu = 2.*segments
