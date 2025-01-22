@@ -1,12 +1,6 @@
 import numpy as np
 from scipy.interpolate import interp1d
 
-#import pyfftw
-#from pyfftw.interfaces.numpy_fft import (
-#    fft,
-#    fftfreq,
-#)
-
 class nDspecOperator(object):
     """
     Generic class from which all nDspec operators are inherited. It contains 

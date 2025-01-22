@@ -375,7 +375,6 @@ def cash_likelihood(theta,obs_time):
     likelihood = statistic + logpriors
     return likelihood
 
-#this isn't terrible for now? uh
 def whittle_likelihood(theta,segments):
     """
     This function computes the log-likelihood, using the Whittle statistic
