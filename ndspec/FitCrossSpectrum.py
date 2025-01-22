@@ -1,4 +1,4 @@
-class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
+class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
     """
     Least-chi squares fitter class for the cross spectrum. The class supports 
     both one-dimensional data between a reference and subject band as a function 
@@ -366,7 +366,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                                         time_res,seg_size)
         else:
             print("error")    
-        self._set_unmasked_data(self.n_freqs)
+        self._set_unmasked_data()
         return
 
     def _freq_dependent_cross(self,data,data_err=None,
@@ -518,12 +518,14 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             self.data = data
             self.data_err = data_err  
 
+        FrequencyDependentFit.__init__(self,self.freqs)  
+        self.n_freqs = self.freqs.size
+        
         if len(self.data) != len(self.data_err):
             raise AttributeError("Size of data and error are not the same")
         if len(self.data)/self.n_chans != self.n_freqs:
             raise AttributeError("Size of frequency grid does not match the data")
-        
-        self.n_freqs = self.freqs.size
+
         return
 
     def _energ_dependent_cross(self,freq_bounds,data,data_err,
@@ -572,11 +574,12 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             frequency over which to compute the model.     
         """
         
-        self.freq_bounds = freq_bounds
-        self.n_freqs = self.freq_bounds.size-1
-                
         self.data = data
         self.data_err = data_err
+        
+        self.freq_bounds = freq_bounds
+        self.n_freqs = self.freq_bounds.size-1                
+        FrequencyDependentFit.__init__(self,self.freq_bounds)  
 
         #we can explicitely pass frequency and time grids
         if (time_grid is not None )&(freq_grid is not None):
@@ -605,7 +608,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                 self._times = np.linspace(time_res,lc_length,time_samples)              
         else:
             raise ValueError("Frequency and/or time grids undefined")         
-
+        
         if len(self.data) != len(self.data_err):
             raise AttributeError("Size of data and error are not the same")
         if len(self.data)/self.n_freqs != self.n_chans:
@@ -1177,14 +1180,14 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         """
 
         if self.dependence == "frequency":
-            x_axis = self.freqs
+            x_axis = self._freqs_unmasked
             y_axis = self._ebounds_unmasked
             #here we need to look at the edges of each bin, NOT at the center
             #which is contained in ebounds
             spec_number = self.n_chans
             data_bound = self.n_freqs
         elif self.dependence == "energy":
-            x_axis =  0.5*(self.freq_bounds[1:]+self.freq_bounds[:-1])
+            x_axis =  0.5*(self._freqs_unmasked[1:]+self._freqs_unmasked[:-1])
             y_axis = self._ebounds_unmasked
             spec_number = self.n_freqs    
             data_bound = self.n_chans        
@@ -1194,18 +1197,22 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             #arrays, to two-d arrays with the data stored in the right order for 
             #2d plotting with colormesh
             if self.dependence=="energy":
-                mask_twod = np.tile(self.ebounds_mask,self.n_freqs)
-                left_data = self._data_unmasked[:self._all_bins].reshape((self.n_freqs,self._all_chans))
-                right_data = self._data_unmasked[self._all_bins:].reshape((self.n_freqs,self._all_chans))
+                twod_mask = self.freqs_mask.reshape((self._all_freqs,1))* \
+                            self.ebounds_mask.reshape((1,self._all_chans))
+                left_data = self._data_unmasked[:self._all_bins].reshape((self._all_freqs,self._all_chans))
+                right_data = self._data_unmasked[self._all_bins:].reshape((self._all_freqs,self._all_chans))
             elif self.dependence=="frequency":
-                mask_twod = np.transpose(np.tile(self.ebounds_mask,self.n_freqs))
-                left_data = np.transpose(self._data_unmasked[:self._all_bins].reshape((self._all_chans,self.n_freqs)))
-                right_data = np.transpose(self._data_unmasked[self._all_bins:].reshape((self._all_chans,self.n_freqs)))                
-            mask_twod = mask_twod.reshape((self.n_freqs,self._all_chans))
-            mask_twod = np.logical_not(mask_twod) 
-            left_data = np.transpose(np.ma.masked_where(mask_twod, left_data))
-            right_data = np.transpose(np.ma.masked_where(mask_twod, right_data))
-
+                twod_mask = self.freqs_mask.reshape((self._all_freqs,1))* \
+                            self.ebounds_mask.reshape((1,self._all_chans))
+                left_data = np.transpose(self._data_unmasked[:self._all_bins].reshape((self._all_chans,self._all_freqs)))
+                right_data = np.transpose(self._data_unmasked[self._all_bins:].reshape((self._all_chans,self._all_freqs)))              
+            
+            twod_mask = twod_mask.reshape((self._all_freqs,self._all_chans))
+            twod_mask = np.logical_not(twod_mask) 
+            
+            left_data = np.transpose(np.ma.masked_where(twod_mask, left_data))
+            right_data = np.transpose(np.ma.masked_where(twod_mask, right_data))
+            
             fig, ((ax1),(ax2)) = plt.subplots(1,2,figsize=(12.,5.)) 
             if self.units == "polar":
                 left_plot = ax1.pcolormesh(x_axis,y_axis,np.log10(left_data),cmap="viridis",
@@ -1225,6 +1232,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
                                             shading='auto',linewidth=0)
                 ax1.set_title("Real part")
                 ax2.set_title("Imaginary part")                
+            
             fig.colorbar(left_plot, ax=ax1)
             fig.colorbar(right_plot, ax=ax2)
             ax1.set_xscale("log")
@@ -1246,16 +1254,21 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             #arrays, to two-d arrays with the data stored in the right order for 
             #2d plotting with colormesh
             if self.dependence == "energy":               
-                mask_twod = np.tile(self.ebounds_mask,self.n_freqs)
-                plot_data = self._data_unmasked.reshape((self.n_freqs,self._all_chans))
+                twod_mask = self.freqs_mask.reshape((self._all_freqs,1))* \
+                            self.ebounds_mask.reshape((1,self._all_chans))
+                plot_data = self._data_unmasked.reshape((self._all_freqs,self._all_chans))
             elif self.dependence == "frequency":
-                mask_twod = np.transpose(np.tile(self.ebounds_mask,self.n_freqs))
-                plot_data = np.transpose(self._data_unmasked.reshape((self._all_chans,self.n_freqs)))
-            mask_twod = mask_twod.reshape((self.n_freqs,self._all_chans))
-            mask_twod = np.logical_not(mask_twod) 
+                twod_mask = self.freqs_mask.reshape((self._all_freqs,1))* \
+                            self.ebounds_mask.reshape((1,self._all_chans))
+                plot_data = np.transpose(self._data_unmasked.reshape((self._all_chans,self._all_freqs)))
+            
+            twod_mask = twod_mask.reshape((self._all_freqs,self._all_chans))
+            twod_mask = np.logical_not(twod_mask) 
+            
             if use_phase is True:
-                plot_data = plot_data*(2.*np.pi*x_axis.reshape(self.n_freqs,1))
-            plot_data = np.transpose(np.ma.masked_where(mask_twod, plot_data))
+                plot_data = plot_data*(2.*np.pi*x_axis.reshape(self._all_freqs,1))
+            plot_data = np.transpose(np.ma.masked_where(twod_mask, plot_data))
+            
             color_min = np.min([np.min(plot_data),-0.01])
             color_max = np.max([np.max(plot_data),0.01])
             lag_norm = TwoSlopeNorm(vmin=color_min,vcenter=0,vmax=color_max) 
@@ -1329,7 +1342,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         """
         
         if self.dependence == "frequency":
-            x_axis = self.freqs
+            x_axis = self._freqs_unmasked
             x_axis_label = "Frequency (Hz)"
             bounds_min = self.ebounds-0.5*self.ewidths
             channel_bounds = np.append(bounds_min,self.ebounds[-1]+0.5*self.ewidths[-1])
@@ -1512,7 +1525,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
         """
     
         if self.dependence == "frequency":
-            x_axis = self.freqs
+            x_axis = self._freqs_unmasked
             y_axis = self._ebounds_unmasked
             channel_bounds = np.append(self.response.emin,self.response.emax[-1])
             labels = np.round(channel_bounds,1)
@@ -1520,7 +1533,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             spec_number = self.n_chans
             data_bound = self.n_freqs
         elif self.dependence == "energy":
-            x_axis =  0.5*(self.freq_bounds[1:]+self.freq_bounds[:-1])
+            x_axis =  0.5*(self._freqs_unmasked[1:]+self._freqs_unmasked[:-1])
             y_axis = self._ebounds_unmasked
             labels = np.round(self.freq_bounds,1)
             spec_number = self.n_freqs    
@@ -1542,17 +1555,22 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             #arrays, to two-d arrays with the data stored in the right order for 
             #2d plotting with colormesh
             if self.dependence == "energy":
-                mask_twod = np.tile(self.ebounds_mask,self.n_freqs)
-                data_reformat = self._data_unmasked[:self._all_bins].reshape((self.n_freqs,self._all_chans))
-                model_reformat = model[:self._all_bins].reshape((self.n_freqs,self._all_chans))
+                twod_mask = self.freqs_mask.reshape((self._all_freqs,1))* \
+                            self.ebounds_mask.reshape((1,self._all_chans))
+                data_reformat = self._data_unmasked[:self._all_bins].reshape((self._all_freqs,self._all_chans))
+                model_reformat = model[:self._all_bins].reshape((self._all_freqs,self._all_chans))
             elif self.dependence == "frequency":
-                mask_twod = np.transpose(np.tile(self.ebounds_mask,self.n_freqs))
-                data_reformat = np.transpose(self._data_unmasked[:self._all_bins].reshape((self._all_chans,self.n_freqs)))
-                model_reformat =  np.transpose(model[:self._all_bins].reshape((self._all_chans,self.n_freqs)))
-            mask_twod = mask_twod.reshape((self.n_freqs,self._all_chans))
-            mask_twod = np.logical_not(mask_twod) 
-            data_reformat = np.transpose(np.ma.masked_where(mask_twod, data_reformat))
-            model_reformat = np.transpose(np.ma.masked_where(mask_twod, model_reformat))
+                twod_mask = self.freqs_mask.reshape((self._all_freqs,1))* \
+                            self.ebounds_mask.reshape((1,self._all_chans))
+                data_reformat = np.transpose(self._data_unmasked[:self._all_bins].reshape((self._all_chans,self._all_freqs)))
+                model_reformat =  np.transpose(model[:self._all_bins].reshape((self._all_chans,self._all_freqs)))
+            
+            twod_mask = twod_mask.reshape((self._all_freqs,self._all_chans))
+            
+            twod_mask = np.logical_not(twod_mask) 
+            
+            data_reformat = np.transpose(np.ma.masked_where(twod_mask, data_reformat))
+            model_reformat = np.transpose(np.ma.masked_where(twod_mask, model_reformat))
             plot_info = [data_reformat,model_reformat]
 
             scale_min = np.min(self.data[:self.n_bins])
@@ -1578,13 +1596,14 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             #arrays, to two-d arrays with the data stored in the right order for 
             #2d plotting with colormesh           
             if self.dependence == "energy":
-                data_reformat = self._data_unmasked[self._all_bins:].reshape((self.n_freqs,self._all_chans))
-                model_reformat = model[self._all_bins:].reshape((self.n_freqs,self._all_chans))
+                data_reformat = self._data_unmasked[self._all_bins:].reshape((self._all_freqs,self._all_chans))
+                model_reformat = model[self._all_bins:].reshape((self._all_freqs,self._all_chans))
             elif self.dependence == "frequency":
-                data_reformat = np.transpose(self._data_unmasked[self._all_bins:].reshape((self._all_chans,self.n_freqs)))
-                model_reformat =  np.transpose(model[self._all_bins:].reshape((self._all_chans,self.n_freqs)))
-            data_reformat = np.transpose(np.ma.masked_where(mask_twod, data_reformat))
-            model_reformat = np.transpose(np.ma.masked_where(mask_twod, model_reformat))
+                data_reformat = np.transpose(self._data_unmasked[self._all_bins:].reshape((self._all_chans,self._all_freqs)))
+                model_reformat =  np.transpose(model[self._all_bins:].reshape((self._all_chans,self._all_freqs)))
+            
+            data_reformat = np.transpose(np.ma.masked_where(twod_mask, data_reformat))
+            model_reformat = np.transpose(np.ma.masked_where(twod_mask, model_reformat))
             plot_info = [data_reformat,model_reformat]
             
             scale_min = np.min(self.data[self.n_bins:])
@@ -1608,13 +1627,14 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             #arrays, to two-d arrays with the data stored in the right order for 
             #2d plotting with colormesh
             if self.dependence == "energy":
-                top_res = model_res[self._all_bins:].reshape((self._all_chans,self.n_freqs))
-                bot_res = model_res[:self._all_bins].reshape((self._all_chans,self.n_freqs))
+                top_res = model_res[self._all_bins:].reshape((self._all_chans,self._all_freqs))
+                bot_res = model_res[:self._all_bins].reshape((self._all_chans,self._all_freqs))
             elif self.dependence == "frequency":
-                top_res = np.transpose(model_res[self._all_bins:].reshape((self._all_chans,self.n_freqs)))
-                bot_res = np.transpose(model_res[:self._all_bins].reshape((self._all_chans,self.n_freqs)))
-            top_res = np.transpose(np.ma.masked_where(mask_twod, top_res))
-            bot_res = np.transpose(np.ma.masked_where(mask_twod, bot_res))
+                top_res = np.transpose(model_res[self._all_bins:].reshape((self._all_chans,self._all_freqs)))
+                bot_res = np.transpose(model_res[:self._all_bins].reshape((self._all_chans,self._all_freqs)))
+            
+            top_res = np.transpose(np.ma.masked_where(twod_mask, top_res))
+            bot_res = np.transpose(np.ma.masked_where(twod_mask, bot_res))
             plot_info = [top_res,bot_res]
 
             for row in range(2):
@@ -1643,20 +1663,25 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             #arrays, to two-d arrays with the data stored in the right order for 
             #2d plotting with colormesh
             if self.dependence == "energy":               
-                mask_twod = np.tile(self.ebounds_mask,self.n_freqs)
-                plot_data = self._data_unmasked.reshape((self.n_freqs,self._all_chans))
-                plot_model = model.reshape((self.n_freqs,self._all_chans))
-                plot_res = model_res.reshape((self.n_freqs,self._all_chans))
+                twod_mask = self.freqs_mask.reshape((self._all_freqs,1))* \
+                            self.ebounds_mask.reshape((1,self._all_chans))
+                plot_data = self._data_unmasked.reshape((self._all_freqs,self._all_chans))
+                plot_model = model.reshape((self._all_freqs,self._all_chans))
+                plot_res = model_res.reshape((self._all_freqs,self._all_chans))
             elif self.dependence == "frequency":
-                mask_twod = np.transpose(np.tile(self.ebounds_mask,self.n_freqs))
-                plot_data = np.transpose(self._data_unmasked.reshape((self._all_chans,self.n_freqs)))
-                plot_model = np.transpose(model.reshape((self._all_chans,self.n_freqs)))
-                plot_res = np.transpose(model_res.reshape((self._all_chans,self.n_freqs)))
-            mask_twod = mask_twod.reshape((self.n_freqs,self._all_chans))
-            mask_twod = np.logical_not(mask_twod) 
+                twod_mask = self.freqs_mask.reshape((self._all_freqs,1))* \
+                            self.ebounds_mask.reshape((1,self._all_chans))
+                plot_data = np.transpose(self._data_unmasked.reshape((self._all_chans,self._all_freqs)))
+                plot_model = np.transpose(model.reshape((self._all_chans,self._all_freqs)))
+                plot_res = np.transpose(model_res.reshape((self._all_chans,self._all_freqs)))
+            
+            twod_mask = twod_mask.reshape((self._all_freqs,self._all_chans))
+            twod_mask = np.logical_not(twod_mask) 
+            
             if use_phase is True:
-                plot_data = plot_data*(2.*np.pi*x_axis.reshape(self.n_freqs,1))
-            plot_data = np.transpose(np.ma.masked_where(mask_twod, plot_data))
+                plot_data = plot_data*(2.*np.pi*x_axis.reshape(self._all_freqs,1))
+            
+            plot_data = np.transpose(np.ma.masked_where(twod_mask, plot_data))
             color_min = np.min([np.min(plot_data),-0.01])
             color_max = np.max([np.max(plot_data),0.01])
             lag_norm = TwoSlopeNorm(vmin=color_min,vcenter=0,vmax=color_max) 
@@ -1666,15 +1691,16 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit):
             ax1.set_title("Data")                
             fig.colorbar(data_plot, ax=ax1)
             if use_phase is True:
-                plot_model = plot_model*(2.*np.pi*x_axis.reshape(self.n_freqs,1))
-            plot_model = np.transpose(np.ma.masked_where(mask_twod, plot_model))
+                plot_model = plot_model*(2.*np.pi*x_axis.reshape(self._all_freqs,1))
+            plot_model = np.transpose(np.ma.masked_where(twod_mask, plot_model))
+            
             lag_norm = TwoSlopeNorm(vmin=color_min,vcenter=0,vmax=color_max) 
             model_plot = ax2.pcolormesh(x_axis,y_axis,plot_model,cmap="BrBG",
                                         shading='auto',linewidth=0,norm=lag_norm)
             ax2.set_title("Model")                
             fig.colorbar(model_plot, ax=ax2)    
             
-            plot_res = np.transpose(np.ma.masked_where(mask_twod, plot_res))
+            plot_res = np.transpose(np.ma.masked_where(twod_mask, plot_res))
             res_min = np.min([np.min(plot_res),-1])
             res_max = np.max([np.max(plot_res),1])
             res_norm = TwoSlopeNorm(vmin=res_min,vcenter=0,vmax=res_max) 

@@ -60,17 +60,16 @@ class SimpleFit():
             self._emax_unmasked = self.response.emax
             self._ebounds_unmasked = self.ebounds
             self._ewidths_unmasked = self.ewidths
+            self._all_chans = self._ebounds_unmasked.size
+            self.n_chans = self._all_chans
             #additional internal arrays if we're doing spectral timing
             if isinstance(self,FrequencyDependentFit) is True:
-                self._all_chans = self._ebounds_unmasked.size
                 self._all_bins = self._all_freqs*self._all_chans
-                self.n_chans = self._all_chans
-                self.n_bins = self._all_bins
+                self.n_bins = self._all_bins                
             #future: add if spectral polarimetry
         elif isinstance(self,FrequencyDependentFit) is True:
             self._freqs_unmasked = self.freqs           
             self._all_freqs = self.n_freqs
-            self.freqs_mask = np.full((self._all_freqs), True)
             #future: add if timing polarimetry within the fit 
         return
     
@@ -332,39 +331,27 @@ class EnergyDependentFit():
 
         #filter 2d data is more complex because we have to filter row by row 
         #or column by column, depending on the format 
-        if self.twod_data is True:  
+        if isinstance(self,FrequencyDependentFit) is True:
             self.n_bins = self.n_chans*self.n_freqs
+            twod_mask = self.freqs_mask.reshape((self._all_freqs,1))* \
+                        self.ebounds_mask.reshape((1,self._all_chans))
             if self.units != "lags":
-                data_filter_first_dim = self._filter_2d_by_mask(
-                                        self._data_unmasked[:self._all_bins],
-                                        self.ebounds_mask
-                                        )
-                error_filter_first_dim = self._filter_2d_by_mask(
-                                         self._data_err_unmasked[:self._all_bins],
-                                         self.ebounds_mask
-                                         )              
-                data_filter_second_dim = self._filter_2d_by_mask(
-                                         self._data_unmasked[self._all_bins:],
-                                         self.ebounds_mask
-                                         )
-                error_filter_second_dim = self._filter_2d_by_mask(
-                                          self._data_err_unmasked[self._all_bins:],
-                                          self.ebounds_mask
-                                          )                
+                data_filter_first_dim = np.extract(self._data_unmasked[:self._all_bins],
+                                                   twod_mask)
+                error_filter_first_dim = np.extract(self._data_err_unmasked[:self._all_bins],
+                                                    twod_mask)
+                data_filter_second_dim = np.extract(self._data_unmasked[self._all_bins:],
+                                                    twod_mask)
+                error_filter_second_dim = np.extract(self._data_err_unmasked[self._all_bins:],
+                                                    twod_mask)
                 self.data = np.append(data_filter_first_dim,data_filter_second_dim)
                 self.data_err = np.append(error_filter_first_dim,error_filter_second_dim)              
             else:
-                self.data = self._filter_2d_by_mask(
-                            self._data_unmasked,
-                            self.ebounds_mask
-                            )
-                self.data_err = self._filter_2d_by_mask(
-                                self._data_err_unmasked,
-                                self.ebounds_mask
-                                )
-        else: 
+                self.data = np.extract(self._data_unmasked,twod_mask)
+                self.data_err = np.extract(self._data_err_unmasked,twod_mask)
+        else:
             self.data = np.extract(self.ebounds_mask,self._data_unmasked)
-            self.data_err = np.extract(self.ebounds_mask,self._data_err_unmasked)            
+            self.data_err = np.extract(self.ebounds_mask,self._data_err_unmasked)              
         return
    
     def notice_energies(self,bound_lo,bound_hi):
@@ -399,86 +386,39 @@ class EnergyDependentFit():
 
         #filter 2d data is more complex because we have to filter row by row 
         #or column by column, depending on the format 
-        if self.twod_data is True:
+        if isinstance(self,FrequencyDependentFit) is True:
             self.n_bins = self.n_chans*self.n_freqs
+            twod_mask = self.freqs_mask.reshape((self._all_freqs,1))* \
+                        self.ebounds_mask.reshape((1,self._all_chans))
             if self.units != "lags":
-                data_filter_first_dim = self._filter_2d_by_mask(
-                                        self._data_unmasked[:self._all_bins],
-                                        self.ebounds_mask
-                                        )
-                error_filter_first_dim = self._filter_2d_by_mask(
-                                         self._data_err_unmasked[:self._all_bins],
-                                         self.ebounds_mask
-                                         )              
-                data_filter_second_dim = self._filter_2d_by_mask(
-                                         self._data_unmasked[self._all_bins:],
-                                         self.ebounds_mask
-                                         )
-                error_filter_second_dim = self._filter_2d_by_mask(
-                                          self._data_err_unmasked[self._all_bins:],
-                                          self.ebounds_mask
-                                          )                
+                data_filter_first_dim = np.extract(self._data_unmasked[:self._all_bins],
+                                                   twod_mask)
+                error_filter_first_dim = np.extract(self._data_err_unmasked[:self._all_bins],
+                                                    twod_mask)
+                data_filter_second_dim = np.extract(self._data_unmasked[self._all_bins:],
+                                                    twod_mask)
+                error_filter_second_dim = np.extract(self._data_err_unmasked[self._all_bins:],
+                                                    twod_mask)
                 self.data = np.append(data_filter_first_dim,data_filter_second_dim)
                 self.data_err = np.append(error_filter_first_dim,error_filter_second_dim)              
             else:
-                self.data = self._filter_2d_by_mask(
-                            self._data_unmasked,
-                            self.ebounds_mask
-                            )
-                self.data_err = self._filter_2d_by_mask(
-                                self._data_err_unmasked,
-                                self.ebounds_mask
-                                )
+                self.data = np.extract(self._data_unmasked,twod_mask)
+                self.data_err = np.extract(self._data_err_unmasked,twod_mask)
         else:
             self.data = np.extract(self.ebounds_mask,self._data_unmasked)
             self.data_err = np.extract(self.ebounds_mask,self._data_err_unmasked)               
 
         return
 
-    def _filter_2d_by_mask(self,arr,mask):
-        """
-        This method filters either the rows or columns of a two-dimensional 
-        array, depending on the dependence of the data products used. Currently 
-        the method assumes that the input data is a function of Fourier frequency 
-        and energy. For example, one could input lag-frequency spectra, or 
-        energy-covariance, or residuals for an appropriate two-dimensional model.
-        
-        Parameters:
-        -----------
-        arr: np.array(float,float)  
-            The two-dimensional array to be filtered 
-        mask: np.array(bool)
-            The mask to be applied to the array - elements labelled as True in 
-            the mask are kept, ones labelled as False are filtered out. 
-            
-        Returns:
-        --------
-        filtered_array: np.array(float,float)
-            The input two-d array, reduced and filtered to include only the 
-            noticed energy channels 
-        """    
-       
-        filtered_array = [] 
-        if self.dependence == "energy":
-            arr_reshape = arr.reshape((self.n_freqs,self._all_chans))
-            for i in range(self.n_freqs):
-                extract_row = np.extract(self.ebounds_mask,arr_reshape[i,:])
-                filtered_array = np.append(filtered_array,extract_row)  
-        elif self.dependence == "frequency":
-            arr_reshape = arr.reshape((self._all_chans,self.n_freqs))
-            filtered_array = arr_reshape[mask,:]
-            filtered_array = filtered_array.reshape(self.n_bins)
-                    
-        return filtered_array
-
-
 class FrequencyDependentFit():
 
     def __init__(self,freqs):
-        #note that for energy dependent products, "freqs" should be the bounds of the
-        #frequency bins over which to average, NOT the internal model frequency grid
-        self.freqs = freqs
-        self.n_freqs = freqs.size
+        self._freqs_unmasked = freqs
+        if self.dependence == "frequency":
+            self._all_freqs = self._freqs_unmasked.size
+        else:
+            self._all_freqs = self._freqs_unmasked.size-1
+        self.freqs_mask = np.full((self._all_freqs), True)
         pass
 
     #for now support only oned stuff
@@ -498,15 +438,40 @@ class FrequencyDependentFit():
         if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
             (isinstance(bound_hi, (np.floating, float, int)) != True)):
             raise TypeError("Frequency bounds must be floats or integers")
-        
-        self.freqs_mask = ((self._freqs_unmasked<bound_lo)|
-                             (self._freqs_unmasked>bound_hi))&self.freqs_mask
        
-        #take the unmasked arrays and keep only the bounds we want
-        self.freqs = np.extract(self.freqs_mask,self._freqs_unmasked)
+        if self.dependence == "frequency":
+            self.freqs_mask = ((self._freqs_unmasked<bound_lo)|
+                               (self._freqs_unmasked>bound_hi))&self.freqs_mask
+            self.freqs = np.extract(self.freqs_mask,self._freqs_unmasked)
+        else:
+            fmin = self._freqs_unmasked[:-1]
+            fmax = self._freqs_unmasked[1:]
+            self.freqs_mask = ((fmin<bound_lo)|
+                               (fmax>bound_hi))&self.freqs_mask
+            self.freq_bounds = np.extract(self.freqs_mask,self._freqs_unmasked)
         self.n_freqs = self.freqs_mask[self.freqs_mask==True].size
-        self.data = np.extract(self.freqs_mask,self._data_unmasked)
-        self.data_err = np.extract(self.freqs_mask,self._data_err_unmasked)   
+
+        if isinstance(self,EnergyDependentFit):
+            self.n_bins = self.n_chans*self.n_freqs
+            twod_mask = self.freqs_mask.reshape((self._all_freqs,1))* \
+                        self.ebounds_mask.reshape((1,self._all_chans))
+            if self.units != "lags":
+                data_filter_first_dim = np.extract(self._data_unmasked[:self._all_bins],
+                                                   twod_mask)
+                error_filter_first_dim = np.extract(self._data_err_unmasked[:self._all_bins],
+                                                    twod_mask)
+                data_filter_second_dim = np.extract(self._data_unmasked[self._all_bins:],
+                                                    twod_mask)
+                error_filter_second_dim = np.extract(self._data_err_unmasked[self._all_bins:],
+                                                    twod_mask)
+                self.data = np.append(data_filter_first_dim,data_filter_second_dim)
+                self.data_err = np.append(error_filter_first_dim,error_filter_second_dim)              
+            else:
+                self.data = np.extract(self._data_unmasked,twod_mask)
+                self.data_err = np.extract(self._data_err_unmasked,twod_mask)
+        else:
+            self.data = np.extract(self.freqs_mask,self._data_unmasked)
+            self.data_err = np.extract(self.freqs_mask,self._data_err_unmasked)   
 
         return
 
@@ -527,15 +492,41 @@ class FrequencyDependentFit():
             (isinstance(bound_hi, (np.floating, float, int)) != True)):
             raise TypeError("Frequency bounds must be floats or integers")
 
-        #if bounds of channel lie in noticed energies, notice channel
-        self.freqs_mask = self.freqs_mask|np.logical_not(
-                            (self._freqs_unmasked<bound_lo)|
-                            (self._freqs_unmasked>bound_hi))
-
-        self.freqs = np.extract(self.freqs_mask,self._freqs_unmasked)
+        if self.dependence == "frequency":
+            self.freqs_mask = self.freqs_mask|np.logical_not(
+                              (self._freqs_unmasked<bound_lo)|
+                              (self._freqs_unmasked>bound_hi))
+            self.freqs = np.extract(self.freqs_mask,self._freqs_unmasked)
+        else:
+            fmin = self._freqs_unmasked[:-1]
+            fmax = self._freqs_unmasked[1:]
+            self.freqs_mask = self.freqs_mask|np.logical_not(
+                              (fmin<bound_lo)|
+                              (fmax>bound_hi))
+            self.freq_bounds = np.extract(self.freqs_mask,self._freqs_unmasked)
         self.n_freqs = self.freqs_mask[self.freqs_mask==True].size
-        self.data = np.extract(self.freqs_mask,self._data_unmasked)
-        self.data_err = np.extract(self.freqs_mask,self._data_err_unmasked)   
+
+        if isinstance(self,EnergyDependentFit):
+            self.n_bins = self.n_chans*self.n_freqs
+            twod_mask = self.freqs_mask.reshape((self._all_freqs,1))* \
+                        self.ebounds_mask.reshape((1,self._all_chans))
+            if self.units != "lags":
+                data_filter_first_dim = np.extract(self._data_unmasked[:self._all_bins],
+                                                   twod_mask)
+                error_filter_first_dim = np.extract(self._data_err_unmasked[:self._all_bins],
+                                                    twod_mask)
+                data_filter_second_dim = np.extract(self._data_unmasked[self._all_bins:],
+                                                    twod_mask)
+                error_filter_second_dim = np.extract(self._data_err_unmasked[self._all_bins:],
+                                                    twod_mask)
+                self.data = np.append(data_filter_first_dim,data_filter_second_dim)
+                self.data_err = np.append(error_filter_first_dim,error_filter_second_dim)              
+            else:
+                self.data = np.extract(self._data_unmasked,twod_mask)
+                self.data_err = np.extract(self._data_err_unmasked,twod_mask)
+        else:
+            self.data = np.extract(self.freqs_mask,self._data_unmasked)
+            self.data_err = np.extract(self.freqs_mask,self._data_err_unmasked)   
 
         return
 

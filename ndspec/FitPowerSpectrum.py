@@ -51,6 +51,7 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
         self.freqs = None 
         self.n_freqs = None
         self.twod_data = False
+        self.dependence = "frequency"
         pass
 
     def set_data(self,data,data_err=None,data_grid=None):
