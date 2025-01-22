@@ -1,19 +1,3 @@
-import numpy as np
-
-from lmfit.model import ModelResult as LM_result
-
-import matplotlib.pyplot as plt
-import matplotlib.pylab as pl
-from matplotlib import rc, rcParams
-rc('text',usetex=True)
-rc('font',**{'family':'serif','serif':['Computer Modern']})
-fi = 22
-plt.rcParams.update({'font.size': fi-5})
-
-colorscale = pl.cm.PuRd(np.linspace(0.,1.,5))
-
-from .Simplefit import SimpleFit, FrequencyDependentFit
-
 class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
     """
     Least-chi squared fitter class for a powerspectrum, defined as the product 
@@ -65,7 +49,7 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
     def __init__(self):
         SimpleFit.__init__(self)
         self.freqs = None 
-        self.n_freqs = 0.
+        self.n_freqs = None
         self.twod_data = False
         pass
 
@@ -95,7 +79,7 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
         if getattr(data, '__module__', None) == "stingray.powerspectrum":         
             self.data = data.power
             self.data_err = data.power_err
-            self.freqs = data.freq            
+            FrequencyDependentFit.__init__(self,data.freq)            
         else:
             if len(data) != len(data_err):
                 raise AttributeError("Input data and error arrays are different")
@@ -103,8 +87,8 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
                 raise AttributeError("Input data and frequency arrays are different")        
             self.data = data
             self.data_err = data_err
-            self.freqs = data_grid
-        self.n_freqs = self.freqs.size
+            FrequencyDependentFit.__init__(self,data_grid)    
+        self._set_unmasked_data()
         return
        
     def eval_model(self,params=None,freq=None):
@@ -302,8 +286,7 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
 
         if plot_data is True:
             ax1.errorbar(self.freqs,data,yerr=error,
-                         linestyle='',marker='o')
-       
+                         drawstyle="steps-mid",marker='o')       
        
         ax1.plot(self.freqs,model,lw=3,zorder=3)
 
