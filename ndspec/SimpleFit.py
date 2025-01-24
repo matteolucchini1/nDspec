@@ -33,7 +33,12 @@ class SimpleFit():
     data_err: np.array(float)
         An array containing the uncertainty on the data to be fitted. It is also 
         stored as a one-dimensional array regardless of the type or dimensionality 
-        of the initial data.           
+        of the initial data.   
+        
+    _data_unmasked, _data_err_unmasked: np.array(float)
+        The arrays of every data bin and its error, regardless of which ones are
+        ignored or noticed during the fit. Used exclusively to enable book 
+        keeping internal to the fitter class.          
     """ 
 
     def __init__(self):
@@ -285,13 +290,7 @@ class EnergyDependentFit():
         The array of every lower bound, upper bound, channel center and channel 
         widths stored in the response, regardless of which ones are ignored or 
         noticed during the fit. Used exclusively to facilitate book-keeping 
-        internal to the fitter class. 
-        
-    _data_unmasked, _data_err_unmasked: np.array(float)
-        The array of every cout rate and relative error contained in the 
-        spectrum, regardless of which ones are ignored or noticed during the 
-        fit. Used exclusively to facilitate book-keeping internal to the fitter
-        class.   
+        internal to the fitter class.         
     """
     #changing response here for the sake of testing stuff
     def __init__(self):   
@@ -411,6 +410,44 @@ class EnergyDependentFit():
         return
 
 class FrequencyDependentFit():
+    """
+    Internal book-keeping class used to manage noticing or ignoring Fourier  
+    frequency bins. 
+    
+    Stores the full (unmasked) Fourier bins, and data arrays, a mask
+    used to track which bins/data points are noticed or ignored.
+
+    Attributes:
+    -----------    
+    _freqs_unmasked: np.array(float)
+        If the data and model explicitely depend on Fourier frequency (e.g. a
+        power spectrum), this is the array of Fourier frequency over which all 
+        data and model are defined, including bins that are ignored in the fit. 
+        
+        If instead the data depends from some other energy (e.g. energy), it 
+        contains both noticed and ignored frequency intervals over which to 
+        produce spectral-timing products. For example, a user might input a set 
+        of 7 ranges of frequencies to calculate lag energy spectra, but only 
+        want to consider the first and last 3, and ignore the middle one.
+    
+    freqs_mask np.array(bool)
+        The array of Fourier frequencies that are either ignored or noticed 
+        during the fit. A given channel i is noticed if freqs_mask[i] is True,
+        and ignored if it is false.      
+    
+    n_freqs: int 
+        The number of Fourier frequency bins that are noticed in the fit. 
+    
+    n_bins: int 
+        Only used for two-dimensional data fitting. Defined as the number of 
+        noticed channels, times the number of bins in the second dimension 
+        (e.g. Fourier frequency).
+        
+    _all_bins: int 
+        Only used for two-dimensional data fitting. Defined as the total number 
+        of  channels, times the number of bins in the second dimension 
+        (e.g. Fourier frequency).   
+    """
 
     def __init__(self,freqs):
         self._freqs_unmasked = freqs
@@ -440,10 +477,13 @@ class FrequencyDependentFit():
             raise TypeError("Frequency bounds must be floats or integers")
        
         if self.dependence == "frequency":
+            #this is called for a regular frequency-dependent product
             self.freqs_mask = ((self._freqs_unmasked<bound_lo)|
                                (self._freqs_unmasked>bound_hi))&self.freqs_mask
             self.freqs = np.extract(self.freqs_mask,self._freqs_unmasked)
         else:
+            #this is for products that do not depend on energy explicitely, but 
+            #only implicitely - for example, lag-energy data.
             fmin = self._freqs_unmasked[:-1]
             fmax = self._freqs_unmasked[1:]
             self.freqs_mask = ((fmin<bound_lo)|

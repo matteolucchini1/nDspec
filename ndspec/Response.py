@@ -10,8 +10,7 @@ import matplotlib.pylab as pl
 from matplotlib import rc, rcParams
 rc('text',usetex=True)
 rc('font',**{'family':'serif','serif':['Computer Modern']})
-fi = 22
-plt.rcParams.update({'font.size': fi-5})
+plt.rcParams.update({'font.size': 17})
 
 colorscale = pl.cm.PuRd(np.linspace(0.,1.,5))
 

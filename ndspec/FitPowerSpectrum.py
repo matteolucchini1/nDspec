@@ -1,3 +1,14 @@
+import numpy as np
+
+import matplotlib.pyplot as plt
+import matplotlib.pylab as pl
+from matplotlib import rc, rcParams
+rc('text',usetex=True)
+rc('font',**{'family':'serif','serif':['Computer Modern']})
+plt.rcParams.update({'font.size': 17})
+
+from .SimpleFit import SimpleFit, FrequencyDependentFit
+
 class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
     """
     Least-chi squared fitter class for a powerspectrum, defined as the product 
@@ -30,27 +41,35 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
         parameter values, fit statistics etc) of a fit after it has been run.         
    
     data: np.array(float)
-        An array storing the data to be fitted. If the data is complex and/or 
-        multi-dimensional, it is flattened to a single dimension in order to be 
-        compatible with the LMFit fitter methods.
+        An array storing the data to be fitted. Only contains noticed bins. 
    
     data_err: np.array(float)
-        An array containing the uncertainty on the data to be fitted. It is also 
-        stored as a one-dimensional array regardless of the type or dimensionality 
-        of the initial data.   
+        An array containing the uncertainty on the data to be fitted. Only 
+        contains noticed bins. 
+        
+    _data_unmasked, _data_err_unmasked: np.array(float)
+        The arrays of every data bin and its error, regardless of which ones are
+        ignored or noticed during the fit. Used exclusively to enable book 
+        keeping internal to the fitter class.   
+        
+    Attributes inherited from FrequencyDependentFit: 
+    ------------------------------------------------    
+     _freqs_unmasked 
+    
+    freqs_mask     
+    
+    n_freqs
         
     Other attributes:
     -----------------    
     freqs: np.array(float)
         The Fourier frequency over which both the data and model are defined, 
-        in units of Hz.           
+        in units of Hz. Only contains noticed bins.          
     """ 
 
     def __init__(self):
         SimpleFit.__init__(self)
         self.freqs = None 
-        self.n_freqs = None
-        self.twod_data = False
         self.dependence = "frequency"
         pass
 
@@ -183,13 +202,11 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
         fig, ((ax1)) = plt.subplots(1,1,figsize=(6.,4.5))   
         
         if units == 'power':
-            ax1.errorbar(self.freqs,self.data,
-                         yerr=self.data_err,
+            ax1.errorbar(self.freqs,self.data,yerr=self.data_err,
                          linestyle='',marker='o')
             ax1.set_ylabel("Power")
         elif units == "fpower":
-            ax1.errorbar(self.freqs,self.data*self.freqs,
-                         yerr=self.data_err*self.freqs,
+            ax1.errorbar(self.freqs,self.data*self.freqs,yerr=self.data_err*self.freqs,
                          linestyle='',marker='o')
             ax1.set_ylabel("Power$\\times$frequency")
         else:
@@ -281,8 +298,7 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
         if plot_data is False:
             fig, (ax1) = plt.subplots(1,1,figsize=(6.,4.5))   
         else:
-            fig, (ax1,ax2) = plt.subplots(2,1,figsize=(6.,6.),
-                                          sharex=True,
+            fig, (ax1,ax2) = plt.subplots(2,1,figsize=(6.,6.),sharex=True,
                                           gridspec_kw={'height_ratios': [2, 1]})
 
         if plot_data is True:

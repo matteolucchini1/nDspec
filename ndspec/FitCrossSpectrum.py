@@ -1,3 +1,24 @@
+import numpy as np
+import warnings
+
+import pyfftw
+from pyfftw.interfaces.numpy_fft import (
+    fft,
+    fftfreq,
+)
+
+import matplotlib.pyplot as plt
+import matplotlib.pylab as pl
+from matplotlib import rc, rcParams
+rc('text',usetex=True)
+rc('font',**{'family':'serif','serif':['Computer Modern']})
+plt.rcParams.update({'font.size': 17})
+
+from .Response import ResponseMatrix
+from .SimpleFit import SimpleFit, EnergyDependentFit, FrequencyDependentFit
+
+pyfftw.interfaces.cache.enable()
+
 class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
     """
     Least-chi squares fitter class for the cross spectrum. The class supports 
@@ -46,7 +67,12 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
     data_err: np.array(float)
         An array containing the uncertainty on the data to be fitted. It is also 
         stored as a one-dimensional array regardless of the type or dimensionality 
-        of the initial data.       
+        of the initial data.  
+        
+    _data_unmasked, _data_err_unmasked: np.array(float)
+        The arrays of every data bin and its error, regardless of which ones are
+        ignored or noticed during the fit. Used exclusively to enable book 
+        keeping internal to the fitter class.          
     
     Attributes inherited from EnergyDependentFit:
     ---------------------------------------------    
@@ -82,26 +108,39 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         The total number of channels in the loaded response matrix.
         
     n_bins: int 
-        Only used for two-dimensional data fitting. Defined as the number of 
-        noticed channels, times the number of bins in the second dimension 
-        (e.g. Fourier frequency).
+        The number of noticed channels times the number of noticed bins in 
+        Fourier frequency.
         
     _all_bins: int 
-        Only used for two-dimensional data fitting. Defined as the total number 
-        of  channels, times the number of bins in the second dimension 
-        (e.g. Fourier frequency).
+        The total number of  channels, times the total number of bins in Fourier 
+        frequency.
                 
     _emin_unmasked, _emax_unmasked, _ebounds_unmasked, _ewidths_unmasked: np.array(float)
         The array of every lower bound, upper bound, channel center and channel 
         widths stored in the response, regardless of which ones are ignored or 
         noticed during the fit. Used exclusively to facilitate book-keeping 
         internal to the fitter class. 
+
+    Attributes inherited from FrequencyDependentFit:
+    ------------------------------------------------
+    _freqs_unmasked: np.array(float)
+        If the data and model explicitely depend on Fourier frequency (e.g. a
+        power spectrum), this is the array of Fourier frequency over which all 
+        data and model are defined, including bins that are ignored in the fit. 
         
-    _data_unmasked, _data_err_unmasked: np.array(float)
-        The array of every cout rate and relative error contained in the 
-        spectrum, regardless of which ones are ignored or noticed during the 
-        fit. Used exclusively to facilitate book-keeping internal to the fitter
-        class.       
+        If instead the data depends from some other energy (e.g. energy), it 
+        contains both noticed and ignored frequency intervals over which to 
+        produce spectral-timing products. For example, a user might input a set 
+        of 7 ranges of frequencies to calculate lag energy spectra, but only 
+        want to consider the first and last 3, and ignore the middle one.
+    
+    freqs_mask np.array(bool)
+        The array of Fourier frequencies that are either ignored or noticed 
+        during the fit. A given channel i is noticed if freqs_mask[i] is True,
+        and ignored if it is false.      
+    
+    n_freqs: int 
+        The number of Fourier frequency bins that are noticed in the fit.  
     
     Other attributes:
     -----------------
@@ -109,11 +148,6 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         The instrument response matrix corresponding to the spectrum to be 
         fitted. It is required to define the energy grids over which model and
         data are defined.  
-    
-    twod_data: bool 
-        A boolean that tracks whether we're using a two-dimensional product (like 
-        a cross spectrum). Necessary to correctly mask enerby bins for both 
-        frequency and energy dependent products. 
 
     units: str 
         A string that checks the units which the user is providing  - "lags" for 
@@ -126,8 +160,11 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         the input model.
     
     freqs: np.array(float)
-        The Fourier frequency over which both the data and model are defined, 
-        in units of Hz.   
+        If the data explicitely depends on Fourier frequency, it is the range of
+        Fourier frequencies over which both the data and model are defined. 
+        Otherwise, it is the internal Fourier frequency grid over which the 
+        model is computed before being converted into spectral-timing products 
+        (e.g. lag-energy spectra).
         
     freq_bounds: np.array(float)
         The array of Fourier frequency bounds over which energy-dependent data 
@@ -184,7 +221,6 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
     
     def __init__(self):
         SimpleFit.__init__(self)
-        self.twod_data = True 
         self.ref_band = None
         self.freqs = None 
         self._times = None

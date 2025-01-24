@@ -1,3 +1,15 @@
+import numpy as np
+
+import matplotlib.pyplot as plt
+import matplotlib.pylab as pl
+from matplotlib import rc, rcParams
+rc('text',usetex=True)
+rc('font',**{'family':'serif','serif':['Computer Modern']})
+plt.rcParams.update({'font.size': 17})
+
+from .Response import ResponseMatrix
+from .SimpleFit import SimpleFit, EnergyDependentFit, load_pha
+
 class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
     """
     Least-chi squared fitter class for a time averaged spectrum, defined as the  
@@ -34,6 +46,11 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         An array containing the uncertainty on the data to be fitted. It is also 
         stored as a one-dimensional array regardless of the type or dimensionality 
         of the initial data.       
+
+    _data_unmasked, _data_err_unmasked: np.array(float)
+        The arrays of every data bin and its error, regardless of which ones are
+        ignored or noticed during the fit. Used exclusively to enable book 
+        keeping internal to the fitter class.        
     
     Attributes inherited from EnergyDependentFit:
     ---------------------------------------------    
@@ -67,29 +84,13 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         
     _all_chans: int 
         The total number of channels in the loaded response matrix.
-        
-    n_bins: int 
-        Only used for two-dimensional data fitting. Defined as the number of 
-        noticed channels, times the number of bins in the second dimension 
-        (e.g. Fourier frequency).
-        
-    _all_bins: int 
-        Only used for two-dimensional data fitting. Defined as the total number 
-        of  channels, times the number of bins in the second dimension 
-        (e.g. Fourier frequency).
-                
+       
     _emin_unmasked, _emax_unmasked, _ebounds_unmasked, _ewidths_unmasked: np.array(float)
         The array of every lower bound, upper bound, channel center and channel 
         widths stored in the response, regardless of which ones are ignored or 
         noticed during the fit. Used exclusively to facilitate book-keeping 
-        internal to the fitter class. 
-        
-    _data_unmasked, _data_err_unmasked: np.array(float)
-        The array of every cout rate and relative error contained in the 
-        spectrum, regardless of which ones are ignored or noticed during the 
-        fit. Used exclusively to facilitate book-keeping internal to the fitter
-        class.       
-    
+        internal to the fitter class.         
+
     Other attributes:
     -----------------
     response: nDspec.ResponseMatrix
@@ -100,7 +101,6 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
     
     def __init__(self):
         SimpleFit.__init__(self)
-        self.twod_data = False
         pass
 
     def set_data(self,response,data):
