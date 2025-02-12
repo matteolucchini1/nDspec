@@ -78,12 +78,16 @@ Emcee sampling functions
 .. autofunction:: ndspec.EmceeUtils.set_emcee_parameters
 
 .. autoclass:: ndspec.EmceeUtils.priorUniform
+    :members:
 
 .. autoclass:: ndspec.EmceeUtils.priorLogUniform
+    :members:
 
 .. autoclass:: ndspec.EmceeUtils.priorNormal
+    :members:
 
 .. autoclass:: ndspec.EmceeUtils.priorLogNormal
+    :members:
 
 .. autofunction:: ndspec.EmceeUtils.log_priors
 
