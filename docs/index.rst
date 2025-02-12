@@ -19,6 +19,8 @@ Table of contents
 ~~~~~~~~~~~~~~~~~ 
 
 nDspec core functionality:
+--------------------------
+
 .. toctree::
     :maxdepth: 1
     response_basics
@@ -27,6 +29,8 @@ nDspec core functionality:
     numerics
 
 Data fitting tutorials:
+-----------------------
+
 .. toctree::
     :maxdepth: 1
     fit_psd
