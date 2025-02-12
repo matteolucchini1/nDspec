@@ -18,6 +18,11 @@ The early version of the software can only be installed from the repository. Uni
 Table of contents
 ~~~~~~~~~~~~~~~~~ 
 
+Data fitting tutorials:
+
+.. toctree::
+    fit_psd
+
 nDspec core functionality:
 
 .. toctree::
@@ -26,15 +31,9 @@ nDspec core functionality:
     timing
     numerics
 
-Data fitting tutorials:
-
-.. toctree::
-    fit_psd
-
 References and tables
 ~~~~~~~~~~~~~~~~~~~~~
 
 * :ref:`search`
-.. toctree::
-    :maxdepth: 4    
+.. toctree::  
     api 
