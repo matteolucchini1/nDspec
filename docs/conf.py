@@ -52,9 +52,9 @@ html_theme_options = {
 html_sidebars = {
     '**': [
         'about.html',
-        #'globaltoc.html',
-        #'localtoc.html',
-        'navigation.html',
+        'globaltoc.html',
+        'localtoc.html',
+        #'navigation.html',
         'searchbox.html',
         #'sourcelink.html',
     ]

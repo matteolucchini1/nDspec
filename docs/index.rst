@@ -28,6 +28,7 @@ nDspec core functionality:
 
 Data fitting tutorials:
 
+.. toctree::
     fit_psd
 
 References and tables
