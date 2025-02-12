@@ -15,9 +15,9 @@ requirements = ['astropy>=5.0.2',
                 'emcee>=3.1.4',               
                 'lmfit>=1.3.1',
                 'matplotlib>=3.5.1',
-                'numpy>=1.26.2',
-                'scipy>=1.11.4',
-                'stingray>=2.1']
+                'numpy>=1.24',
+                'scipy>=1.10',
+                'stingray']
 
 test_requirements = [ ]
 
