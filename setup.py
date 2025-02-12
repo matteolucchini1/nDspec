@@ -11,7 +11,7 @@ with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
 requirements = ['astropy>=5.0.2',
-                'corner>=2.2.2',
+                'corner>=2.2.1',
                 'emcee>=3.1.4',               
                 'lmfit>=1.3.1',
                 'matploblib>=3.5.1',
