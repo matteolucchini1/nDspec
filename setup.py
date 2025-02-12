@@ -14,10 +14,10 @@ requirements = ['astropy>=5.0.2',
                 'corner>=2.2.1',
                 'emcee>=3.1.4',               
                 'lmfit>=1.3.1',
-                'matploblib>=3.4',
-                'numpy>=1.26.2',
-                'scipy>=1.11.4',
-                'stingray>=2.1']
+                'matploblib',
+                'numpy',
+                'scipy',
+                'stingray']
 
 test_requirements = [ ]
 
