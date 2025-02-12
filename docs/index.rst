@@ -22,7 +22,7 @@ nDspec core functionality:
 --------------------------
 
 .. toctree::
-    :maxdepth: 1
+    :maxdepth: 2
     response_basics
     response_optimization   
     timing
@@ -32,7 +32,7 @@ Data fitting tutorials:
 -----------------------
 
 .. toctree::
-    :maxdepth: 1
+    :maxdepth: 2
     fit_psd
 
 References and tables
