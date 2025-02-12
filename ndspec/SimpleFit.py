@@ -73,7 +73,9 @@ class SimpleFit():
                 self.n_bins = self._all_bins                
             #future: add if spectral polarimetry
         elif isinstance(self,FrequencyDependentFit) is True:
+            #note: these assignements are redundant for just a PSD fit 
             self._freqs_unmasked = self.freqs           
+            self.n_freqs = self.freqs.size
             self._all_freqs = self.n_freqs
             #future: add if timing polarimetry within the fit 
         return
@@ -142,10 +144,9 @@ class SimpleFit():
             data/model. If set to "delchi", it returns the contribution of 
             each energy channel to the total chi squared.
 
-        model: np.array(float), default None 
-            If specified, this is an array of the same size/format as the data, 
-            from which to compute the residuals. If the array is not specified 
-            the method evaluates the model stored in the class instance. 
+        use_masked: bool, default True 
+            A flag to decide whether to compare the model against the masked or 
+            unmasked data. 
             
         Returns:
         --------
@@ -167,9 +168,6 @@ class SimpleFit():
         elif use_masked is False:
             data = self._data_unmasked
             error = self._data_err_unmasked
-        
-        if isinstance(self,FitTimeAvgSpectrum):
-            model = np.extract(self.ebounds_mask,model)
 
         if res_type == "ratio":
             residuals = data/model
@@ -451,14 +449,15 @@ class FrequencyDependentFit():
 
     def __init__(self,freqs):
         self._freqs_unmasked = freqs
+        self.freqs = self._freqs_unmasked
         if self.dependence == "frequency":
             self._all_freqs = self._freqs_unmasked.size
         else:
             self._all_freqs = self._freqs_unmasked.size-1
+        self.n_freqs = self._all_freqs
         self.freqs_mask = np.full((self._all_freqs), True)
         pass
 
-    #for now support only oned stuff
     def ignore_frequencies(self,bound_lo,bound_hi):
         """
         This method adjusts the arrays stored such that they (and the fit) 

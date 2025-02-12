@@ -10,7 +10,14 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = [ ]
+requirements = ['astropy>=5.0.2',
+                'corner>=2.2.2',
+                'emcee>=3.1.4',               
+                'lmfit>=1.3.1',
+                'matploblib>=3.5.1',
+                'numpy>=1.26.2',
+                'scipy>=1.11.4',
+                'stingray>=2.1']
 
 test_requirements = [ ]
 
@@ -19,8 +26,8 @@ setup(
     author_email='m.lucchini@uva.nl',
     python_requires='>=3.6',
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
-        'Intended Audience :: Developers',
+        'Development Status :: 3 - Alpha',
+        'Intended Audience :: End Users',
         'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
         'Programming Language :: Python :: 3',
@@ -29,14 +36,14 @@ setup(
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.10',
     ],
-    description="Prototype repo for the NeXTsPec software.",
+    description="The nDspec modelling software.",
     install_requires=requirements,
     license="MIT license",
     long_description=readme + '\n\n' + history,
     include_package_data=True,
     keywords='ndspec',
     name='ndspec',
-    #packages=find_packages(include=['ndspec', 'cookiecuttertest.*']),
+    #packages=find_packages(include=['ndspec']),
     #test_suite='tests',
     #tests_require=test_requirements,
     url='https://github.com/matteolucchini1/ndspec',

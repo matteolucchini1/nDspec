@@ -133,7 +133,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         self._set_unmasked_data()
         return 
 
-    def eval_model(self,params=None,energ=None,fold=True):    
+    def eval_model(self,params=None,energ=None,fold=True,mask=True):    
         """
         This method is used to evaluate and return the model values for a given 
         set of parameters,  over a given model energy grid. By default it  
@@ -158,6 +158,11 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
             model to be folded, the energy grid over which it is defined MUST 
             be identical to that stored in the response matrix/class.
             
+        mask: bool, default True
+            A boolean switch to choose whether to mask the model output to only 
+            include the noticed energy channels, or to also return the ones 
+            that have been ignored by the users. 
+            
         Returns:
         --------
         model: np.array(float)
@@ -167,12 +172,18 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
     
         if energ is None:
             energ = self.energs
+
         if params is None:
             model = self.model.eval(self.model_params,energ=energ)*self.energ_bounds
         else:
             model = self.model.eval(params,energ=energ)*self.energ_bounds
+
         if fold is True:
-            model = self.response.convolve_response(model)  
+            model = self.response.convolve_response(model) 
+
+        if mask is True:
+            model = np.extract(self.ebounds_mask,model)            
+
         return model
 
     def _minimizer(self,params):

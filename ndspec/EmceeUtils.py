@@ -335,88 +335,88 @@ def chi_square_likelihood(theta):
     return likelihood
 
 #note: double check units/obs_time
-def cash_likelihood(theta,obs_time):
-    """
-    This function computes the log-likelihood, using the Cash statistic
-    and including priors, for a given set of parameter values theta. It requires
-    the user to have set the global variables emcee_priors, emcee_names, 
-    emcee_params, emcee_data, emcee_data_err and emcee_model beforehand. Here, 
-    the definition of the Cash likelihood is identical to that of Xspec,  
-    https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSappendixStatistics.html.
+#def cash_likelihood(theta,obs_time):
+#    """
+#    This function computes the log-likelihood, using the Cash statistic
+#    and including priors, for a given set of parameter values theta. It requires
+#    the user to have set the global variables emcee_priors, emcee_names, 
+#    emcee_params, emcee_data, emcee_data_err and emcee_model beforehand. Here, 
+#    the definition of the Cash likelihood is identical to that of Xspec,  
+#    https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSappendixStatistics.html.
     
-    Input: 
-    ------
-    theta: np.array(float)
-        An array of parameter values for which to compute the log likelihood. 
+#    Input: 
+#    ------
+#    theta: np.array(float)
+#        An array of parameter values for which to compute the log likelihood. 
+#        
+#    obs_time: float 
+#        The exposure time of the observation. 
         
-    obs_time: float 
-        The exposure time of the observation. 
-        
-    Returns:
-    --------
-    likelihood: float 
-        The value of the cstat log-likelihood for the given parameter values.        
-    """  
+#    Returns:
+#    --------
+#    likelihood: float 
+#        The value of the cstat log-likelihood for the given parameter values.        
+#    """  
 
-    global emcee_priors
-    global emcee_names 
-    global emcee_params
-    global emcee_data
-    global emcee_model 
+#    global emcee_priors
+#    global emcee_names 
+#    global emcee_params
+#    global emcee_data
+#    global emcee_model 
 
-    logpriors = log_priors(theta, emcee_priors)
-    if not np.isfinite(logpriors):
-        return -np.inf       
-    for name, val in zip(emcee_names, theta):
-        emcee_params[name].value = val    
-    model = emcee_model(params=emcee_params)
-    cash = model - emcee_data/obs_time + emcee_data/obs_time*(np.log(emcee_data/obs_time)-np.log(model))
-    statistic = -np.sum(cash)
-    likelihood = statistic + logpriors
-    return likelihood
+#    logpriors = log_priors(theta, emcee_priors)
+#    if not np.isfinite(logpriors):
+#        return -np.inf       
+#    for name, val in zip(emcee_names, theta):
+#        emcee_params[name].value = val    
+#    model = emcee_model(params=emcee_params)
+#    cash = model - emcee_data/obs_time + emcee_data/obs_time*(np.log(emcee_data/obs_time)-np.log(model))
+#    statistic = -np.sum(cash)
+#    likelihood = statistic + logpriors
+#    return likelihood
 
-def whittle_likelihood(theta,segments):
-    """
-    This function computes the log-likelihood, using the Whittle statistic
-    and including priors, for a given set of parameter values theta. This
-    appropariate for modelling power spectra of binned time series data, and is 
-    described in Barret and Vaughan (2012) and Bachetti and Huppenkothen (2023):
-    https://ui.adsabs.harvard.edu/abs/2012ApJ...746..131B/abstract
-    https://ui.adsabs.harvard.edu/abs/2022arXiv220907954B/abstract
+#def whittle_likelihood(theta,segments):
+#    """
+#    This function computes the log-likelihood, using the Whittle statistic
+#    and including priors, for a given set of parameter values theta. This
+#    appropariate for modelling power spectra of binned time series data, and is 
+#    described in Barret and Vaughan (2012) and Bachetti and Huppenkothen (2023):
+#    https://ui.adsabs.harvard.edu/abs/2012ApJ...746..131B/abstract
+#    https://ui.adsabs.harvard.edu/abs/2022arXiv220907954B/abstract
     
-    Input: 
-    ------
-    theta: np.array(float)
-        An array of parameter values for which to compute the log likelihood. 
+#    Input: 
+#    ------
+#    theta: np.array(float)
+#        An array of parameter values for which to compute the log likelihood. 
         
-    segments: int 
-        The number of segments used to average the data in the powerspectrum.
+#    segments: int 
+#        The number of segments used to average the data in the powerspectrum.
         
-    Returns:
-    --------
-    likelihood: float 
-        The value of the cstat log-likelihood for the given parameter values.        
-    """ 
+#    Returns:
+#    --------
+#    likelihood: float 
+#        The value of the cstat log-likelihood for the given parameter values.        
+#    """ 
 
-    global emcee_priors
-    global emcee_names 
-    global emcee_params
-    global emcee_data
-    global emcee_model 
+#    global emcee_priors
+#    global emcee_names 
+#    global emcee_params
+#    global emcee_data
+#    global emcee_model 
     
-    logpriors = -log_priors(theta, emcee_priors)
-    if not np.isfinite(logpriors):
-        return -np.inf       
-    for name, val in zip(emcee_names, theta):
-        emcee_params[name].value = val    
-    model = emcee_model(params=emcee_params)
-    nu = 2.*segments
-    whittle = emcee_data/model + np.log(model) + (2./nu -1)*np.log(emcee_data)
-    statistic = -nu*np.sum(whittle)
-    likelihood = statistic + logpriors
-    return likelihood
+#    logpriors = -log_priors(theta, emcee_priors)
+#    if not np.isfinite(logpriors):
+#        return -np.inf       
+#    for name, val in zip(emcee_names, theta):
+#        emcee_params[name].value = val    
+#    model = emcee_model(params=emcee_params)
+#    nu = 2.*segments
+#    whittle = emcee_data/model + np.log(model) + (2./nu -1)*np.log(emcee_data)
+#    statistic = -nu*np.sum(whittle)
+#    likelihood = statistic + logpriors
+#    return likelihood
     
-def process_emcee(sampler,labels=None,discard=2000,thin=15,values=None):
+def process_emcee(sampler,labels=None,discard=2000,thin=100,values=None):
     """
     Given a sampler emcee EnsamleSampler object, this function calculates and 
     prints the autocorrelation length, and plots the trace plots of the walkers, 
@@ -455,7 +455,7 @@ def process_emcee(sampler,labels=None,discard=2000,thin=15,values=None):
     ndim = len(tau)
     size = math.ceil(14/9*ndim)
     fig, axes = plt.subplots(ndim, figsize=(9, size), sharex=True)
-    samples = sampler.get_chain()    
+    samples = sampler.get_chain(discard=discard, thin=thin)    
     for i in range(ndim):
         ax = axes[i]
         ax.plot(samples[:, :, i], "k", alpha=0.3)

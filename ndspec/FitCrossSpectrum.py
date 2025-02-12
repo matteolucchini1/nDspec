@@ -783,6 +783,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         else:
             raise AttributeError("Product dependency not supported")
 
+        #tbd; redo this with the 2d mask, throw in a method and call through plotters 
         if mask is True:
             if self.units != "lags":
                 model_first_dim = self._filter_2d_by_mask(eval[:self._all_bins],self.ebounds_mask)

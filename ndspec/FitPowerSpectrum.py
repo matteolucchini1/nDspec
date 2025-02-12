@@ -7,6 +7,8 @@ rc('text',usetex=True)
 rc('font',**{'family':'serif','serif':['Computer Modern']})
 plt.rcParams.update({'font.size': 17})
 
+from lmfit.model import ModelResult as LM_result
+
 from .SimpleFit import SimpleFit, FrequencyDependentFit
 
 class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
@@ -111,7 +113,7 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
         self._set_unmasked_data()
         return
        
-    def eval_model(self,params=None,freq=None):
+    def eval_model(self,params=None,freq=None,mask=True):
         """
         This method is used to evaluate and return the model values for a given 
         set of parameters,  over a given Fourier frequency grid. By default it  
@@ -130,6 +132,11 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
             none are provided, the same frequencies over which the data is 
             defined are used. 
             
+        mask: bool, default True
+            A boolean switch to choose whether to mask the model output to only 
+            include the noticed energy channels, or to also return the ones 
+            that have been ignored by the users. 
+            
         Returns:
         --------
         model: np.array(float)
@@ -139,10 +146,15 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
         
         if freq is None:
             freq = self.freqs
+        
         if params is None:
             model = self.model.eval(self.model_params,freq=freq)
         else:
-            model = self.model.eval(params,freq=freq)
+            model = self.model.eval(params,freq=freq)            
+        
+        if mask is True:
+            model = np.extract(self.freqs_mask,model)
+            
         return model
     
     def _minimizer(self,params):
@@ -269,9 +281,9 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
         """
         
         if params is None:
-            model = self.eval_model(params=self.model_params)
+            model = self.eval_model(params=self.model_params,mask=False)
         else:
-            model = self.eval_model(params=params)
+            model = self.eval_model(params=params,mask=False)
 
         if plot_data is True:
             model_res, res_errors = self.get_residuals(res_type=residuals,model=model)
@@ -303,7 +315,7 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
 
         if plot_data is True:
             ax1.errorbar(self.freqs,data,yerr=error,
-                         drawstyle="steps-mid",marker='o')       
+                         linestyle='',marker='o')       
        
         ax1.plot(self.freqs,model,lw=3,zorder=3)
 
