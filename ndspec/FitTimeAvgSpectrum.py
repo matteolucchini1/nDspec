@@ -7,6 +7,8 @@ rc('text',usetex=True)
 rc('font',**{'family':'serif','serif':['Computer Modern']})
 plt.rcParams.update({'font.size': 17})
 
+from lmfit.model import ModelResult as LM_result
+
 from .Response import ResponseMatrix
 from .SimpleFit import SimpleFit, EnergyDependentFit, load_pha
 
@@ -208,8 +210,8 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
     
         if self.likelihood is None:
             model = self.eval_model(params,energ=self.energs)
-            convolve = np.extract(self.ebounds_mask,model)
-            residuals = (self.data-convolve)/self.data_err
+            #convolve = np.extract(self.ebounds_mask,model)
+            residuals = (self.data-model)/self.data_err
         else:
             raise AttributeError("custom likelihood not implemented yet")
         return residuals
@@ -362,7 +364,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         xerror = 0.5*np.extract(self.ebounds_mask,self._ewidths_unmasked)       
         
         #first; get the model in the correct units
-        model_fold = self.eval_model(params=params,energ=self.energs)
+        model_fold = self.eval_model(params=params,energ=self.energs,mask=False)
         if units == "data":   
             model = np.extract(self.ebounds_mask,model_fold)   
             ylabel = "Folded counts/s/keV"
@@ -416,7 +418,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         if plot_data is True:
             ax1.errorbar(energies,data,yerr=yerror,xerr=xerror,
                          ls="",marker='o')       
-       
+
         ax1.plot(energies,model,lw=3,zorder=3)
 
         if plot_components is True:

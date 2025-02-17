@@ -636,6 +636,7 @@ class ResponseMatrix(nDspecOperator):
         energy_widths = self.energ_hi - self.energ_lo 
         unfold_matrix = energy_widths.reshape(self.n_energs,1)*self.resp_matrix
         unfold_array = np.sum(unfold_matrix,axis=0).reshape(self.n_chans,1) 
+
         if units_in == "channel":
             unfold_model = array/unfold_array
         elif units_in == "kev":
@@ -643,8 +644,10 @@ class ResponseMatrix(nDspecOperator):
             unfold_model = array/unfold_array*channel_widths 
         else:
             raise ValueError("Specify whether the input array is normalized per channel or per keV")
+        
         #if we had a 1d array as input, we convert back to a 1d array; otherwise 
         #this confuses matplotlib and produces weird plots
         if (unfold_model.size == self.n_chans):
-            unfold_model = unfold_model.reshape(self.n_chans)        
+            unfold_model = unfold_model.reshape(self.n_chans)      
+        
         return unfold_model
