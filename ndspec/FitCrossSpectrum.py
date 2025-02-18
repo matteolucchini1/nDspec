@@ -10,11 +10,16 @@ from pyfftw.interfaces.numpy_fft import (
 import matplotlib.pyplot as plt
 import matplotlib.pylab as pl
 from matplotlib import rc, rcParams
+from matplotlib.colors import TwoSlopeNorm
 rc('text',usetex=True)
 rc('font',**{'family':'serif','serif':['Computer Modern']})
 plt.rcParams.update({'font.size': 17})
 
+from stingray import AveragedCrossspectrum, AveragedPowerspectrum
+from stingray.fourier import poisson_level, get_average_ctrate
+
 from .Response import ResponseMatrix
+from .Timing import PowerSpectrum, CrossSpectrum
 from .SimpleFit import SimpleFit, EnergyDependentFit, FrequencyDependentFit
 
 pyfftw.interfaces.cache.enable()
@@ -480,8 +485,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             self.data_err = []
             
             for i in range(self.n_chans):
-                events_sub = events.filter_energy_range([self.response.emin[i],
-                                                         self.response.emax[i]])
+                events_sub = data.filter_energy_range([self.response.emin[i],
+                                                       self.response.emax[i]])
                 cs = AveragedCrossspectrum.from_events(events_sub,events_ref,
                                                        segment_size=seg_size,
                                                        dt=time_res,norm=norm,
@@ -499,26 +504,18 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                     noise_sub = poisson_level(norm=norm, meanrate=ctrate_sub)                      
                     data_size = len(cs.freq)
                     
-                    if norm == "frac":
-                        N = 2./noise_ref 
-                    elif norm == "abs":
-                        N = 2.*noise_sub
-                    else:
-                        raise ValueError("Normalization not supported, choose between"\
-                                          "fractional and absolute rms")
-                
                     if self.units == "cartesian":    
                         data_first_dim = np.real(cs.power)
                         data_second_dim = np.imag(cs.power)                
                         error_first_dim = np.sqrt((ps_sub.power*ps_ref.power+ \
                                                    np.real(cs.power)**2- \
-                                                   np.imag(cs.power)**2)/(2.*N))
+                                                   np.imag(cs.power)**2)/(2.*cs.m))
                         error_second_dim = np.sqrt((ps_sub.power*ps_ref.power- \
                                                     np.real(cs.power)**2+ \
-                                                    np.imag(cs.power)**2)/(2.*N))
+                                                    np.imag(cs.power)**2)/(2.*cs.m))
                     elif self.units == "polar":
                         data_first_dim = np.absolute(cs.power)
-                        error_first_dim = np.sqrt(ps_sub.power*ps_ref.power/(2.*N))
+                        error_first_dim = np.sqrt(ps_sub.power*ps_ref.power/(2.*cs.m))
                         data_second_dim, error_second_dim = cs.phase_lag()
                     
                     if i == 0:
@@ -559,9 +556,12 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         
         if len(self.data) != len(self.data_err):
             raise AttributeError("Size of data and error are not the same")
-        if len(self.data)/self.n_chans != self.n_freqs:
-            raise AttributeError("Size of frequency grid does not match the data")
-
+        if self.units == "lags":
+            if len(self.data)/self.n_chans != self.n_freqs:
+                raise AttributeError("Size of frequency grid does not match the data")
+        else:
+            if len(self.data)/(2.*self.n_chans) != self.n_freqs:
+                raise AttributeError("Size of frequency grid does not match the data")
         return
 
     def _energ_dependent_cross(self,freq_bounds,data,data_err,
@@ -785,12 +785,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
 
         #tbd; redo this with the 2d mask, throw in a method and call through plotters 
         if mask is True:
-            if self.units != "lags":
-                model_first_dim = self._filter_2d_by_mask(eval[:self._all_bins],self.ebounds_mask)
-                model_second_dim = self._filter_2d_by_mask(eval[self._all_bins:],self.ebounds_mask)
-                model = np.append(model_first_dim,model_second_dim)
-            else:
-                model = self._filter_2d_by_mask(model,self.ebounds_mask)
+            model = self._filter_2d_by_mask(model)
         return model
 
     def _freq_dependent_model(self,folded_eval):
@@ -1674,9 +1669,9 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             bot_res = np.transpose(np.ma.masked_where(twod_mask, bot_res))
             plot_info = [top_res,bot_res]
 
+            filtered_row = self._filter_2d_by_mask(np.array(plot_info))
             for row in range(2):
-                ax = axs[row][2]
-                filtered_row = self._filter_2d_by_mask(np.array(plot_info[row]),self.ebounds_mask)
+                ax = axs[row][2]                
                 res_min = np.min([np.min(filtered_row),-1])
                 res_max = np.max([np.max(filtered_row),1])
                 

@@ -23,6 +23,7 @@ Data fitting tutorials:
 .. toctree::
     fit_psd
     fit_spec
+    fit_cross_1d
 
 nDspec core functionality:
 
