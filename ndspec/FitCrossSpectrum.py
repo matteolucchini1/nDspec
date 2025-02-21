@@ -15,6 +15,9 @@ rc('text',usetex=True)
 rc('font',**{'family':'serif','serif':['Computer Modern']})
 plt.rcParams.update({'font.size': 17})
 
+from lmfit import Model as LM_Model
+from lmfit import Parameters as LM_Parameters
+
 from stingray import AveragedCrossspectrum, AveragedPowerspectrum
 from stingray.fourier import poisson_level, get_average_ctrate
 
@@ -647,9 +650,13 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         
         if len(self.data) != len(self.data_err):
             raise AttributeError("Size of data and error are not the same")
-        if len(self.data)/self.n_freqs != self.n_chans:
-            raise AttributeError("Size of energy grid does not match the data")
-        return 
+        if self.units == "lags":
+            if len(self.data)/self.n_chans != self.n_freqs:
+                raise AttributeError("Size of frequency grid does not match the data")
+        else:
+            if len(self.data)/(2.*self.n_chans) != self.n_freqs:
+                raise AttributeError("Size of frequency grid does not match the data")
+        return
 
     def set_model(self,model,model_type="irf",params=None):
         """
@@ -1159,7 +1166,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             ax2.set_xscale("log")
             ax2.set_xlabel(x_axis_label)
             ax2.set_ylabel(right_label)
-            ax2.legend(loc="best",ncol=2)
+            ax2.legend(loc="best",ncol=2,fontsize=12)
         else:            
             fig, ((ax1)) = plt.subplots(1,1,figsize=(6.,4.5)) 
             
@@ -1429,7 +1436,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                              linewidth=3,zorder=3)
                 ax1.set_xscale("log")
                 ax1.set_yscale("log")  
-                ax2.legend(loc="best",ncol=2)
+                ax2.legend(loc="best",ncol=2,fontsize=12)
                 ax2.set_xscale("log")
                 ax3.set_xscale("log")
                 ax3.set_xlabel(x_axis_label) 
@@ -1460,7 +1467,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                              linewidth=3,color=col,zorder=3,
                              label=f"{labels[i]}-{labels[i+1]} {units}") 
                 ax2.hlines(0,x_axis[0],x_axis[-1],color='black',ls=':',zorder=3)
-                ax2.legend(loc="best",ncol=2)
+                ax2.legend(loc="best",ncol=2,fontsize=12)
                 ax1.set_xscale("log")
                 ax2.set_xscale("log")
                 ax1.set_xlabel(x_axis_label) 
@@ -1495,7 +1502,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                 ax1.set_ylabel("Lag (s)")
                 ax1.set_xscale("log")
                 ax2.set_ylabel(reslabel)
-                ax1.legend(loc="best",ncol=2)
+                ax1.legend(loc="best",ncol=2,fontsize=12)
                 ax2.set_xlabel(x_axis_label)   
                 ax2.set_xscale("log")
             else:
@@ -1508,7 +1515,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                              linestyle='',marker='o',color=col,
                              label=f"{labels[i]}-{labels[i+1]} {units}") 
                 ax1.set_xscale("log")
-                ax1.legend(loc="best",ncol=2)
+                ax1.legend(loc="best",ncol=2,fontsize=12)
                 ax1.set_ylabel("Lag (s)")
                 ax1.set_xlabel(x_axis_label)                
         
@@ -1659,8 +1666,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             #arrays, to two-d arrays with the data stored in the right order for 
             #2d plotting with colormesh
             if self.dependence == "energy":
-                top_res = model_res[self._all_bins:].reshape((self._all_chans,self._all_freqs))
-                bot_res = model_res[:self._all_bins].reshape((self._all_chans,self._all_freqs))
+                top_res = model_res[self._all_bins:].reshape((self._all_freqs,self._all_chans))
+                bot_res = model_res[:self._all_bins].reshape((self._all_freqs,self._all_chans))
             elif self.dependence == "frequency":
                 top_res = np.transpose(model_res[self._all_bins:].reshape((self._all_chans,self._all_freqs)))
                 bot_res = np.transpose(model_res[:self._all_bins].reshape((self._all_chans,self._all_freqs)))
@@ -1669,11 +1676,11 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             bot_res = np.transpose(np.ma.masked_where(twod_mask, bot_res))
             plot_info = [top_res,bot_res]
 
-            filtered_row = self._filter_2d_by_mask(np.array(plot_info))
+            #filtered_row = self._filter_2d_by_mask(np.array(plot_info))
             for row in range(2):
                 ax = axs[row][2]                
-                res_min = np.min([np.min(filtered_row),-1])
-                res_max = np.max([np.max(filtered_row),1])
+                res_min = np.min([np.min(plot_info[row]),-1])
+                res_max = np.max([np.max(plot_info[row]),1])
                 
                 res_norm = TwoSlopeNorm(vmin=res_min,vcenter=0,vmax=res_max) 
                 mid_plot = ax.pcolormesh(x_axis,y_axis,plot_info[row],cmap="BrBG",
