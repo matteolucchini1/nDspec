@@ -885,8 +885,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         model = []
         
         if self.units == "lags":   
-            for i in range(self.n_freqs):
-                f_mean = 0.5*(self.freq_bounds[1:]+self.freq_bounds[:-1])
+            for i in range(self._all_freqs):
+                f_mean = 0.5*(self._freqs_unmasked[1:]+self._freqs_unmasked[:-1])
                 if self.renorm_phase is True:
                     par_key = 'phase_renorm_'+str(i+1)
                     phase_pars = LM_Parameters()
@@ -894,17 +894,17 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                                    min=params[par_key].min,max=params[par_key].max,
                                    vary=params[par_key].vary)
                     
-                    phase_model = folded_eval.phase_energy([self.freq_bounds[i],self.freq_bounds[i+1]])
+                    phase_model = folded_eval.phase_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
                     model_eval = self.phase_renorm_model.eval(phase_pars,array=phase_model)/(2*np.pi*f_mean[i])  
                 else:
-                    model_eval = folded_eval.lag_energy([self.freq_bounds[i],self.freq_bounds[i+1]])
+                    model_eval = folded_eval.lag_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
                 model = np.append(model,model_eval)
         elif self.units == "cartesian":
             real = []
             imag = [] 
-            for i in range(self.n_freqs):
-                real_eval = folded_eval.real_energy([self.freq_bounds[i],self.freq_bounds[i+1]])
-                imag_eval = folded_eval.imag_energy([self.freq_bounds[i],self.freq_bounds[i+1]])
+            for i in range(self._all_freqs):
+                real_eval = folded_eval.real_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
+                imag_eval = folded_eval.imag_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
                 if self.renorm_modulus is True:
                     par_key = 'mods_renorm_'+str(i+1)
                     mods_pars = LM_Parameters()
@@ -924,9 +924,9 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         elif self.units == "polar":
             mod = []
             phase = []
-            for i in range(self.n_freqs):
-                mod_model = folded_eval.mod_energy([self.freq_bounds[i],self.freq_bounds[i+1]])
-                phase_model = folded_eval.phase_energy([self.freq_bounds[i],self.freq_bounds[i+1]])
+            for i in range(self._all_freqs):
+                mod_model = folded_eval.mod_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
+                phase_model = folded_eval.phase_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
                 if self.renorm_modulus is True:
                     par_key = 'mods_renorm_'+str(i+1)
                     mods_pars = LM_Parameters()
@@ -976,7 +976,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             phase_pars = LM_Parameters()
             for index in range(self.n_freqs):   
                 phase_pars.add('phase_renorm_'+str(index+1), 
-                               value=0,min=-0.2,max=0.2,vary=True)            
+                               value=0,min=-0.05,max=0.05,vary=True)            
             self.model_params = self.model_params + phase_pars       
         return
         
@@ -1579,7 +1579,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             data_bound = self.n_chans 
 
         model = self.eval_model(params=params,mask=False)
-        model_res,_ = self.get_residuals(res_type=residuals,model=model,use_masked=False)
+        model_res,_ = self.get_residuals(res_type=residuals,model=model,mask=False)
 
         #the output of eval_model and get_residuals is not masked because we 
         #need to mask by hand here to get a correct 2d plots when ignoring bins
@@ -1604,8 +1604,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                 data_reformat = np.transpose(self._data_unmasked[:self._all_bins].reshape((self._all_chans,self._all_freqs)))
                 model_reformat =  np.transpose(model[:self._all_bins].reshape((self._all_chans,self._all_freqs)))
             
-            twod_mask = twod_mask.reshape((self._all_freqs,self._all_chans))
-            
+            twod_mask = twod_mask.reshape((self._all_freqs,self._all_chans))            
             twod_mask = np.logical_not(twod_mask) 
             
             data_reformat = np.transpose(np.ma.masked_where(twod_mask, data_reformat))
@@ -1676,7 +1675,6 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             bot_res = np.transpose(np.ma.masked_where(twod_mask, bot_res))
             plot_info = [top_res,bot_res]
 
-            #filtered_row = self._filter_2d_by_mask(np.array(plot_info))
             for row in range(2):
                 ax = axs[row][2]                
                 res_min = np.min([np.min(plot_info[row]),-1])

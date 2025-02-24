@@ -113,14 +113,10 @@ class SimpleFit():
 
         if self.units != "lags":
             filter_first_dim = np.extract(twod_mask,array[:self._all_bins])
-            #error_filter_first_dim = np.extract(twod_mask,array[:self._all_bins])
             filter_second_dim = np.extract(twod_mask,array[self._all_bins:],)
-            #error_filter_second_dim = np.extract(twod_mask,array[self._all_bins:])
-            filter_arr = np.append(filter_first_dim,filter_second_dim)
-            #self.data_err = np.append(error_filter_first_dim,error_filter_second_dim)              
+            filter_arr = np.append(filter_first_dim,filter_second_dim)          
         else:
             filter_arr = np.extract(twod_mask,array)
-            #self.data_err = np.extract(twod_mask,array)
         return filter_arr
     
     def set_model(self,model,params=None):
@@ -142,7 +138,6 @@ class SimpleFit():
 
         if ((getattr(model, '__module__', None) != "lmfit.compositemodel")&
             (getattr(model, '__module__', None) != "lmfit.model")):  
-        #if isinstance(model,lmfit.CompositeModel) is False:
             raise AttributeError("The model input must be an LMFit Model or CompositeModel object")
         
         self.model = model 
@@ -168,13 +163,12 @@ class SimpleFit():
         #maybe find a way to go through the parameters of the model, and make sure 
         #the object passed contains the same parameters?
         if getattr(params, '__module__', None) != "lmfit.parameter":  
-#        if isinstance(params,lmfit.Parameters) is False:
             raise AttributeError("The parameters input must be an LMFit Parameters object")
         
         self.model_params = params
         return 
 
-    def get_residuals(self,res_type,model=None,use_masked=True):    
+    def get_residuals(self,res_type,model=None,mask=True):    
         """
         This methods return the residuals (either as data/model, or as 
         contribution to the total chi squared) of the input model, given the 
@@ -187,7 +181,7 @@ class SimpleFit():
             data/model. If set to "delchi", it returns the contribution of 
             each energy channel to the total chi squared.
 
-        use_masked: bool, default True 
+        mask: bool, default True 
             A flag to decide whether to compare the model against the masked or 
             unmasked data. 
             
@@ -205,10 +199,10 @@ class SimpleFit():
         if model is None:
             model = self.eval_model()
         
-        if use_masked is True:
+        if mask is True:
             data = self.data
             error = self.data_err
-        elif use_masked is False:
+        elif mask is False:
             data = self._data_unmasked
             error = self._data_err_unmasked
 
@@ -492,6 +486,7 @@ class FrequencyDependentFit():
             self.freqs_mask = ((self._freqs_unmasked<bound_lo)|
                                (self._freqs_unmasked>bound_hi))&self.freqs_mask
             self.freqs = np.extract(self.freqs_mask,self._freqs_unmasked)
+            self.n_freqs = self.freqs_mask[self.freqs_mask==True].size
         else:
             #this is for products that do not depend on energy explicitely, but 
             #only implicitely - for example, lag-energy data.
@@ -500,7 +495,7 @@ class FrequencyDependentFit():
             self.freqs_mask = ((fmin<bound_lo)|
                                (fmax>bound_hi))&self.freqs_mask
             self.freq_bounds = np.extract(self.freqs_mask,self._freqs_unmasked)
-        self.n_freqs = self.freqs_mask[self.freqs_mask==True].size
+            self.n_freqs = self.freqs_mask[self.freqs_mask==True].size#-1 
 
         #filter 2d data is more complex so it is moved to its own method for 
         #simplicity
@@ -534,6 +529,7 @@ class FrequencyDependentFit():
                               (self._freqs_unmasked<bound_lo)|
                               (self._freqs_unmasked>bound_hi))
             self.freqs = np.extract(self.freqs_mask,self._freqs_unmasked)
+            self.n_freqs = self.freqs_mask[self.freqs_mask==True].size        
         else:
             fmin = self._freqs_unmasked[:-1]
             fmax = self._freqs_unmasked[1:]
@@ -541,7 +537,7 @@ class FrequencyDependentFit():
                               (fmin<bound_lo)|
                               (fmax>bound_hi))
             self.freq_bounds = np.extract(self.freqs_mask,self._freqs_unmasked)
-        self.n_freqs = self.freqs_mask[self.freqs_mask==True].size
+            self.n_freqs = self.freqs_mask[self.freqs_mask==True].size-1 
 
         #filter 2d data is more complex so it is moved to its own method for 
         #simplicity
