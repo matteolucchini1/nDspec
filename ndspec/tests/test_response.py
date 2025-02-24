@@ -2,7 +2,9 @@ import sys
 import os
 import numpy as np
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath('__file__/ndspec/'))))
-from ndspec.Response import ResponseMatrix#, rebin_array
+
+from ndspec.Response import ResponseMatrix
+
 import pytest
 from xspec import *
 
@@ -232,3 +234,45 @@ class TestResponse(object):
     def test_arf_plot(self):
         with pytest.raises(TypeError):
             self.response.plot_arf(plot_scale="wrong_scale")              
+
+    def test_exposure_time(self):
+        current_exposure = self.response.exposure
+        current_resp_grid = self.response.resp_matrix
+        self.response.set_exposure_time(10*current_exposure)
+        assert self.response.exposure == 10*current_exposure
+        assert self.response.resp_matrix == 10*current_resp_grid
+        
+        with pytest.raises(TypeError):
+            self.response.set_exposure_time("str")
+    
+    def test_ignore_energy_channels(self):
+        #check that ignore energy channels works for channel indexing
+        new_response = self.response.ignore_channels(low_chan=1)
+        assert new_response.n_chans == self.response.n_chans-1
+        new_response = self.response.ignore_channels(high_chan=1)
+        assert new_response.n_chans == self.response.n_chans-1
+        new_response = self.response.ignore_channels(low_chan=1,high_chan=3)
+        assert new_response.n_chans == self.response.n_chans-2
+        #check that ignore energy channels works for energy bounds
+        new_response = self.response.ignore_channels(low_energy=0.1,
+                                                     high_energy=2)
+        assert np.any(new_response.emin == 0.1) != True
+        assert np.any(new_response.emax == 2) != True
+        
+        with pytest.raises(ValueError):
+            self.response.ignore_channels()
+        with pytest.raises(ValueError):
+            self.response.ignore_channels(low_chan=-1)
+        with pytest.raises(ValueError):
+            self.response.ignore_channels(high_chan=10000)
+        with pytest.raises(TypeError):
+            self.response.ignore_channels(low_chan="")
+        with pytest.raises(TypeError):
+            self.response.ignore_channels(high_chan="")
+        with pytest.raises(TypeError):
+            self.response.ignore_channels(low_energy="")
+        with pytest.raises(TypeError):
+            self.response.ignore_channels(high_energy="")
+        
+        
+        return
