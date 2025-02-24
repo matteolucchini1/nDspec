@@ -53,25 +53,22 @@ class TestTiming(object):
                           models.lorentz(cls.freqs_sinc,
                                          np.array([0.05,0.1,0.1]))                     
 
-        cls.bbflash_fft, bbspec, bbpulse = models.bbody_bkn(cls.times_fft,
+        cls.bbflash_fft = models.bbody_bkn(cls.times_fft,
                                            cls.energies,
                                            np.array([1.,0.5,1.,-1.5,3.,-0.05]))
-        cls.bbflash_sinc, bbspec, bbpulse = models.bbody_bkn(cls.times_sinc,
-                                           cls.energies,
-                                           np.array([1.,0.5,1.,-1.5,3.,-0.05]))                                           
+        cls.bbflash_sinc = models.bbody_bkn(cls.times_sinc,
+                                            cls.energies,
+                                            np.array([1.,0.5,1.,-1.5,3.,-0.05]))                                           
         
-        cls.gauss_fft, line, lc = models.gauss_bkn(cls.times_fft,cls.energies,
-                                  np.array([3.e-3,2.,6.5,2.,-3.,4.,-0.25]))
-        cls.gauss_sinc, line, lc = models.gauss_bkn(cls.times_sinc,cls.energies,
-                                   np.array([3.e-3,2.,6.5,2.,-3.,4.,-0.25]))           
+        cls.gauss_fft = models.gauss_bkn(cls.times_fft,cls.energies,
+                                         np.array([3.e-3,2.,6.5,2.,-3.,4.,-0.25]))
+        cls.gauss_sinc = models.gauss_bkn(cls.times_sinc,cls.energies,
+                                          np.array([3.e-3,2.,6.5,2.,-3.,4.,-0.25]))           
         
-        cls.pivoting_fft = models.pivoting_pl(cls.freqs_fft,
-                                  cls.energies,
-                                  np.array([1.,-1.9,0.2,-0.5,-0.5,1e-3]))
-        cls.pivoting_sinc = models.pivoting_pl(cls.freqs_sinc,
-                          cls.energies,
-                          np.array([1.,-1.9,0.2,-0.5,-0.5,1e-3]))
-                                   
+        cls.pivoting_fft = models.pivoting_pl(cls.freqs_fft,cls.energies,
+                           np.array([1.,-1.9,0.2,-0.05,-0.5,-0.05,1e-3]))
+        cls.pivoting_sinc = models.pivoting_pl(cls.freqs_sinc,cls.energies,
+                            np.array([1.,-1.9,0.2,-0.05,-0.5,-0.05,1e-3]))                                   
         return 
 
     #check that the code returns the appropriate errors if users provide incorrect
@@ -92,12 +89,13 @@ class TestTiming(object):
                                               method='sinc')
         with pytest.warns(UserWarning):
             powerspectrum = timing.PowerSpectrum(self.times_sinc,
-                                              freqs = self.freqs_sinc,
-                                              method='wrong')            
+                                                 freqs = self.freqs_sinc,
+                                                 method='wrong',
+                                                 verbose=True)            
         with pytest.raises(AttributeError):
             powerspectrum = timing.PowerSpectrum(self.times_sinc,
-                                              freqs = self.freqs_sinc,
-                                              method='sinc')
+                                                 freqs = self.freqs_sinc,
+                                                 method='sinc')
             powerspectrum.method='wrong'
             powerspectrum.power_spec=self.lorentz_sinc
             powerspectrum.rebin_frequency(self.freqs_sinc)
@@ -168,7 +166,8 @@ class TestTiming(object):
             crossspectrum = timing.CrossSpectrum(self.times_sinc,
                                               freqs = self.freqs_sinc,
                                               energ=self.energies,
-                                              method='wrong')            
+                                              method='wrong',
+                                              verbose=True)            
         with pytest.raises(AttributeError):
             crossspectrum = timing.CrossSpectrum(self.times_sinc,
                                               freqs = self.freqs_sinc,
@@ -248,11 +247,11 @@ class TestTiming(object):
     #frequency ranges incorrectly             
     def test_oned_range_errors(self):
         crossspectrum = timing.CrossSpectrum(self.times_sinc,
-                                  freqs = self.freqs_sinc,
-                                  energ=self.energies,
-                                  method='sinc')
+                                             freqs = self.freqs_sinc,
+                                             energ=self.energies,
+                                             method='sinc')
         crossspectrum.set_impulse(self.bbflash_sinc)
-        crossspectrum.set_reference_energ(self.bbflash_sinc[0,:])
+        crossspectrum.set_reference_energ([self.energies[0],self.energies[-1]])
         crossspectrum.set_psd_weights(self.lorentz_sinc)
         with pytest.raises(ValueError):
             error = crossspectrum.lag_frequency(int_bounds=[1.0,1.0001])  

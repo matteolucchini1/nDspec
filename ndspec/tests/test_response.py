@@ -2,7 +2,9 @@ import sys
 import os
 import numpy as np
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath('__file__/ndspec/'))))
+
 from ndspec.Response import ResponseMatrix
+
 import pytest
 from xspec import *
 
@@ -47,10 +49,12 @@ class TestResponse(object):
         bin_widths = np.diff(model_energies)
         convolved_model = self.response.convolve_response(
                                         model_values,
-                                        norm="xspec")
+                                        units_in="xspec",
+                                        units_out="channel")
         convolved_rebinned = self.response.convolve_response(
                                            model_values/bin_widths,
-                                           norm="rate")
+                                           units_in="rate",
+                                           units_out="channel")
         assert np.allclose(modVals,convolved_model,rtol=1e-6) == True
         assert np.allclose(modVals,convolved_rebinned,rtol=1e-6) == True
 
@@ -73,10 +77,12 @@ class TestResponse(object):
         bin_widths = np.diff(model_energies)
         convolved_model = nustar_fpma.convolve_response(
                                       model_values,
-                                      norm="xspec")
+                                      units_in="xspec",
+                                      units_out="channel")
         convolved_rebinned = nustar_fpma.convolve_response(
                                          model_values/bin_widths,
-                                         norm="rate")
+                                         units_in="rate",
+                                         units_out="channel")
         assert np.allclose(modVals,convolved_model,rtol=1e-6) == True
         assert np.allclose(modVals,convolved_rebinned,rtol=1e-6) == True
 
@@ -97,10 +103,12 @@ class TestResponse(object):
         bin_widths = np.diff(model_energies)
         convolved_model = rxte_pca.convolve_response(
                                    model_values,
-                                   norm="xspec")
+                                   units_in="xspec",
+                                   units_out="channel")
         convolved_rebinned = rxte_pca.convolve_response(
                                       model_values/bin_widths,
-                                      norm="rate")
+                                      units_in="rate",
+                                      units_out="channel")
         assert np.allclose(modVals,convolved_model,rtol=1e-6) == True
         assert np.allclose(modVals,convolved_rebinned,rtol=1e-6) == True
 
@@ -123,10 +131,12 @@ class TestResponse(object):
         bin_widths = np.diff(model_energies)
         convolved_model = xrt_resp.convolve_response(
                                    model_values,
-                                   norm="xspec")
+                                   units_in="xspec",
+                                   units_out="channel")
         convolved_rebinned = xrt_resp.convolve_response(
                                       model_values/bin_widths,
-                                      norm="rate")
+                                      units_in="rate",
+                                      units_out="channel")
         assert np.allclose(modVals,convolved_model,rtol=1e-6) == True
         assert np.allclose(modVals,convolved_rebinned,rtol=1e-6) == True
 
@@ -149,10 +159,12 @@ class TestResponse(object):
         bin_widths = np.diff(model_energies)
         convolved_model = xmm_resp.convolve_response(
                                    model_values,
-                                   norm="xspec")
+                                   units_in="xspec",
+                                   units_out="channel")
         convolved_rebinned = xmm_resp.convolve_response(
                                       model_values/bin_widths,
-                                      norm="rate")
+                                      units_in="rate",
+                                      units_out="channel")
         assert np.allclose(modVals,convolved_model,rtol=1e-6) == True
         assert np.allclose(modVals,convolved_rebinned,rtol=1e-6) == True
 
@@ -194,31 +206,26 @@ class TestResponse(object):
                                   6.1,6.3,6.4,6.8,7,7.2,7.3,7.35,7.6,8,9.5,10.])
         with pytest.raises(ValueError):
             new_bounds_lo[0] = -0.01
-            rebin = self.response.rebin_response(new_bounds_lo,new_bounds_hi)
+            rebin = self.response.rebin_channels(new_bounds_lo,new_bounds_hi)
         with pytest.raises(ValueError):
             new_bounds_lo[0] = 0.1
             new_bounds_hi[len(new_bounds_hi)-1] = 30.
-            rebin = self.response.rebin_response(new_bounds_lo,new_bounds_hi)
+            rebin = self.response.rebin_channels(new_bounds_lo,new_bounds_hi)
         with pytest.raises(TypeError):
             new_bounds_hi[len(new_bounds_hi)-1] = 10.
             new_bounds_wrong = new_bounds_hi[1:]
-            rebin = self.response.rebin_response(new_bounds_lo,new_bounds_wrong)
+            rebin = self.response.rebin_channels(new_bounds_lo,new_bounds_wrong)
         with pytest.raises(TypeError):
             new_bounds_fine = np.linspace(0.1,10.,4001)
             new_bounds_fine_lo = new_bounds_fine[:len(new_bounds_fine)-1]
             new_bounds_fine_hi = new_bounds_fine[1:]
-            rebin = self.response.rebin_response(new_bounds_fine_lo,new_bounds_fine_hi)
-        #with pytest.raises(IndexError):
-        #    new_bounds_lo[1] = 0.101
-        #    new_bounds_hi[0] = new_bounds_lo[1]
-       #     new_channels_lo,new_channels_hi = self.response._bounds_to_chans(
-        #                                                    new_bounds_lo,
-        #                                                    new_bounds_hi)
-                                                            
-        #    rebin_array((self.response.chans[0:self.response.n_chans-1],
-         #                self.response.chans[1:self.response.n_chans]),
-          #               (new_channels_lo, new_channels_hi),
-           #              self.response.resp_matrix[0,:])
+            rebin = self.response.rebin_channels(new_bounds_fine_lo,new_bounds_fine_hi)
+        with pytest.raises(TypeError):
+            rebin = self.response.rebin_energies(factor=1.9)     
+        with pytest.raises(ValueError):
+            rebin = self.response.rebin_energies(factor=0.5)
+        with pytest.warns(UserWarning):
+            rebin = self.response.rebin_energies(factor=2)   
 
     def test_response_plot(self):
         with pytest.raises(TypeError):

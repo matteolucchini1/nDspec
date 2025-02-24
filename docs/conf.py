@@ -53,8 +53,8 @@ html_sidebars = {
     '**': [
         'about.html',
         #'globaltoc.html',
-        #'localtoc.html',
-        'navigation.html',
+        'localtoc.html',
+        #'navigation.html',
         'searchbox.html',
         #'sourcelink.html',
     ]
@@ -69,6 +69,7 @@ conf.read([os.path.join(os.path.dirname(__file__), "..", "setup.cfg")])
 setup_cfg = dict(conf.items("metadata"))
 
 autodoc_mock_imports = ['bs4', 'requests','numpy','astropy','matplotlib',
-                        'scipy','pyfftw','copy','warnings',]
+                        'scipy','pyfftw','copy','warnings','lmfit','emcee',
+                        'corner','multiprocessing','stingray']
 
 html_static_path = ['_static']

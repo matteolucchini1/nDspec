@@ -10,8 +10,7 @@ import matplotlib.pylab as pl
 from matplotlib import rc, rcParams
 rc('text',usetex=True)
 rc('font',**{'family':'serif','serif':['Computer Modern']})
-fi = 22
-plt.rcParams.update({'font.size': fi-5})
+plt.rcParams.update({'font.size': 17})
 
 colorscale = pl.cm.PuRd(np.linspace(0.,1.,5))
 
@@ -33,21 +32,21 @@ class ResponseMatrix(nDspecOperator):
     responses when read with Astropy. Fixes for both of these issues are 
     pending.     
     
-    Parameters 
-    ----------  
+    Parameters: 
+    -----------  
     resp_path: string 
         The path to the response file (either .rmf or .rsp) to load.
     
     Other parameters:
-    ----------  
+    -----------------  
     arf_path: string 
         Optional path to an effective area file (.arf) to load along with the 
         redistribution matrix.  Note that some mission tools produce .rmf files 
         which also contain the telescope effective area, in which case loading 
         the arf is not necessary. 
         
-    Attributes
-    ----------
+    Attributes:
+    -----------
     chans: numpy.array(int)
         An array of integers of size (n_chans) representing each channel in the 
         response.
@@ -82,7 +81,13 @@ class ResponseMatrix(nDspecOperator):
         
     has_arf: bool
         A flag to check whether only a rmf file has been loaded, or a full 
-        rmf+arf response. This varies between observatories.           
+        rmf+arf response. This varies between observatories.  
+        
+    mission: str 
+        A string which tracks the observatory for which the response is defined. 
+        
+    instrument: str 
+        A string which tracks the instrument for which the response is defined.         
     """ 
     
     def __init__(self, resp_path, arf_path=None):
@@ -99,7 +104,7 @@ class ResponseMatrix(nDspecOperator):
         class attributes from it using astropy.
         
         Parameters:
-        ----------             
+        -----------             
         filepath: string 
             The path to the .rmf or .rsp file to be loaded.
         """
@@ -125,9 +130,11 @@ class ResponseMatrix(nDspecOperator):
             data = h.data
             hdr = h.header
             if (hdr["TELESCOP"] == "ATHENA") or (hdr["TELESCOP"] == "XRiSM"):
-                raise AttributeError(hdr["TELESCOP"],"data not supported, aborting!")
+                raise AttributeError(hdr["TELESCOP"],"data not supported!")
             if hdr["HDUCLASS"] != "OGIP":
                 raise TypeError("File is not OGIP compliant")   
+            self.mission = hdr["TELESCOP"]
+            self.instrument = hdr["INSTRUME"]
         
         self.emin = np.array(channel_info.field("E_MIN"))
         self.emax = np.array(channel_info.field("E_MAX"))
@@ -160,7 +167,7 @@ class ResponseMatrix(nDspecOperator):
         matrix columns of a response file into a (n_energs x n_chans) matrix.
         
         Parameters:
-        ---------- 
+        ----------- 
         n_grp: np.array(int)
             The number of sets of non-zero elements stored in the matrix. 
         
@@ -177,14 +184,13 @@ class ResponseMatrix(nDspecOperator):
             marked by n_grp, starting at channel f_chan and ending at channel 
             f_chan+n_chan.          
         
-        Returns
-        ---------- 
+        Returns:
+        --------
         resp_matrix: np.array(float,float)
             The instrument response matrix, loaded in an array of dimensions
             (n_energs x n_chans). The elements that are not present in the 
             response file are hard-coded to 0.
-        """
-        
+        """        
         #start with an empty matrix - we need to figure out 
         #which elements from the FITS file are not zero. These are the only 
         #values reported in the FITS file, where the matrix has format 
@@ -215,8 +221,7 @@ class ResponseMatrix(nDspecOperator):
                 else:
                     for l in range(f_chan[j],n_chan[j]+f_chan[j]):
                         resp_matrix[j][l] = resp_matrix[j][l] + matrix[j][i]  
-                        i = i + 1        
-        
+                        i = i + 1                
         return resp_matrix
     
     def load_arf(self,filepath):       
@@ -229,7 +234,7 @@ class ResponseMatrix(nDspecOperator):
         specresp class attribute.
         
         Parameters:
-        ----------     
+        -----------     
         filepath: string 
             The path to the .arf file to be loaded.
         """
@@ -264,8 +269,7 @@ class ResponseMatrix(nDspecOperator):
         for k in range(self.n_chans):
             for j in range(self.n_energs):
                 self.resp_matrix[j][k] = self.resp_matrix[j][k]* \
-                                         self.specresp[j]*self.exposure
-        
+                                         self.specresp[j]*self.exposure      
         print("Arf loaded")
         return 
         
@@ -273,13 +277,13 @@ class ResponseMatrix(nDspecOperator):
         """
         Get the tlmin keyword for `F_CHAN`.
 
-        Parameters
-        ----------
+        Parameters:
+        -----------
         h : an astropy.io.fits.hdu.table.BinTableHDU object
             The extension containing the `F_CHAN` column
 
-        Returns
-        -------
+        Returns:
+        --------
         tlmin : int
             The tlmin keyword
         """
@@ -296,11 +300,8 @@ class ResponseMatrix(nDspecOperator):
 
         # get the corresponding value
         tlmin = int(list(hdr.items())[tlmin_idx][1])
-
         return tlmin
-    
-    #tbd: in the tutorial add an example of trying to rebin in energy rather 
-    #than channel and show that it is dangerous
+
     def rebin_channels(self,new_bounds_lo,new_bounds_hi):
         """
         This method rebins the response matrix resp_matrix to an input, 
@@ -312,15 +313,15 @@ class ResponseMatrix(nDspecOperator):
         the total number of photons in the model, are conserved after rebinning.
         
         Parameters:
-        ----------    
+        -----------    
         new_bounds_lo: np.array(float)
             An array of energies with the lower bound of each energy channel. 
             
         new_bounds_hi: np.array(float)  
             An array of energies with the upper bound of each energy channel.     
         
-        Returns
-        ---------- 
+        Returns:
+        --------
         bin_resp: ResponseMatrix
             A ResponseMatrix object containing the same response loaded in the 
             self object, but rebinned over the channel axis to the input grid.
@@ -353,7 +354,6 @@ class ResponseMatrix(nDspecOperator):
         bin_resp.n_chans = len(new_bounds_lo)
         bin_resp.chans = np.linspace(0,bin_resp.n_chans-1,bin_resp.n_chans)
         bin_resp.resp_matrix = rebinned_response
-
         return bin_resp
 
     def rebin_energies(self,factor):
@@ -369,25 +369,29 @@ class ResponseMatrix(nDspecOperator):
         very carefully.
         
         Parameters:
-        ----------    
+        -----------   
         factor: integer
             The number of bins of the old energy grid that will be grouped in 
             the new energy grid  
         
-        Returns
-        ---------- 
+        Returns:
+        -------- 
         bin_resp: ResponseMatrix
             A ResponseMatrix object containing the same response loaded in the 
             self object, but rebinned over the energy axis to the input grid.
         """    
-        warnings.warn(("WARNING: rebinning a response in energy is dangerous,"
-                     " use at your own risk!"), UserWarning)    
         
-        new_bounds_lo = self._integer_slice(self.energ_lo,factor)
-        new_bounds_hi = np.append(new_bounds_lo[1:],self.energ_hi[-1])#self._integer_slice(self.energ_hi,factor)
-
         if factor < 1:
             raise ValueError("You can not rebin to a finer energy grid")
+
+        if (isinstance(factor, int) != True):
+            raise TypeError("Rebinning factor must be an integer!") 
+
+        warnings.warn("WARNING: rebinning a response in energy is dangerous, use at your own risk!",
+                      UserWarning) 
+
+        new_bounds_lo = self._integer_slice(self.energ_lo,factor)
+        new_bounds_hi = np.append(new_bounds_lo[1:],self.energ_hi[-1])
         
         rebinned_response = np.zeros((len(new_bounds_lo),self.n_chans))
         
@@ -402,7 +406,6 @@ class ResponseMatrix(nDspecOperator):
         bin_resp.energ_hi = new_bounds_hi
         bin_resp.n_energs = len(new_bounds_lo)
         bin_resp.resp_matrix = rebinned_response
-
         return bin_resp
 
     def convolve_response(self,model_input,units_in="xspec",units_out="kev"):
@@ -418,7 +421,7 @@ class ResponseMatrix(nDspecOperator):
         model is returned in units of counts/s/channel.
         
         Parameters:
-        ----------      
+        -----------      
         model_input: np.array(float,float) or CrossSpectrum
             Either a) a 2-d array of size (n_energs x arbirtrary length), 
             containing the input model as a function of energy and optionally an 
@@ -437,8 +440,8 @@ class ResponseMatrix(nDspecOperator):
             "kev" normalizations returns a model in units of counts/s/kev, 
             "channel" instead returns a model in units of counts/s/channel.
         
-        Returns
-        ---------- 
+        Returns:
+        -------- 
         conv_model, np.array(float,float) or CrossSpectrum
             Either a) a 2-d array of size (n_chans x arbitrary length), 
             containing the input model as a function of energy channel and a 
@@ -457,7 +460,8 @@ class ResponseMatrix(nDspecOperator):
                                          energ = resp_energs,
                                          freqs = model_input.freqs,
                                          method = model_input.method)
-            output_model.set_psd_weights(model_input.power_spec)
+            if hasattr(model_input,"power_spec"):
+                output_model.set_psd_weights(model_input.power_spec)
         else: 
            unfolded_model = model_input 
     
@@ -491,8 +495,7 @@ class ResponseMatrix(nDspecOperator):
         if isinstance(model_input,CrossSpectrum):
             output_model.cross = conv_model
         else:
-            output_model = conv_model
-                
+            output_model = conv_model                
         return output_model
 
     def plot_response(self,plot_type="channel",return_plot=False):
@@ -502,10 +505,15 @@ class ResponseMatrix(nDspecOperator):
         the base-10 logarithm of the response matrix. 
         
         Parameters:
-        ----------             
+        -----------             
         plot_type: string, default="channel"
             Sets the units of the X-axis to be either the channel number (by 
             default) or the bounds of each channel (plot_type="energy").
+        
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
         """
     
         fig = plt.figure(figsize=(9.,7.5))
@@ -540,10 +548,15 @@ class ResponseMatrix(nDspecOperator):
         function of energy. 
         
         Parameters:
-        ----------             
+        -----------             
         plot_scale: string, default="log"
-            Switches between log10(arf) (plot_scale="log", the default 
-            behavior) and just the arf (plot_scale="lin").  
+            Switches between log10(arf) (plot_scale="log", the default behavior)
+            and just the arf (plot_scale="lin").
+            
+        Returns: 
+        --------
+        fig: matplotlib.figure, optional 
+            The plot object produced by the method.
         """
     
         #tbd: only allow this to happen if specresp is defined
@@ -566,7 +579,6 @@ class ResponseMatrix(nDspecOperator):
             return fig 
         else:
             return   
-
         
     def diagonal_matrix(self,num):
         """
@@ -579,7 +591,7 @@ class ResponseMatrix(nDspecOperator):
             The dimension of the desired matrix.
             
         Returns: 
-        ---------- 
+        --------
         diag_resp: np.array(float,float)
             An identity matrix of size (num x num).   
         """
@@ -587,8 +599,65 @@ class ResponseMatrix(nDspecOperator):
         diag_resp = np.diag(np.ones(num))
         return diag_resp            
               
-    def unfold_response(self):    
-        print("TBD once the data+model side is complete")
+    def unfold_response(self,array,units_in="kev"):    
+        """
+        Unfolds an array through the instrument response. Note that plotting 
+        data in this fashion can be EXTREMELY misleading and should be done 
+        with care. In nDspec we define an unfolded model as:
+        unfolded(H) = counts(H)/exposure*sum(rmf*arf),
+        where H is a given bounds in energy channels, exposure is the exposure 
+        time of the observation, rmf*arf is the instrument response, and the sum 
+        is carried out every the energy bins of the response. Users also need to 
+        specify whether the input array is in units of counts/s/keV or 
+        counts/s/channel; if they do so correctly, the output of this method is 
+        in photon density - counts/s/keV/cm^2. Assuming 0 background, this 
+        definition of unfolding is identical to Isis, regardless of model 
+        choice, and Xspec, as long as the model is a constant in each energy 
+        bin. Converting to flux units - ie, energy/s/area, then requires 
+        multiplying the output of this method by H^2, identically to the 
+        "eeunfold" method in Xspec. 
+        Unlike Isis and Xspec, this method also supports unfolding two-d arrays,
+        e.g. cross spectra. 
+        
+        Parameters:
+        -----------             
+        array: np.array(int,int)
+            The input array to be unfolded, of size (n_energs,arbitrary). 
+            In the x-axis it needs to be defined over the instrument energy 
+            grid, in the y-axis it can be any size (e.g., over a grid of Fourier
+            frequencies).
+            
+        Returns: 
+        -------- 
+        unfold_model: np.array(float,float)
+            The array unfolded through the instrument response, of size 
+            (n_chans,arbitrary), defined over the energy bounds of each channel 
+            in the response. The y-axis is identical to the input.
+        """
+        #reshaping the input array needed to treat a 1d array like a 2d one and
+        #use the same array operations later
+        if (array.size == self.n_chans):
+            array = array.reshape(self.n_chans,1)         
+        #reshaping the energy and channel arrays is necessary to get the right 
+        #dimensions when unfolding 2d arrays 
+        energy_widths = self.energ_hi - self.energ_lo 
+        unfold_matrix = energy_widths.reshape(self.n_energs,1)*self.resp_matrix
+        unfold_array = np.sum(unfold_matrix,axis=0).reshape(self.n_chans,1) 
+
+        if units_in == "channel":
+            unfold_model = array/unfold_array
+        elif units_in == "kev":
+            channel_widths = (self.emax - self.emin).reshape(self.n_chans,1)
+            unfold_model = array/unfold_array*channel_widths 
+        else:
+            raise ValueError("Specify whether the input array is normalized per channel or per keV")
+        
+        #if we had a 1d array as input, we convert back to a 1d array; otherwise 
+        #this confuses matplotlib and produces weird plots
+        if (unfold_model.size == self.n_chans):
+            unfold_model = unfold_model.reshape(self.n_chans)      
+        
+        return unfold_model
     
     def ignore_channels(self,high_energy=None,low_energy=None,high_chan=None,
                         low_chan=None,):
