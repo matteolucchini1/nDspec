@@ -24,6 +24,7 @@ Data fitting tutorials:
     fit_psd
     fit_spec
     fit_cross_1d
+    fit_cross_2d
 
 nDspec core functionality:
 
