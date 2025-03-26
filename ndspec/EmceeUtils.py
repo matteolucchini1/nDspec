@@ -82,14 +82,16 @@ def set_emcee_data(data,error):
 def set_emcee_parameters(params):
     """
     This function is used to set the parameters of the model to be used with
-    emcee sampling. The parameter object, names and values are saved in global 
+    emcee sampling. The parameter object (containing all parameters), as well as
+    the names and values of the variable parameters are saved in global 
     variables called emcee_names, emcee_values and emcee_params; therefore, 
     users should never re-use these variable names in their code.
     
     Input:
     ------
     params: lmfit.Parameters
-        The lmfit parameters object used in the model. 
+        The lmfit parameters object used in the model, including those kept
+        constant. 
         
     Output:
     -------
@@ -106,9 +108,9 @@ def set_emcee_parameters(params):
     emcee_names = []
     theta = []
     for key in params:
-        emcee_names = np.append(emcee_names,params[key].name)
-        emcee_values = np.append(emcee_values,params[key].value)
         if params[key].vary is True:
+            emcee_names = np.append(emcee_names,params[key].name)
+            emcee_values = np.append(emcee_values,params[key].value)
             theta = np.append(theta,params[key].value)  
     return theta
     

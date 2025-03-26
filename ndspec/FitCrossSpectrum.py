@@ -715,7 +715,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             raise UserWarning("Power spectrum weights not needed, skipping")
         return 
     
-    def eval_model(self,params=None,ref_band=None,mask=True):
+    def eval_model(self,params=None,ref_band=None,fold=True,mask=True):
         """
         This method is used to evaluate and return the model values for a given 
         set of parameters, over the internal energy and frequency grids. By 
@@ -780,13 +780,16 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             raise AttributeError("Model type not supported")
             
         #fold the instrument response:
-        folded_eval = self.response.convolve_response(self.crossspec,units_in="rate",units_out="channel")  
+        if fold is True:
+            model_eval = self.response.convolve_response(self.crossspec,
+                                                          units_in="rate",
+                                                          units_out="channel")  
 
         #return the appropriately structured products
         if self.dependence == "frequency":
-            model = self._freq_dependent_model(folded_eval)
+            model = self._freq_dependent_model(model_eval)
         elif self.dependence == "energy":
-            model = self._energ_dependent_model(folded_eval,params)
+            model = self._energ_dependent_model(model_eval,params)
         else:
             raise AttributeError("Product dependency not supported")
 
