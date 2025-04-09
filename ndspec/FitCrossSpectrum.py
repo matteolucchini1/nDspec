@@ -715,14 +715,14 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             raise UserWarning("Power spectrum weights not needed, skipping")
         return 
     
-    def eval_model(self,params=None,ref_band=None,fold=True,mask=True):
+    def eval_model(self,params=None,fold=True,mask=True):
         """
         This method is used to evaluate and return the model values for a given 
         set of parameters, over the internal energy and frequency grids. By 
         default the model is evaluated using the parameters values stored 
-        internally in the model_params attribute, using the reference band 
-        stored in the ref_band attribute. The model is always folded through 
-        the instrument response, returning either all or only the noticed channels. 
+        internally in the model_params attribute. The model is always folded 
+        through the instrument response, returning either all or only the 
+        noticed channels. The reference band is always that set in set_data.
         
         Parameters:
         -----------                         
@@ -730,10 +730,10 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             The parameter values to use in evaluating the model. If none are 
             provided, the model_params attribute is used.
             
-        ref_band: [float,float], default None
-            The the photon energies over which the model reference band is defined.
-            By default, the one stored in the class fitter is used. 
-            
+        fold: bool, default True
+            A boolean switch to choose whether to fold the model through the 
+            instrument response or not.
+
         mask: bool, default True
             A boolean switch to choose whether to mask the model output to only 
             include the noticed energy channels, or to also return the ones 
@@ -745,36 +745,20 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             The model evaluated over the given energy grid, for the given input 
             parameters.  
         """  
-        
-        if ref_band is None:
-            ref_band = self.ref_band
-        else:
-            if ref_band[0] < self.response.energ_lo[0]:
-                ref_band[0] = self.response.energ_lo[0]
-                raise UserWarning("Lower bound of the reference band defined below the "\
-                                  "start of the instrument response; re-setting to the lowest"\
-                                  "energy bin instead" )
-            if ref_band[1] > self.response.energ_hi[-1]:
-                ref_band[1] = self.response.energ_hi[-1]
-                raise UserWarning("Upper bound of the reference band defined above the "\
-                                  "start of the instrument response; re-setting to the highest"\
-                                  "energy bin instead") 
-                
+               
         #evaluate the model for the chosen parameters
         if params is None:
             params= self.model_params
         model_eval = self.model.eval(params,freqs=self.freqs,energs=self.energs,times=self._times)
         #store the model in the cross spectrum, depending on the type
+        #transposing is required to ensure the units are correct 
         if self.model_type == "irf":
-            self.crossspec.set_impulse(np.transpose(model_eval))
-            self.crossspec.set_reference_energ(self.ref_band)
-            self.crossspec.cross_from_irf()
+            self.crossspec.cross_from_irf(signal=np.transpose(model_eval),
+                                          ref_bounds=self.ref_band)
         elif self.model_type == "transfer":
-            self.crossspec.set_transfer(np.transpose(model_eval))
-            self.crossspec.set_reference_energ(self.ref_band)
-            self.crossspec.cross_from_transfer()
+            self.crossspec.cross_from_transfer(signal=np.transpose(model_eval),
+                                               ref_bounds=self.ref_band)
         elif self.model_type == "cross":
-            #transposing is required to ensure the units are correct 
             self.crossspec.cross = np.transpose(model_eval)
         else:
             raise AttributeError("Model type not supported")
@@ -783,7 +767,9 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         if fold is True:
             model_eval = self.response.convolve_response(self.crossspec,
                                                           units_in="rate",
-                                                          units_out="channel")  
+                                                          units_out="channel")
+        else:
+            model_eval = self.crossspec.cross 
 
         #return the appropriately structured products
         if self.dependence == "frequency":
@@ -793,12 +779,11 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         else:
             raise AttributeError("Product dependency not supported")
 
-        #tbd; redo this with the 2d mask, throw in a method and call through plotters 
         if mask is True:
             model = self._filter_2d_by_mask(model)
         return model
 
-    def _freq_dependent_model(self,folded_eval):
+    def _freq_dependent_model(self,cross_eval):
         """
         This method takes a model cross spectrum evaluated by the class and 
         folded through the instrument response, and converts it to the 
@@ -807,7 +792,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         
         Parameters:
         -----------
-        folded_eval: np.array(float, float)
+        cross_eval: np.array(float, float)
             A matrix of size (n_freq,_all_chans) containing the model cross 
             spectrum folded thruogh the instrument response matrix 
             
@@ -828,14 +813,14 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         
         if self.units == "lags":
             for i in range(self._all_chans):
-                model_eval = folded_eval.lag_frequency(sub_bounds[i])
+                model_eval = cross_eval.lag_frequency(sub_bounds[i])
                 model = np.append(model,model_eval)
         elif self.units == "cartesian":
             real = []
             imag = []             
             for i in range(self._all_chans):
-                real_eval = folded_eval.real_frequency(sub_bounds[i])
-                imag_eval = folded_eval.imag_frequency(sub_bounds[i])            
+                real_eval = cross_eval.real_frequency(sub_bounds[i])
+                imag_eval = cross_eval.imag_frequency(sub_bounds[i])            
                 real = np.append(real,real_eval)
                 imag = np.append(imag,imag_eval)
             model = np.concatenate((real,imag))
@@ -843,8 +828,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             mod = []
             phase = []            
             for i in range(self._all_chans):
-                mod_eval = folded_eval.mod_frequency(sub_bounds[i])
-                phase_eval = folded_eval.phase_frequency(sub_bounds[i])         
+                mod_eval = cross_eval.mod_frequency(sub_bounds[i])
+                phase_eval = cross_eval.phase_frequency(sub_bounds[i])         
                 mod = np.append(mod,mod_eval)
                 phase = np.append(phase,phase_eval)            
             model = np.concatenate((mod,phase))
@@ -852,7 +837,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             raise AttributeError("Incorrect model units, set lags, cartesian or polar")               
         return model
 
-    def _energ_dependent_model(self,folded_eval,params):
+    def _energ_dependent_model(self,cross_eval,params):
         """
         This method takes a model cross spectrum evaluated by the class and 
         folded through the instrument response, and converts it to the energy
@@ -866,7 +851,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         
         Parameters:
         -----------
-        folded_eval: np.array(float, float)
+        cross_eval: np.array(float, float)
             A matrix of size (n_freq,_all_chans) containing the model cross 
             spectrum folded thruogh the instrument response matrix 
             
@@ -897,17 +882,17 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                                    min=params[par_key].min,max=params[par_key].max,
                                    vary=params[par_key].vary)
                     
-                    phase_model = folded_eval.phase_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
+                    phase_model = cross_eval.phase_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
                     model_eval = self.phase_renorm_model.eval(phase_pars,array=phase_model)/(2*np.pi*f_mean[i])  
                 else:
-                    model_eval = folded_eval.lag_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
+                    model_eval = cross_eval.lag_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
                 model = np.append(model,model_eval)
         elif self.units == "cartesian":
             real = []
             imag = [] 
             for i in range(self._all_freqs):
-                real_eval = folded_eval.real_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
-                imag_eval = folded_eval.imag_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
+                real_eval = cross_eval.real_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
+                imag_eval = cross_eval.imag_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
                 if self.renorm_modulus is True:
                     par_key = 'mods_renorm_'+str(i+1)
                     mods_pars = LM_Parameters()
@@ -928,8 +913,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             mod = []
             phase = []
             for i in range(self._all_freqs):
-                mod_model = folded_eval.mod_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
-                phase_model = folded_eval.phase_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
+                mod_model = cross_eval.mod_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
+                phase_model = cross_eval.phase_energy([self._freqs_unmasked[i],self._freqs_unmasked[i+1]])
                 if self.renorm_modulus is True:
                     par_key = 'mods_renorm_'+str(i+1)
                     mods_pars = LM_Parameters()
@@ -1083,7 +1068,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         """
     
         if self.likelihood is None:
-            model = self.eval_model(params,ref_band=self.ref_band)
+            model = self.eval_model(params)
             residuals = (self.data-model)/self.data_err
         else:
             raise AttributeError("custom likelihood not implemented yet")

@@ -784,7 +784,7 @@ class CrossSpectrum(FourierProduct):
         self.correct_ref = correct_ref        
         return
     
-    def cross_from_transfer(self,transfer=None,ref_ft=None,power=None):
+    def cross_from_transfer(self,signal=None,ref_bounds=None,power=None):
         """   
         This method computes thecross spectrum from an input defined in Fourier
         space (such as a transfer function), reference band, and power spectra
@@ -796,13 +796,16 @@ class CrossSpectrum(FourierProduct):
         
         Parameters:
         -----------
-        transfer: np.array(float,float), default=self.trans_func 
-            An array of size (n_chans x n_freqs) containing a model defined in 
-            Fourier space, such as a transfer function. 
+        signal: np.array(float,float), default=self.trans_func 
+            An array of size (n_chans x n_freqs) containing a  model transfer 
+            function defined in Fourier space. 
             
-        reference: np.array(float), default=self.ref 
-            An arrray of size (n_chans) containing the reference band count rate
-            defined in Fourier space.
+        ref_bounds: np.array(float)
+            A list with lower and upper energy channel bounds to be used in the 
+            reference band. By default, we assume that the reference band is
+            identical to that used in calculating the cross spectrum. As 
+            implemented here, the limits specified in ref_bounds are included in
+            the reference - e.g. [0.3,10.0] keV rather than (0.3,10.) keV.
             
         power: np.array(float) or PowerSpectrum, default=self.power_spec 
             Either an array of size (n_freqs), or a PowerSpectrum nDspec object, 
@@ -810,15 +813,13 @@ class CrossSpectrum(FourierProduct):
             cross spectrum.
         """
         
-        if transfer is None:
-            transfer = self.trans_func
-        else:
-            self.set_transfer(transfer)
+        if signal is not None:
+            self.set_transfer(signal)
+        transfer = self.trans_func
         
-        if ref_ft is None:
-            ref_ft = self.ref
-        else:
-            self.set_reference_lc(ref_ft)
+        if ref_bounds is not None:
+            self.set_reference_energ(ref_bounds)
+        ref_ft = self.ref
         
         if power is None:
             power_spec = self.power_spec 
@@ -881,7 +882,7 @@ class CrossSpectrum(FourierProduct):
         return
 
     #maybe throw in a wrapper like with transform 
-    def cross_from_irf(self,signal=None,reference=None,power=None):
+    def cross_from_irf(self,signal=None,ref_bounds=None,power=None):
         """   
         This method computes the transfer function and cross spectrum from the 
         impulse response, reference band, and power spectra provided by the 
@@ -897,9 +898,12 @@ class CrossSpectrum(FourierProduct):
             An array of size (n_chans x n_times) containing the model impulse 
             response function. 
             
-        reference: np.array(float), default=self.ref 
-            An arrray of size (n_chans) containing the reference band 
-            lightcurve.
+        ref_bounds: np.array(float)
+            A list with lower and upper energy channel bounds to be used in the 
+            reference band. By default, we assume that the reference band is
+            identical to that used in calculating the cross spectrum. As 
+            implemented here, the limits specified in ref_bounds are included in
+            the reference - e.g. [0.3,10.0] keV rather than (0.3,10.) keV.
             
         power: np.array(float) or PowerSpectrum, default=self.power_spec 
             Either an array of size (n_freqs), or a PowerSpectrum nDspec object, 
@@ -907,15 +911,13 @@ class CrossSpectrum(FourierProduct):
             cross spectrum.
         """
         
-        if signal is None:
-            signal = self.imp_resp
-        else:
+        if signal is not None:
             self.set_impulse(signal)
+        signal = self.imp_resp
         
-        if reference is None:
-            reference = self.ref
-        else:
-            self.set_reference_lc(reference)
+        if ref_bounds is not None:
+            self.set_reference_energ(ref_bounds)
+        reference = self.ref
         
         if power is None:
             power_spec = self.power_spec 

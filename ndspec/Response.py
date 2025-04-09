@@ -763,6 +763,6 @@ class ResponseMatrix(nDspecOperator):
         factor = time/self.exposure
         
         self.resp_matrix = self.resp_matrix*factor
-        self.exposure = time
-        
+        self.exposure = time        
         return
+        

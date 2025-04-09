@@ -418,7 +418,7 @@ def chi_square_likelihood(theta):
 #    likelihood = statistic + logpriors
 #    return likelihood
     
-def process_emcee(sampler,labels=None,discard=2000,thin=100,values=None):
+def process_emcee(sampler,labels=None,discard=2000,thin=100,values=None,get_autocorr=True):
     """
     Given a sampler emcee EnsamleSampler object, this function calculates and 
     prints the autocorrelation length, and plots the trace plots of the walkers, 
@@ -440,7 +440,7 @@ def process_emcee(sampler,labels=None,discard=2000,thin=100,values=None):
     discard: int, default 2000
         The number of steps used to define the burn-in period 
         
-    thin: int, default 15
+    thin: int, default 100
         Use one every "thin" steps in the chain. Used to make plots clearer. 
         
     values: np.array(float), default None
@@ -449,12 +449,13 @@ def process_emcee(sampler,labels=None,discard=2000,thin=100,values=None):
     """
 
     #print auto correlation lengths 
-    tau = sampler.get_autocorr_time()
-    with np.printoptions(threshold=np.inf):
-        print("Autocorrelation lengths: ",tau)
+    if get_autocorr is True:
+        tau = sampler.get_autocorr_time()
+        with np.printoptions(threshold=np.inf):
+            print("Autocorrelation lengths: ",tau)
     
     #print trace plots
-    ndim = len(tau)
+    ndim = sampler.ndim
     size = math.ceil(14/9*ndim)
     fig, axes = plt.subplots(ndim, figsize=(9, size), sharex=True)
     samples = sampler.get_chain(discard=discard, thin=thin)    
