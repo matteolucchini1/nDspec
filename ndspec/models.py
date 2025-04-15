@@ -163,8 +163,11 @@ def bbody(array, params):
     elif params.ndim == 2:
         norm = params[:,0][:,np.newaxis]
         temp = params[:,1][:,np.newaxis]
+    #safeguard against diverging exponentials, e.g. for low temperature BB
+    #calculated at highx energy:
     renorm = 8.0525*norm/np.power(temp,4.)
     planck = np.exp(array/temp)-1.
+    planck[planck>1e20] = 1e20
     model = renorm*np.power(array,2.)/planck
     return model
     
@@ -185,9 +188,13 @@ def varbbody(array, params):
     elif params.ndim == 2:
         norm = params[:,0][:,np.newaxis]
         temp = params[:,1][:,np.newaxis]
-    renorm = 2.013*norm/np.power(temp,5.)
-    planck = np.exp(array/temp)-1.
-    model = renorm*np.power(array,3.)/planck**2
+    #safeguard against diverging exponentials, e.g. for low temperature BB
+    #calculated at highx energy:
+    planck = np.exp(array/temp)
+    planck[planck>1e20] = 1e20
+    denom = planck-1.
+    renorm = 2.013*norm/np.power(temp,5.)*planck
+    model = renorm*np.power(array,3.)/denom**2
     return model     
     
 def gauss_fred(array1,array2,params,return_full=False):
