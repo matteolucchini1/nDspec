@@ -1602,7 +1602,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             scale_min = np.min(self.data[:self.n_bins])
             scale_max = np.max(self.data[:self.n_bins])
     
-            fig, axs = plt.subplots(2, 3, figsize=(15.,6.), sharex=True) 
+            fig, axs = plt.subplots(2, 3, figsize=(15.,10.), sharex=True) 
             for row in range(2):
                 ax = axs[row][0]
                 left_plot = ax.pcolormesh(x_axis,y_axis,plot_info[row],cmap="viridis",
@@ -1682,7 +1682,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             axs[1][2].set_title(left_title+" residuals")
             ax.set_xlabel("Frequency (Hz)")
         else:
-            fig, ((ax1),(ax2),(ax3)) = plt.subplots(1, 3, figsize=(15.,4.), sharex=True)             
+            fig, ((ax1),(ax2),(ax3)) = plt.subplots(1, 3, figsize=(15.,5.), sharex=True)             
 
             #all the reshaping/transposing is necessary to convert from one-dimensional
             #arrays, to two-d arrays with the data stored in the right order for 
@@ -1756,6 +1756,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             ax3.set_yticklabels([])
             ax3.set_xlabel("Frequency (Hz)")
         
+        fig.tight_layout()
         if return_plot is True:
             return fig
         else:

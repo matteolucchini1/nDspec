@@ -163,6 +163,8 @@ def bbody(array, params):
     elif params.ndim == 2:
         norm = params[:,0][:,np.newaxis]
         temp = params[:,1][:,np.newaxis]
+    else:
+        raise TypeError("Params has too many dimensions, limit to 1 or 2 dimensions")
     #safeguard against diverging exponentials, e.g. for low temperature BB
     #calculated at highx energy:
     renorm = 8.0525*norm/np.power(temp,4.)
@@ -190,6 +192,8 @@ def varbbody(array, params):
         temp = params[:,1][:,np.newaxis]
     #safeguard against diverging exponentials, e.g. for low temperature BB
     #calculated at highx energy:
+    else:
+        raise TypeError("Params has too many dimensions, limit to 1 or 2 dimensions")
     planck = np.exp(array/temp)
     planck[planck>1e20] = 1e20
     denom = planck-1.
@@ -368,7 +372,8 @@ def bbody_fred(array1,array2,params,return_full=False):
         decay_t = params[3]
         decay_temp = params[4]
         with np.errstate(divide='ignore', invalid='ignore'):
-            temp_profile = np.nan_to_num(temp*powerlaw(times,np.array([1.,decay_temp])))
+            temp_profile = np.nan_to_num(temp*powerlaw(times/times[0],np.array([1.,decay_temp])))
+            temp_profile[temp_profile<=1e-6] = 1e-6
             fred_profile = np.exp(np.nan_to_num(-rise_t/times)-\
                                   np.nan_to_num(times/decay_t))   
         fred_pulse = np.zeros((len(energy),len(times)))
@@ -385,9 +390,10 @@ def bbody_fred(array1,array2,params,return_full=False):
         decay_t = params[:,3][:,np.newaxis]
         decay_temp = params[:,4][:,np.newaxis]
         with np.errstate(divide='ignore', invalid='ignore'):
-            temp_profile = np.nan_to_num(temp*powerlaw(times,
+            temp_profile = np.nan_to_num(temp*powerlaw(times/times[0],
                                                        np.concatenate([np.ones(decay_temp.shape),
                                                                        decay_temp],axis=1)))
+            temp_profile[temp_profile<=1e-6] = 1e-6
             fred_profile = np.exp(np.nan_to_num(-rise_t/times)-\
                                   np.nan_to_num(times/decay_t))   
         fred_pulse = np.zeros((params.shape[0],len(energy),len(times)))
@@ -435,7 +441,8 @@ def bbody_bkn(array1,array2,params,return_full=False):
         decay_slope = params[3]
         break_time = params[4]
         decay_temp = params[5]
-        temp_profile = temp*powerlaw(times,np.array([1.,decay_temp]))
+        temp_profile = temp*powerlaw(times/times[0],np.array([1.,decay_temp]))
+        temp_profile[temp_profile<=1e-6] = 1e-6
         bkn_profile = brokenpower(times,np.array([1.,rise_slope,decay_slope,break_time]))
         brk_pulse = np.zeros((len(energy),len(times)))
         model_profile = np.zeros(len(energy))
@@ -451,8 +458,9 @@ def bbody_bkn(array1,array2,params,return_full=False):
         decay_slope = params[:,3][:,np.newaxis]
         break_time = params[:,4][:,np.newaxis]
         decay_temp = params[:,5][:,np.newaxis]
-        temp_profile = temp*powerlaw(times,np.concatenate([np.ones(decay_temp.shape),
-                                                           decay_temp],axis=1)) 
+        temp_profile = temp*powerlaw(times/times[0],np.concatenate([np.ones(decay_temp.shape),
+                                                                    decay_temp],axis=1)) 
+        temp_profile[temp_profile<=1e-6] = 1e-6
         pars = np.concatenate([np.ones(decay_slope.shape),rise_slope,decay_slope,
                                break_time],axis=1)
         bkn_profile = brokenpower(times,pars)
