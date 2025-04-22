@@ -132,19 +132,22 @@ def gaussian(array, params):
     
     array: the array over which the Gaussian is defined \n    
     center: the centroid of the Gaussian \n    
-    width: the width of the Gaussian
+    width: the width of the Gaussian \n
+    gauss_norm: the normalization of the Gaussian
     """
     if params.ndim == 1:
         center = params[0]
         width = params[1]
+        gauss_norm = params[2]
     elif params.ndim == 2:
         center = params[:,0][:,np.newaxis]
         width = params[:,1][:,np.newaxis]
+        gauss_norm = params[:,1][:,np.newaxis]
     else:
         raise TypeError("Params has too many dimensions, limit to 1 or 2 dimensions")
     norm = np.multiply(np.sqrt(2.0*np.pi),width)
     shape = np.exp(-np.power((array - center)/width,2.0)/2)
-    line = shape/norm 
+    line = gauss_norm*shape/norm 
     return line
 
 def bbody(array, params):
@@ -238,7 +241,7 @@ def gauss_fred(array1,array2,params,return_full=False):
         line_profile = np.zeros(len(energy))
         pulse_profile = np.zeros(len(times))
         for i in range(len(times)):
-            fred_pulse[:,i] = norm*gaussian(energy,np.array([center,sigma[i]]))*fred_profile[i]    
+            fred_pulse[:,i] = gaussian(energy,np.array([center,sigma[i]],norm))*fred_profile[i]    
         line_profile = np.sum(fred_pulse,axis=1)
         pulse_profile = np.sum(fred_pulse,axis=0)
     elif params.ndim == 2:
@@ -261,8 +264,8 @@ def gauss_fred(array1,array2,params,return_full=False):
         pulse_profile = np.zeros((params.shape[0],len(times)))
         for j in range(params.shape[0]):
             for i in range(len(times)):
-                par = np.array([center[j,0],sigma[j,i]])
-                fred_pulse[j,:,i] = norm[j,0]*gaussian(energy,par)*fred_profile[j,i]    
+                par = np.array([center[j,0],sigma[j,i],norm[j,0]])
+                fred_pulse[j,:,i] = gaussian(energy,par)*fred_profile[j,i]    
             line_profile[j] = np.sum(fred_pulse[j],axis=1)
             pulse_profile[j] = np.sum(fred_pulse[j],axis=0)
     else:
@@ -309,7 +312,7 @@ def gauss_bkn(array1,array2,params,return_full=False):
         line_profile = np.zeros(len(energy))
         pulse_profile = np.zeros(len(times))
         for i in range(len(times)):
-            brk_pulse[:,i] = norm*gaussian(energy,np.array([center,sigma[i]]))*bkn_profile[i]    
+            brk_pulse[:,i] = gaussian(energy,np.array([center,sigma[i],norm]))*bkn_profile[i]    
         line_profile = np.sum(brk_pulse,axis=1)
         pulse_profile = np.sum(brk_pulse,axis=0)
     elif params.ndim == 2:
@@ -332,8 +335,8 @@ def gauss_bkn(array1,array2,params,return_full=False):
         pulse_profile = np.zeros((params.shape[0],len(times)))
         for j in range(params.shape[0]):
             for i in range(len(times)):
-                par = np.array([center[j,0],sigma[j,i]])
-                brk_pulse[j,:,i] = norm[j,0]*gaussian(energy,par)*bkn_profile[j,i]    
+                par = np.array([center[j,0],sigma[j,i],norm[j,0]])
+                brk_pulse[j,:,i] = gaussian(energy,par)*bkn_profile[j,i]    
             line_profile[j] = np.sum(brk_pulse[j],axis=1)
             pulse_profile[j] = np.sum(brk_pulse[j],axis=0)
     else:
