@@ -1247,7 +1247,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                 color_min = np.min([np.min(right_data),-0.01])
                 color_max = np.max([np.max(right_data),0.01])
                 phase_norm = TwoSlopeNorm(vmin=color_min,vcenter=0,vmax=color_max) 
-                right_plot = ax2.pcolormesh(x_axis,y_axis,right_data,cmap="BrBG",
+                right_plot = ax2.pcolormesh(x_axis,y_axis,right_data,cmap="PuOr",
                                             shading='auto',linewidth=0,norm=phase_norm)
 
                 ax1.set_title("log10(Modulus)")
@@ -1637,7 +1637,11 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
     
             for row in range(2):
                 ax = axs[row][1]
-                mid_plot = ax.pcolormesh(x_axis,y_axis,plot_info[row],cmap="cividis",
+                if self.units == "polar":
+                    colors = "PuOr"
+                else:
+                    colors = "cividis"
+                mid_plot = ax.pcolormesh(x_axis,y_axis,plot_info[row],cmap=colors,
                                             shading='auto',rasterized=True,vmin=scale_min,vmax=scale_max)
                 ax.set_xscale("log")
                 ax.set_yscale("log")
