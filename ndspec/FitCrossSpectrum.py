@@ -1638,10 +1638,11 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             for row in range(2):
                 ax = axs[row][1]
                 if self.units == "polar":
-                    colors = "PuOr"
+                    phase_norm = TwoSlopeNorm(vmin=scale_min,vcenter=0,vmax=scale_max) 
+                    mid_plot = ax.pcolormesh(x_axis,y_axis,plot_info[row],cmap="PuOr",
+                                            shading='auto',rasterized=True,norm=phase_norm)
                 else:
-                    colors = "cividis"
-                mid_plot = ax.pcolormesh(x_axis,y_axis,plot_info[row],cmap=colors,
+                    mid_plot = ax.pcolormesh(x_axis,y_axis,plot_info[row],cmap="cividis",
                                             shading='auto',rasterized=True,vmin=scale_min,vmax=scale_max)
                 ax.set_xscale("log")
                 ax.set_yscale("log")
