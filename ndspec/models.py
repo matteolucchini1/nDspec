@@ -198,9 +198,10 @@ def varbbody(array, params):
     else:
         raise TypeError("Params has too many dimensions, limit to 1 or 2 dimensions")
     planck = np.exp(array/temp)
-    planck[planck>1e20] = 1e20
+    planck[planck>1e30] = 1e30
     denom = planck-1.
     renorm = 2.013*norm/np.power(temp,5.)*planck
+    renorm[renorm>1e30] = 1e30
     model = renorm*np.power(array,3.)/denom**2
     return model     
     
@@ -233,7 +234,7 @@ def gauss_fred(array1,array2,params,return_full=False):
         decay_t = params[4]
         decay_w = params[5]
         with np.errstate(divide='ignore', invalid='ignore'):
-            sigma = np.nan_to_num(width*powerlaw(times,np.array([1.,decay_w])))
+            sigma = np.nan_to_num(width*powerlaw(times/times[0],np.array([1.,decay_w])))
             sigma[0] = width
             fred_profile = np.exp(np.nan_to_num(-rise_t/times)-\
                                   np.nan_to_num(times/decay_t))
@@ -252,7 +253,7 @@ def gauss_fred(array1,array2,params,return_full=False):
         decay_t = params[:,4][:,np.newaxis]
         decay_w = params[:,5][:,np.newaxis]
         with np.errstate(divide='ignore', invalid='ignore'):
-            powerlaw_shape = powerlaw(times,
+            powerlaw_shape = powerlaw(times/times[0],
                                       np.concatenate([np.ones(decay_w.shape),
                                                       decay_w],axis=1))
             sigma = np.nan_to_num(width*powerlaw_shape)
@@ -306,8 +307,8 @@ def gauss_bkn(array1,array2,params,return_full=False):
         decay_slope = params[4]
         break_time = params[5]
         decay_w = params[6]
-        sigma = width*powerlaw(times,np.array([1.,decay_w]))
-        bkn_profile = brokenpower(times,np.array([1.,rise_slope,decay_slope,break_time]))
+        sigma = width*powerlaw(times/times[0],np.array([1.,decay_w]))
+        bkn_profile = brokenpower(times/times[0],np.array([1.,rise_slope,decay_slope,break_time]))
         brk_pulse = np.zeros((len(energy),len(times)))
         line_profile = np.zeros(len(energy))
         pulse_profile = np.zeros(len(times))
@@ -323,13 +324,13 @@ def gauss_bkn(array1,array2,params,return_full=False):
         decay_slope = params[:,4][:,np.newaxis]
         break_time = params[:,5][:,np.newaxis]
         decay_w = params[:,6][:,np.newaxis]
-        powerlaw_shape = powerlaw(times,
+        powerlaw_shape = powerlaw(times/times[0],
                                   np.concatenate([np.ones(decay_w.shape),
                                                   decay_w],axis=1))
         sigma = width*powerlaw_shape
         pars = np.concatenate([np.ones(decay_slope.shape),rise_slope,decay_slope,
                                break_time],axis=1)
-        bkn_profile = brokenpower(times,pars)
+        bkn_profile = brokenpower(times/times[0],pars)
         brk_pulse = np.zeros((params.shape[0],len(energy),len(times)))
         line_profile = np.zeros((params.shape[0],len(energy)))
         pulse_profile = np.zeros((params.shape[0],len(times)))

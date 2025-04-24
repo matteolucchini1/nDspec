@@ -1018,7 +1018,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             mods_pars = LM_Parameters()
             for index in range(self.n_freqs):   
                 mods_pars.add('mods_renorm_'+str(index+1), 
-                               value=1,min=0,max=1e5,vary=True)            
+                               value=1,min=0.5,max=2.0,vary=True)            
             self.model_params = self.model_params + mods_pars               
         return
 
@@ -1602,7 +1602,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             scale_min = np.min(self.data[:self.n_bins])
             scale_max = np.max(self.data[:self.n_bins])
     
-            fig, axs = plt.subplots(2, 3, figsize=(15.,10.), sharex=True) 
+            fig, axs = plt.subplots(2, 3, figsize=(15.,9.), sharex=True) 
             for row in range(2):
                 ax = axs[row][0]
                 left_plot = ax.pcolormesh(x_axis,y_axis,plot_info[row],cmap="viridis",
@@ -1711,7 +1711,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             color_max = np.max([np.max(plot_data),0.01])
             lag_norm = TwoSlopeNorm(vmin=color_min,vcenter=0,vmax=color_max) 
             data_plot = ax1.pcolormesh(x_axis,y_axis,plot_data,cmap="BrBG",
-                                        shading='auto',linewidth=0,norm=lag_norm)
+                                        shading='auto',rasterized=True,linewidth=0,norm=lag_norm)
             
             ax1.set_title("Data")                
             fig.colorbar(data_plot, ax=ax1)
@@ -1721,7 +1721,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             
             lag_norm = TwoSlopeNorm(vmin=color_min,vcenter=0,vmax=color_max) 
             model_plot = ax2.pcolormesh(x_axis,y_axis,plot_model,cmap="BrBG",
-                                        shading='auto',linewidth=0,norm=lag_norm)
+                                        shading='auto',rasterized=True,linewidth=0,norm=lag_norm)
             ax2.set_title("Model")                
             fig.colorbar(model_plot, ax=ax2)    
             
@@ -1730,7 +1730,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             res_max = np.max([np.max(plot_res),1])
             res_norm = TwoSlopeNorm(vmin=res_min,vcenter=0,vmax=res_max) 
             res_plot = ax3.pcolormesh(x_axis,y_axis,plot_res,cmap="BrBG",
-                                        shading='auto',linewidth=0,norm=res_norm)
+                                        shading='auto',rasterized=True,linewidth=0,norm=res_norm)
     
             ax3.set_title("Residuals")                
             fig.colorbar(res_plot, ax=ax3)
@@ -1756,7 +1756,9 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             ax3.set_yticklabels([])
             ax3.set_xlabel("Frequency (Hz)")
         
-        fig.tight_layout()
+        if self.units == "lags":
+            fig.tight_layout()
+            
         if return_plot is True:
             return fig
         else:
