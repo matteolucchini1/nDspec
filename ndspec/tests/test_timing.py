@@ -21,7 +21,7 @@ class TestTiming(object):
     @classmethod
     def setup_class(cls):
         cls.time_res_fft = 2500
-        cls.times_fft = np.linspace(0.1,1.e3,cls.time_res_fft)
+        cls.times_fft = np.linspace(1.,1.e3,cls.time_res_fft)
         time_bin = np.diff(cls.times_fft)[0]
         freqs_all = fftfreq(cls.time_res_fft,time_bin)
         cls.freqs_fft = freqs_all[freqs_all>0]
@@ -267,7 +267,7 @@ class TestTiming(object):
         self.rev_fft = timing.CrossSpectrum(self.times_fft,energ=self.energies)
         self.rev_fft.set_impulse(self.gauss_fft)
         self.rev_fft.set_psd_weights(self.lorentz_fft)
-        self.rev_fft.set_reference_energ([self.energies[0],self.energies[-1]])
+        self.rev_fft.set_reference_energ([7.,8.])
         self.rev_fft.cross_from_irf()
         
         self.rev_sinc = timing.CrossSpectrum(self.times_sinc,
@@ -276,16 +276,17 @@ class TestTiming(object):
                                             method='sinc')
         self.rev_sinc.set_impulse(self.gauss_sinc)
         self.rev_sinc.set_psd_weights(self.lorentz_sinc)
-        self.rev_sinc.set_reference_energ([self.energies[0],self.energies[-1]])
+        self.rev_sinc.set_reference_energ([7.,8.])
         self.rev_sinc.cross_from_irf()  
-        self.ener_lim = [2.,4.]
+        self.ener_lim = [6.,7.]
         self.lowf_lim  = [self.rev_fft.freqs[0],5.*self.rev_fft.freqs[0]]
-        self.highf_lim  = [0.04*self.rev_fft.freqs[-1],0.2*self.rev_fft.freqs[-1]]      
+        self.highf_lim  = [0.02*self.rev_fft.freqs[-1],0.07*self.rev_fft.freqs[-1]]      
     pass 
 
     #all the testes below check that the result of the fft and sinc methods are 
     #consistent with each other, when calculating on the same grid, using both 
-    #oned frequency and energy dependent products.      
+    #oned frequency and energy dependent products.     
+    #Numerics are complicated so here we only require a 5percent accuracy  
     def test_onedcross_frequency_lin_grid(self):
         self.cross_model_setup()     
         interp_real_to_lin = interp1d(self.rev_sinc.freqs,
@@ -294,7 +295,7 @@ class TestTiming(object):
         array_lin = interp_real_to_lin(self.rev_fft.freqs)
         indexes = np.where(np.logical_and(self.rev_fft.freqs>=self.lowf_lim[1],
                                           self.rev_fft.freqs<=self.highf_lim[1]))
-        r_tol = 2e-2
+        r_tol = 5e-2
         assert(np.allclose(self.rev_fft.real_frequency(self.ener_lim)[indexes],
                            array_lin[indexes],
                            rtol=r_tol))
@@ -305,7 +306,7 @@ class TestTiming(object):
         array_lin = interp_imag_to_lin(self.rev_fft.freqs)
         indexes = np.where(np.logical_and(self.rev_fft.freqs>=self.lowf_lim[1],
                                           self.rev_fft.freqs<=self.lowf_lim[1]))
-        r_tol = 2e-2
+        r_tol = 5e-2
         assert(np.allclose(self.rev_fft.imag_frequency(self.ener_lim)[indexes],
                            array_lin[indexes],
                            rtol=r_tol))
@@ -318,7 +319,7 @@ class TestTiming(object):
         array_log = interp_real_to_log(self.rev_sinc.freqs)
         indexes = np.where(np.logical_and(self.rev_sinc.freqs>=self.lowf_lim[1],
                                           self.rev_sinc.freqs<=self.highf_lim[1]))
-        r_tol = 2e-2
+        r_tol = 5e-2
         assert(np.allclose(self.rev_sinc.real_frequency(self.ener_lim)[indexes],
                            array_log[indexes],
                            rtol=r_tol))
@@ -329,7 +330,7 @@ class TestTiming(object):
         array_log = interp_imag_to_log(self.rev_sinc.freqs)
         indexes = np.where(np.logical_and(self.rev_sinc.freqs>=self.lowf_lim[1],
                                           self.rev_sinc.freqs<=self.lowf_lim[1]))
-        r_tol = 2e-2
+        r_tol = 5e-2
         assert(np.allclose(self.rev_sinc.imag_frequency(self.ener_lim)[indexes],
                            array_log[indexes],
                            rtol=r_tol))

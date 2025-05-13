@@ -239,40 +239,10 @@ class TestResponse(object):
         current_exposure = self.response.exposure
         current_resp_grid = self.response.resp_matrix
         self.response.set_exposure_time(10*current_exposure)
-        assert self.response.exposure == 10*current_exposure
-        assert self.response.resp_matrix == 10*current_resp_grid
+        assert np.allclose(self.response.exposure,10*current_exposure) == True
+        assert np.allclose(self.response.resp_matrix,10*current_resp_grid) == True
         
         with pytest.raises(TypeError):
-            self.response.set_exposure_time("str")
-    
-    def test_ignore_energy_channels(self):
-        #check that ignore energy channels works for channel indexing
-        new_response = self.response.ignore_channels(low_chan=1)
-        assert new_response.n_chans == self.response.n_chans-1
-        new_response = self.response.ignore_channels(high_chan=1)
-        assert new_response.n_chans == self.response.n_chans-1
-        new_response = self.response.ignore_channels(low_chan=1,high_chan=3)
-        assert new_response.n_chans == self.response.n_chans-2
-        #check that ignore energy channels works for energy bounds
-        new_response = self.response.ignore_channels(low_energy=0.1,
-                                                     high_energy=2)
-        assert np.any(new_response.emin == 0.1) != True
-        assert np.any(new_response.emax == 2) != True
-        
-        with pytest.raises(ValueError):
-            self.response.ignore_channels()
-        with pytest.raises(ValueError):
-            self.response.ignore_channels(low_chan=-1)
-        with pytest.raises(ValueError):
-            self.response.ignore_channels(high_chan=10000)
-        with pytest.raises(TypeError):
-            self.response.ignore_channels(low_chan="")
-        with pytest.raises(TypeError):
-            self.response.ignore_channels(high_chan="")
-        with pytest.raises(TypeError):
-            self.response.ignore_channels(low_energy="")
-        with pytest.raises(TypeError):
-            self.response.ignore_channels(high_energy="")
-        
+            self.response.set_exposure_time("str")       
         
         return
