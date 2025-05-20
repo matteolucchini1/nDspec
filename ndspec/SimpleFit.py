@@ -596,7 +596,21 @@ def load_pha(path,response):
         hdr = spectrum["SPECTRUM"].header
         spectrum_data = spectrum['SPECTRUM'].data
         channels = spectrum_data['CHANNEL']
-        counts = spectrum_data['COUNTS']
+        #check if exposure is present in either the primary or spectrum headers
+        try:
+            exposure = spectrum['PRIMARY'].header['EXPOSURE']
+        except KeyError:
+             try:
+                exposure = spectrum['SPECTRUM'].header['EXPOSURE']
+             except KeyError:
+                exposure = 1.        
+        try:         
+            counts = spectrum_data['COUNTS']
+        except KeyError:
+            try:         
+                counts = spectrum_data['RATE']*exposure
+            except KeyError:
+                raise FileNotFoundError("Fits file format incompatible, ensure it is OGIP compliant")        
         #check that the spectrum and response have the same mission and channel 
         #number         
         mission_spectrum = hdr["TELESCOP"]
@@ -605,15 +619,6 @@ def load_pha(path,response):
             raise NameError("Observatory in the spectrum different from the response")
         if instrument_spectrum != response.instrument:
             raise NameError("Instrument in the spectrum different from the response")        
-        
-        #check if exposure is present in either the primary or spectrum headers
-        try:
-            exposure = spectrum['PRIMARY'].header['EXPOSURE']
-        except KeyError:
-             try:
-                exposure = spectrum['SPECTRUM'].header['EXPOSURE']
-             except KeyError:
-                exposure = 1.
         #check if systematic errors are applied
         try: 
             sys_err = spectrum_data['SYS_ERR']   
