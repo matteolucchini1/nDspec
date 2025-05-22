@@ -758,7 +758,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         elif self.model_type == "transfer":
             self.crossspec.cross_from_transfer(signal=np.transpose(model_eval),
                                                ref_bounds=self.ref_band)
-        elif self.model_type == "cross":
+        elif self.model_type == "cross":           
             self.crossspec.cross = np.transpose(model_eval)
         else:
             raise AttributeError("Model type not supported")
@@ -769,8 +769,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                                                           units_in="rate",
                                                           units_out="channel")
         else:
-            model_eval = self.crossspec.cross 
-
+            model_eval = self.crossspec 
+            
         #return the appropriately structured products
         if self.dependence == "frequency":
             model = self._freq_dependent_model(model_eval)
