@@ -371,7 +371,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             raise AttributeError("Cross spectrum units not defined") 
         if self.dependence is None:
             raise AttributeError("Cross spectrum dependence not defined") 
-        if norm is None:
+        if norm is None and getattr(data, '__module__', None) != "stingray.events":
             norm = "abs"
         #combine the edges of the reference and subject bands with those of the matrix
         #then sort+keep only the ones that are not repeated, and rebin the matrix
@@ -616,6 +616,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         self.data = data
         self.data_err = data_err
         
+        if freq_bounds is None:
+            raise AttributeError("Fourier frequency bins for data products not defined")
         self.freq_bounds = freq_bounds
         self.n_freqs = self.freq_bounds.size-1                
         FrequencyDependentFit.__init__(self,self.freq_bounds)  
