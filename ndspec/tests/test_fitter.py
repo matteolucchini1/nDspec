@@ -11,6 +11,7 @@ from lmfit import Parameters as LM_Parameters
 from stingray import EventList
 
 from ndspec.Response import ResponseMatrix
+from ndspec.SimpleFit import SimpleFit, load_pha
 from ndspec.FitPowerSpectrum import FitPowerSpectrum
 from ndspec.FitTimeAvgSpectrum import FitTimeAvgSpectrum
 from ndspec.FitCrossSpectrum import FitCrossSpectrum
@@ -90,6 +91,9 @@ class TestFitter(object):
                                  cls.dummy_data,dummy_err,
                                  freq_bins=cls.cross_freqs,
                                  time_res=0.1,seg_size=10)
+
+        #generic SimpleFit object to test the shared methods 
+        cls.test_shared = SimpleFit()
         
         return 
        
@@ -330,7 +334,7 @@ class TestFitter(object):
     #check that the class raises an error if trying to define a weird model type 
     #and that users are prevented from hard-coding unsupported model types and 
     #model coordinates 
-    def test_model_type(self): 
+    def test_cross_model_type(self): 
         self.test_cross.set_coordinates("polar")
         self.test_cross.set_product_dependence("energy")
         cross_model = LM_Model(cross_const,independent_vars=['energs','freqs'])          
@@ -357,7 +361,7 @@ class TestFitter(object):
             
     #test that when turning on phase+modulus normalization, the class adds 
     #the normalization parameters 
-    def test_renorm_params(self):                
+    def test_cross_renorm_params(self):                
         self.test_cross.set_coordinates("polar")
         self.test_cross.set_product_dependence("energy")          
         dummy_mods = np.ones((4,5))
@@ -380,9 +384,29 @@ class TestFitter(object):
         self.test_cross.renorm_mods(True)    
         assert len(self.test_cross.model_params) == 8
         
-        #test that the class doesn't calculate the likelihood if it is not defined 
-        #correctly     
-        def test_cross_likelihood(self):               
-            with pytest.raises(AttributeError):
-                self.test_cross.likelihood = "error"
-                self.test_cross.fit_data()           
+    #test that the class doesn't calculate the likelihood if it is not defined 
+    #correctly     
+    def test_cross_likelihood(self):               
+        with pytest.raises(AttributeError):
+            self.test_cross.likelihood = "error"
+            self.test_cross.fit_data()           
+
+    #test that users can't assign silly things to models/parameters                 
+    def test_generic_setters(self):
+        with pytest.raises(AttributeError):
+            wrong_input = np.ones(1)
+            self.test_shared.set_model(wrong_input)                
+        with pytest.raises(AttributeError):
+            wrong_input = np.ones(1)
+            self.test_shared.set_params(wrong_input) 
+    
+    #test that users can't require weird formats for residuals    
+    #note that this tests only one class because get_residuals is shared 
+    #between all fitters anyway  
+    def test_residual_errors(self):      
+        with pytest.raises(ValueError):
+            spec_model = LM_Model(ones_model)
+            model_parameters = LM_Parameters()
+            model_parameters.add_many(('len', 2400, False, 1, 3000))
+            self.test_spec.set_model(spec_model,params=model_parameters)
+            test_residuals = self.test_spec.get_residuals("wrong")               
