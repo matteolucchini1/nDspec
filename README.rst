@@ -11,7 +11,7 @@ Multi-dimensional X-ray data modelling in Python
 nDspec is a software package designed to model (primarly) X-ray astronomical data; in particular, it is meant to enable users to fit spectral, timing and (in the future) polarimetric data natively. 
 Currently, nDspec provides the following features:
 
-- a class to handle folding an energy-dependent model through a given X-ray instrument response matrix. We currently support existing and legacy missions (Swift/XRT, RXTE, NuSTAR, Nicer, XMM-Newton); future missions like XRISM and Athena are not supported yet.
+- a class to handle folding an energy-dependent model through a given X-ray instrument response matrix. We currently support existing and legacy missions (Swift/XRT, RXTE, NuSTAR, Nicer, XMM-Newton); next-generation missions like XRISM and Athena are not supported yet.
 - Classes to handle the standard spectral-timing data products (power spectra, two-dimensional cross spectra, as well as their one-dimensional projections like lag-frequency spectra). Models need to be defined by the user either in the time domain (ie, an impulse response function) or in the Fourier domain (ie, a transfer functions). Additive models can be combined by the users before computing a given Fourier product.
 - a small library of phenomenological spectral-timing models, currently including a one dimensional power-law, black body and gaussian, as well as example impulse response and/or transfer functions that parametrize the time dependence of these components.
 
@@ -25,12 +25,18 @@ The software documentation is `found on readthedocs <https://ndspec.readthedocs.
 Installation and testing
 ------------------------
 
-The current version of the software can only be installed from the repository. Unit tests make use of `py.test <https://pytest.org>`_.
+The current version of the software can only be installed from the repository. Unit tests make use of `py.test <https://pytest.org>`_. Running the unit tests simply requires opening the folder in which users downloaded the repository, and running the command `pytest` in the command line. 
 
 Related Packages
 ----------------
 
 - `STINGRAY <https://github.com/StingraySoftware/stingray>`_ is a library that allows users to produce typical spectral-timing products from observations. A typical use would consist of using Stingray to handle the data a user might be interested in (e.g. by converting event files into data products for modelling), and nDspec to handle modelling of that data.
+
+- `Astropy <https://www.astropy.org/>`_ is the standard library for handling FITS files in a Python environment.
+
+- `emcee <https://emcee.readthedocs.io/en/stable/>`_ implements one of the most commonly used Bayesian sampling algorithms in astronomy. 
+
+- `lmfit <https://lmfit.github.io/lmfit-py/>`_ provides functions, classes and methods for curve optimization, such as least chi-squared fitting. 
 
 Contributing
 ------------
