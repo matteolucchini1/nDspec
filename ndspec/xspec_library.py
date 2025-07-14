@@ -89,7 +89,7 @@ def parse_model_parameters(input_file=None):
     
         # Extract the model name and type from the entries in the first line
         first_line_parts = lines[0].split()
-        model_name = first_line_parts[0]
+        model_name = first_line_parts[0].lower()
         model_type = first_line_parts[5] 
     
         parameters = {}   
