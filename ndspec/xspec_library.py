@@ -2,6 +2,7 @@ import ctypes as ct
 import numpy as np
 from functools import wraps
 import os
+import warnings
 
 #note: this is not compatible with Relxill specifically, will need a different wrapper urgh
 class XspecLibrary:
@@ -143,15 +144,19 @@ class XspecLibrary:
                 ne = len(ear) - 1
                 photar = np.zeros(ne, dtype=np.float32)
                 photer = np.zeros(ne, dtype=np.float32)
-        
-                lib_func(
-                    ear.ctypes.data_as(ct.POINTER(ct.c_float)),
-                    ct.byref(ct.c_int(ne)),
-                    params.ctypes.data_as(ct.POINTER(ct.c_float)),
-                    ct.byref(ct.c_int(1)),
-                    photar.ctypes.data_as(ct.POINTER(ct.c_float)),
-                    photer.ctypes.data_as(ct.POINTER(ct.c_float))
-                )
+
+                par_test = self.check_param_values(func_name,params)
+                if par_test is False:
+                    photar = np.nan
+                else:
+                    lib_func(
+                        ear.ctypes.data_as(ct.POINTER(ct.c_float)),
+                        ct.byref(ct.c_int(ne)),
+                        params.ctypes.data_as(ct.POINTER(ct.c_float)),
+                        ct.byref(ct.c_int(1)),
+                        photar.ctypes.data_as(ct.POINTER(ct.c_float)),
+                        photer.ctypes.data_as(ct.POINTER(ct.c_float))
+                    )
                 return photar*params[-1]
         elif self.models_info[func_name]['type'] == "mul":        
             @wraps(func)
@@ -159,15 +164,19 @@ class XspecLibrary:
                 ne = len(ear) - 1
                 photar = np.zeros(ne, dtype=np.float32)
                 photer = np.zeros(ne, dtype=np.float32)
-        
-                lib_func(
-                    ear.ctypes.data_as(ct.POINTER(ct.c_float)),
-                    ct.byref(ct.c_int(ne)),
-                    params.ctypes.data_as(ct.POINTER(ct.c_float)),
-                    ct.byref(ct.c_int(1)),
-                    photar.ctypes.data_as(ct.POINTER(ct.c_float)),
-                    photer.ctypes.data_as(ct.POINTER(ct.c_float))
-                )
+                
+                par_test = self.check_param_values(func_name,params)
+                if par_test is False:
+                    photar = np.nan
+                else:        
+                    lib_func(
+                        ear.ctypes.data_as(ct.POINTER(ct.c_float)),
+                        ct.byref(ct.c_int(ne)),
+                        params.ctypes.data_as(ct.POINTER(ct.c_float)),
+                        ct.byref(ct.c_int(1)),
+                        photar.ctypes.data_as(ct.POINTER(ct.c_float)),
+                        photer.ctypes.data_as(ct.POINTER(ct.c_float))
+                    )
                 return photar
         elif self.models_info[func_name]['type'] == "con":  
             @wraps(func)
@@ -175,22 +184,39 @@ class XspecLibrary:
                 ne = len(ear) - 1
                 seed = np.array(seed,dtype = np.float32)
                 photer = np.zeros(ne, dtype = np.float32)
-
-                lib_func(
-                    ear.ctypes.data_as(ct.POINTER(ct.c_float)),
-                     ct.byref(ct.c_int(ne)),
-                     params.ctypes.data_as(ct.POINTER(ct.c_float)),
-                     ct.byref(ct.c_int(1)),
-                     seed.ctypes.data_as(ct.POINTER(ct.c_float)),
-                     photer.ctypes.data_as(ct.POINTER(ct.c_float))
-                )
+                
+                par_test = self.check_param_values(func_name,params)
+                if par_test is False:
+                    photar = np.nan
+                else:
+                    lib_func(
+                        ear.ctypes.data_as(ct.POINTER(ct.c_float)),
+                         ct.byref(ct.c_int(ne)),
+                         params.ctypes.data_as(ct.POINTER(ct.c_float)),
+                         ct.byref(ct.c_int(1)),
+                         seed.ctypes.data_as(ct.POINTER(ct.c_float)),
+                         photer.ctypes.data_as(ct.POINTER(ct.c_float))
+                    )
                 return seed
                 
         # Attach the wrapper to the class 
         setattr(self, func_name, wrapper)        
         return func
 
-    #def check_params_values(self,model_name,params):
+    def check_param_values(self,model_name,params):
+        #check that we're within bounds. This takes a microsecond to loop over ~15 parameters so we just call it every time
+        par_data = self.models_info[model_name]['parameters']
+        for i, key in enumerate(par_data):
+            if (params[i] < par_data[key]['min']):
+                params[i] = par_data[key]['min'] 
+                warnings.warn(f"Model parameter {par_data[key]} value {params[i]} out of bounds, defaulting to {par_data[key]['min']}") 
+                return False
+            elif (params[i] > par_data[key]['max']):
+                params[i] = par_data[key]['max']
+                warnings.warn(f"Model parameter {par_data[key]} value {params[i]}  out of bounds, defaulting to {par_data[key]['max']}") 
+                return False
+            else:
+                return True
     
     def load_models(self, models):
         for model_name, model_func in models.items():
