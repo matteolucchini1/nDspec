@@ -110,7 +110,7 @@ class XspecLibrary:
 
     def print_model_info(self):
         print()
-        print("Loaded Xspec model info:")
+        print("Loaded Xspec models:")
         for component, details in self.models_info.items():
             print(f"{component}:")
             print(f"  type: {details['type']}")
@@ -120,8 +120,7 @@ class XspecLibrary:
                 print(f"    {param}: {value_str}")
             print()
         
-    #tbd: add multiplicative/convolution/relxill model ig?
-    def add_linear_model(self, func):
+    def add_model(self, func):
         func_name = func.__name__.rstrip('_')
 
         #sort out model parameters
@@ -137,50 +136,63 @@ class XspecLibrary:
             ct.POINTER(ct.c_float)
         ]
         lib_func.restype = None
-    
-        @wraps(func)
-        def wrapper(ear, params):
-            ne = len(ear) - 1
-            photar = np.zeros(ne, dtype=np.float32)
-            photer = np.zeros(ne, dtype=np.float32)
-    
-            lib_func(
-                ear.ctypes.data_as(ct.POINTER(ct.c_float)),
-                ct.byref(ct.c_int(ne)),
-                params.ctypes.data_as(ct.POINTER(ct.c_float)),
-                ct.byref(ct.c_int(1)),
-                photar.ctypes.data_as(ct.POINTER(ct.c_float)),
-                photer.ctypes.data_as(ct.POINTER(ct.c_float))
-            )
-            #note: xspec includes a normalization parameter by default
-            #I will need two wrappers - one for multiplicative models which is this one
-            #the other for additive models which renormalize based on the value of the last parameter
-            #thank you xspec!
-            return photar
-    
+
+        if self.models_info[func_name]['type'] == "add":        
+            @wraps(func)
+            def wrapper(ear, params):
+                ne = len(ear) - 1
+                photar = np.zeros(ne, dtype=np.float32)
+                photer = np.zeros(ne, dtype=np.float32)
+        
+                lib_func(
+                    ear.ctypes.data_as(ct.POINTER(ct.c_float)),
+                    ct.byref(ct.c_int(ne)),
+                    params.ctypes.data_as(ct.POINTER(ct.c_float)),
+                    ct.byref(ct.c_int(1)),
+                    photar.ctypes.data_as(ct.POINTER(ct.c_float)),
+                    photer.ctypes.data_as(ct.POINTER(ct.c_float))
+                )
+                return photar*params[-1]
+        elif self.models_info[func_name]['type'] == "mul":        
+            @wraps(func)
+            def wrapper(ear, params):
+                ne = len(ear) - 1
+                photar = np.zeros(ne, dtype=np.float32)
+                photer = np.zeros(ne, dtype=np.float32)
+        
+                lib_func(
+                    ear.ctypes.data_as(ct.POINTER(ct.c_float)),
+                    ct.byref(ct.c_int(ne)),
+                    params.ctypes.data_as(ct.POINTER(ct.c_float)),
+                    ct.byref(ct.c_int(1)),
+                    photar.ctypes.data_as(ct.POINTER(ct.c_float)),
+                    photer.ctypes.data_as(ct.POINTER(ct.c_float))
+                )
+                return photar
+        elif self.models_info[func_name]['type'] == "con":  
+            @wraps(func)
+            def wrapper(ear, params, seed):
+                ne = len(ear) - 1
+                seed = np.array(seed,dtype = np.float32)
+                photer = np.zeros(ne, dtype = np.float32)
+
+                lib_func(
+                    ear.ctypes.data_as(ct.POINTER(ct.c_float)),
+                     ct.byref(ct.c_int(ne)),
+                     params.ctypes.data_as(ct.POINTER(ct.c_float)),
+                     ct.byref(ct.c_int(1)),
+                     seed.ctypes.data_as(ct.POINTER(ct.c_float)),
+                     photer.ctypes.data_as(ct.POINTER(ct.c_float))
+                )
+                return seed
+                
         # Attach the wrapper to the class 
         setattr(self, func_name, wrapper)        
         return func
 
-    #I think I will make this the official method people pass with the dictionary thing, and the
-    #above a _ "hidden" method. I can also let it filter between additive/multiplicative/convolutional models
+    #def check_params_values(self,model_name,params):
+    
     def load_models(self, models):
         for model_name, model_func in models.items():
             # Apply the decorator to each model function
             self.add_linear_model(model_func)
-
-    #all these will need to be class methods
-    def print_loaded_models(self):
-        # Get all attribute names of the instance
-        all_attributes = dir(self)
-    
-        # Filter out attributes that are callable and not part of the original class
-        added_methods = [
-            attr for attr in all_attributes
-            if callable(getattr(self, attr)) and not attr.startswith('__') and attr not in dir(XspecLibrary)
-        ]
-    
-        #make this less ugly
-        print("Currently loaded models:")
-        for method in added_methods:
-            print(method)
