@@ -195,4 +195,4 @@ class XspecLibrary:
     def load_models(self, models):
         for model_name, model_func in models.items():
             # Apply the decorator to each model function
-            self.add_linear_model(model_func)
+            self.add_model(model_func)
