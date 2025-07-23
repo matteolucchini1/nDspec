@@ -3,6 +3,7 @@ import numpy as np
 from functools import wraps
 import os
 import warnings
+from sys import platform
 
 #note: this is not compatible with Relxill specifically, will need a different wrapper urgh
 class XspecLibrary:
@@ -11,7 +12,12 @@ class XspecLibrary:
         if lib_path is None:
             headas_path = os.environ.get("HEADAS")
             if headas_path:
-                lib_path = headas_path + f"/../Xspec/{os.path.basename(headas_path)}/lib/libXSFunctions.so"
+                if platform == "linux" or platform == "linux2":
+                    lib_path = headas_path + f"/../Xspec/{os.path.basename(headas_path)}/lib/libXSFunctions.so"
+                elif platform == "darwin":
+                    lib_path = headas_path + f"/../Xspec/{os.path.basename(headas_path)}/lib/libXSFunctions.dylib"
+                else:
+                    raise OSError("Your platform is not supported.")
             else:
                 raise EnvironmentError("HEADAS environment variable not set.")
 
@@ -20,6 +26,8 @@ class XspecLibrary:
 
         # Load the library
         self.lib = ct.cdll.LoadLibrary(lib_path)
+        #initialize heasoft
+        self.initialize_heasoft()
            
     def initialize_heasoft(self):
         init_call = self.lib.fninit_
@@ -45,6 +53,11 @@ class XspecLibrary:
         
             first_line_parts = lines[0].split()
             model_name = first_line_parts[0].lower()
+            lang_check = first_line_parts[4].lower().split("_")[0]
+            if lang_check == "c":
+                model_lang = "C"
+            else:
+                model_lang = "fortran"
             model_type = first_line_parts[5] 
         
             parameters = {}   
@@ -105,6 +118,7 @@ class XspecLibrary:
                 }                     
             models_info[model_name] = {
                 'type': model_type,
+                'lang': model_lang,
                 'parameters': parameters
             }
         return models_info    
@@ -121,12 +135,7 @@ class XspecLibrary:
                 print(f"    {param}: {value_str}")
             print()
         
-    def add_model(self, func):
-        func_name = func.__name__.rstrip('_')
-
-        #sort out model parameters
-        self.models_info[func_name] = self._all_info[func_name] 
-    
+    def load_fortran_model(self,func_name):
         lib_func = getattr(self.lib, f"{func_name}_")
         lib_func.argtypes = [
             ct.POINTER(ct.c_float),
@@ -137,6 +146,31 @@ class XspecLibrary:
             ct.POINTER(ct.c_float)
         ]
         lib_func.restype = None
+        return lib_func
+    
+    def load_C_model(self,func_name):
+        lib_func = getattr(self.lib, f"{func_name}_")
+        lib_func.argtypes = [
+            ct.POINTER(ct.c_double),
+            ct.POINTER(ct.c_int),
+            ct.POINTER(ct.c_double),
+            ct.POINTER(ct.c_int),
+            ct.POINTER(ct.c_double),
+            ct.POINTER(ct.c_char)
+        ]
+        lib_func.restype = None
+        return lib_func
+        
+    def add_model(self, func):
+        func_name = func.__name__.rstrip('_')
+
+        #sort out model parameters
+        self.models_info[func_name] = self._all_info[func_name] 
+        
+        if self.models_info[func_name]['lang'] == "C":
+            lib_func = self.load_C_model(func_name)
+        else:
+            lib_func = self.load_fortran_model(func_name)
 
         if self.models_info[func_name]['type'] == "add":        
             @wraps(func)
@@ -222,3 +256,14 @@ class XspecLibrary:
         for model_name, model_func in models.items():
             # Apply the decorator to each model function
             self.add_model(model_func)
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
