@@ -215,7 +215,7 @@ class XspecLibrary:
         #check that we're within bounds. This takes a microsecond to loop over ~15 parameters so we just call it every time
         par_data = self.models_info[model_name]['parameters']
         if len(par_data) != len(params):
-            warnings.warn(f"Wrong parameter number {len(par_data)} required {but len(params)} passed")
+            warnings.warn(f"Wrong parameter number {len(par_data)} required but {len(params)} passed")
             return False 
         for i, key in enumerate(par_data):
             if (params[i] < par_data[key]['min']):
