@@ -26,7 +26,7 @@ class JointFit():
         self.joint_params = {}
         self.fit_result = None
         
-    def add_model(self,model,name):
+    def add_fitobj(self,fitobj,name):
         """
         Adds a model or models to the joint fitting hierarchy. If a list of 
         fitting objects is added, it is assumed that the objects are intended
@@ -34,7 +34,7 @@ class JointFit():
 
         Parameters
         ----------
-        model : Fit... object or list of Fit... objects
+        fitobj : Fit... object or list of Fit... objects
             the Fit... object of the observation and model. In the case of
             multiple fit objects, they must all share the same underlying model
             as all of their parameters will be linked.
@@ -42,30 +42,33 @@ class JointFit():
         name: str
             name of the model
         """
-        if type(model) == list:
-            for m in model:
-                if issubclass(m,SimpleFit):
+        if type(fitobj) == list:
+            for obj in fitobj:
+                if issubclass(obj,SimpleFit):
                     pass
                 else:
                     raise TypeError("Invalid object passed")
         else:
-            if issubclass(m,SimpleFit):
+            if issubclass(fitobj,SimpleFit):
                 pass
             else:
                 raise TypeError("Invalid object passed")
         #if simultaneous observations (so same underlying model)
-        if type(model) == list: 
-            self.joint[name] = model
-            if len(model) > 1: #check if actually multiple models
-                first_obs = model[0]
+        if type(fitobj) == list: 
+            self.joint[name] = fitobj
+            if len(fitobj) > 1: #check if actually multiple models
+                first_fitobj = fitobj[0]
                 #links all model parameters to first model in list
-                for i in range(1,len(model)): 
-                    self.link_params(first_obs, model[i])
+                for i in range(1,len(fitobj)): 
+                    self.link_params(first_fitobj, fitobj[i])
                 #pulls parameters names and saves to dictionary for model
                 #evaluation later
                 params = []
-                for key in first_obs.model_params.valuesdict().keys():
+                for key in first_fitobj.model_params.valuesdict().keys():
+                    #iterates through current fit objects
                     for joint_obs in self.joint_params:
+                        #checks if parameter matches any previous model 
+                        #parameters
                         if key in self.joint_params[joint_obs]:
                             print(f"""
                                   Caution: {key} is already a model parameter.
@@ -83,11 +86,11 @@ class JointFit():
                                 or only add the model as a single entry.
                                 """)
         else: #single observation case
-            self.joint[name] = model
+            self.joint[name] = fitobj
             #pulls parameters names and saves to dictionary for model
             #evaluation later
             params = []
-            for key in model.model_params.valuesdict().keys():
+            for key in fitobj.model_params.valuesdict().keys():
                 for joint_obs in self.joint_params:
                     if key in self.joint_params[joint_obs]:
                         print(f"""
@@ -100,15 +103,15 @@ class JointFit():
                 params.append(key)
             self.joint_params[name] = params
             
-    def link_params(self,first_obs,second_obs,param_names=None):
+    def link_params(self,first_fitobj,second_fitobj,param_names=None):
         """
         Links parameters between models.
 
         Parameters
         ----------
-        first_obs : Fit... object 
+        first_fitobj : Fit... object 
             DESCRIPTION
-        second_obs : Fit... object 
+        second_fitobj : Fit... object 
             DESCRIPTION
         param_names : str or list(str), optional
             Parameter names of parameters to link between models. The default 
@@ -121,18 +124,18 @@ class JointFit():
         """
         if param_names == None: #defaults to all parameters
             #checks that both models are correctly specified
-            if (((getattr(first_obs.model, '__module__', None) != "lmfit.compositemodel")&
-                (getattr(first_obs.model, '__module__', None) != "lmfit.model"))|
-                ((getattr(second_obs.model, '__module__', None) != "lmfit.compositemodel")&
-                    (getattr(second_obs.model, '__module__', None) != "lmfit.model"))):  
+            if (((getattr(first_fitobj.model, '__module__', None) != "lmfit.compositemodel")&
+                (getattr(first_fitobj.model, '__module__', None) != "lmfit.model"))|
+                ((getattr(second_fitobj.model, '__module__', None) != "lmfit.compositemodel")&
+                    (getattr(second_fitobj.model, '__module__', None) != "lmfit.model"))):  
                 raise AttributeError("The model input must be an LMFit Model or CompositeModel object")
             #makes class share single lmfit.Parameters object
-            second_obs.model_params = first_obs.model_params
+            second_fitobj.model_params = first_fitobj.model_params
         
         if type(param_names) == list:
             #check all parameters are shared
-            if ((set(param_names) <= first_obs.param_names)&
-                (set(param_names) <= second_obs.param_names)):
+            if ((set(param_names) <= first_fitobj.param_names)&
+                (set(param_names) <= second_fitobj.param_names)):
                 pass
             else: #if parameters are not shared, soft error
                 print("Not all parameters inputted are shared between models")
@@ -140,13 +143,13 @@ class JointFit():
             
             #forces models to share parameter objects
             for name in param_names:
-                second_obs.model_params[name] = first_obs.model_params[name]
+                second_fitobj.model_params[name] = first_fitobj.model_params[name]
             print("Multiple parameters linked")
             
         elif type(param_names) == str:
             #check parameter is shared
-            if ((param_names in first_obs.param_names)&
-                (param_names in second_obs.param_names)):
+            if ((param_names in first_fitobj.param_names)&
+                (param_names in second_fitobj.param_names)):
                 pass
             else: #if parameters are not shared, soft error
                 print(f"{param_names} is not shared between the models")
@@ -183,17 +186,17 @@ class JointFit():
             if name not in self.joint.keys():
                 raise AttributeError(f"{name} is not in model hierarchy")
             #retrieves model or models based on dictionary name
-            models = self.joint[name] 
+            fitobjs = self.joint[name] 
             model_param_names = self.joint_params[name]
             model_params = Parameters()
             for key in model_param_names:
                 model_params.add_many(params[key])
-            if type(models) == list: #if simultaneous, evaluate each one.
+            if type(fitobjs) == list: #if simultaneous, evaluate each one.
                 model_results = []
-                for model in models:
-                    model_results.append(model.eval_model(model_params))
+                for fit_obj in fitobjs:
+                    model_results.append(fit_obj.eval_model(model_params))
             else:
-                model_results = models.eval_model(model_params)
+                model_results = fitobjs.eval_model(model_params)
             model_hierarchy[name] = model_results
         
         return model_hierarchy
@@ -232,7 +235,7 @@ class JointFit():
         if type(names) != list:
             raise TypeError("Inputted names are not valid type")
         else:
-            residual_dict = self.eval_model(names)
+            residual_dict = self.eval_model(params,names)
             residuals = []
             for name in names:
                 obs_residuals = residual_dict[name]
@@ -256,6 +259,9 @@ class JointFit():
             choices are detailed on the LMFit documentation page:
             https://lmfit.github.io/lmfit-py/fitting.html#fit-methods-table.
         """
+        if names == None:
+            names = self.joint.keys()
+        
         #retrieves all relevant parameters from models being fitted
         self.model_params = Parameters()
         for name in names:
