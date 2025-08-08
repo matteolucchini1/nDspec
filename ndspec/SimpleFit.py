@@ -268,6 +268,30 @@ class SimpleFit():
         fit_params = self.fit_result.params
         self.set_params(fit_params)
         return
+    
+    def print_model(self):
+        """
+        This method prints out model components, model parameters, and their
+        settings.
+        """
+        print("Model \n")
+        print("-----------------------")
+        print(self.model.name)
+        print("\n")
+        print("Parameters \n")
+        print("-----------------------")
+        self.model_params.pretty_print()
+        print("-----------------------")
+        
+    def print_fit_report(self):
+        """
+        This method prints the current fit result.
+        """
+        
+        if self.fit_result != None:
+            print(fit_report(self.fit_result,show_correl=False))
+        else:
+            print("No current fit result.")
 
 class EnergyDependentFit():
     """
