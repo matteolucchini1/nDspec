@@ -1,4 +1,7 @@
+import numpy as np
 from lmfit import fit_report, minimize
+from lmfit import Parameters
+from SimpleFit import SimpleFit
 
 class JointFit():
     """
@@ -8,7 +11,7 @@ class JointFit():
     
     Attributes:
     ------------
-    hierarchy : dict{Fit... objects and/or list(Fit... objects)}
+    joint : dict{Fit... objects and/or list(Fit... objects)}
         Dictionary containing named Fit... objects to be joint fitted. By
         default, observations that share parameters completely (simultaneous or
         different data products of observations) are packaged together in lists.
@@ -19,7 +22,8 @@ class JointFit():
     """
     
     def __init__(self):
-        self.hierarchy = {}
+        self.joint = {}
+        self.joint_params = {}
         self.fit_result = None
         
     def add_model(self,model,name):
@@ -38,23 +42,64 @@ class JointFit():
         name: str
             name of the model
         """
-        
-        self.hierarchy[name] = model
-        
+        if type(model) == list:
+            for m in model:
+                if issubclass(m,SimpleFit):
+                    pass
+                else:
+                    raise TypeError("Invalid object passed")
+        else:
+            if issubclass(m,SimpleFit):
+                pass
+            else:
+                raise TypeError("Invalid object passed")
         #if simultaneous observations (so same underlying model)
         if type(model) == list: 
+            self.joint[name] = model
             if len(model) > 1: #check if actually multiple models
                 first_obs = model[0]
                 #links all model parameters to first model in list
                 for i in range(1,len(model)): 
                     self.link_params(first_obs, model[i])
+                #pulls parameters names and saves to dictionary for model
+                #evaluation later
+                params = []
+                for key in first_obs.model_params.valuesdict().keys():
+                    for joint_obs in self.joint_params:
+                        if key in self.joint_params[joint_obs]:
+                            print(f"""
+                                  Caution: {key} is already a model parameter.
+                                  Do you intend for these parameters to be linked?
+                                  If not, give it a different name to differentiate
+                                  between multiple instances of the same type for
+                                  different models.
+                                  """)
+                    params.append(key)
+                self.joint_params[name] = params
             else:
                 raise TypeError("""
                                 Unnecessary list of models due to single entry,
                                 either add other simultaneous observations
                                 or only add the model as a single entry.
                                 """)
-    
+        else: #single observation case
+            self.joint[name] = model
+            #pulls parameters names and saves to dictionary for model
+            #evaluation later
+            params = []
+            for key in model.model_params.valuesdict().keys():
+                for joint_obs in self.joint_params:
+                    if key in self.joint_params[joint_obs]:
+                        print(f"""
+                              Caution: {key} is already a model parameter.
+                              Do you intend for these parameters to be linked?
+                              If not, give it a different name to differentiate
+                              between multiple instances of the same type for
+                              different models.
+                              """)
+                params.append(key)
+            self.joint_params[name] = params
+            
     def link_params(self,first_obs,second_obs,param_names=None):
         """
         Links parameters between models.
@@ -111,7 +156,7 @@ class JointFit():
         else:
             raise TypeError("Input parameter name or list of parameter names")
     
-    def eval_model(self,names = None):
+    def eval_model(self,params,names = None):
         """
         This method is used to evaluate and return the model values of models 
         in the hierarchy.
@@ -129,22 +174,26 @@ class JointFit():
             to the top-level hierarchy.
         """
         if names == None: #retrieves all models
-            names = self.hierarchy.keys()
+            names = self.joint.keys()
         
         #creates structure to return model results
         model_hierarchy = {}
         
         for name in names:
-            if name not in self.hierarchy.keys():
+            if name not in self.joint.keys():
                 raise AttributeError(f"{name} is not in model hierarchy")
             #retrieves model or models based on dictionary name
-            models = self.hierarchy[name] 
+            models = self.joint[name] 
+            model_param_names = self.joint_params[name]
+            model_params = Parameters()
+            for key in model_param_names:
+                model_params.add_many(params[key])
             if type(models) == list: #if simultaneous, evaluate each one.
                 model_results = []
                 for model in models:
-                    model_results.append(model.eval_model())
+                    model_results.append(model.eval_model(model_params))
             else:
-                model_results = models.eval_model()
+                model_results = models.eval_model(model_params)
             model_hierarchy[name] = model_results
         
         return model_hierarchy
@@ -172,21 +221,57 @@ class JointFit():
             An array of the same size as the data, containing the model 
             residuals in each bin.            
         """
-        if names == None: #retrieves all models
-            names = self.hierarchy.keys()
-        
-        if type(params) == list:
-            total_residuals = []
-            for pars,name in zip(params,names):
-                total_residuals.append(self.hierarchy[name]._minimizer(params))
-        else:
-            if self.likelihood is None:
-                model = self.model.eval(params,freq=self.freqs)
-                residuals = (self.data-model)/self.data_err
-            else:
-                raise AttributeError("custom likelihood not implemented yet")
+        if self.joint == {}:
+            raise AttributeError("No loaded observations or models")
             
+        if names == None: #retrieves all models
+            names = self.joint.keys()
+        elif type(names) == str:
+            names = [names]
+            
+        if type(names) != list:
+            raise TypeError("Inputted names are not valid type")
+        else:
+            residual_dict = self.eval_model(names)
+            residuals = []
+            for name in names:
+                obs_residuals = residual_dict[name]
+                residuals.append(np.asarray(obs_residuals).flatten())
+            residuals = np.asarray(residuals).flatten()
         return residuals
+    
+    def fit_data(self,algorithm='leastsq',names=None):
+        """
+        This method attempts to minimize the residuals of the model with respect 
+        to the data defined by the user. The fit always starts from the set of 
+        parameters defined with .set_params(). Once the algorithm has completed 
+        its run, it prints to terminal the best-fitting parameters, fit 
+        statistics, and simple selection criteria (reduced chi-squared, Akaike
+        information criterion, and Bayesian information criterion). 
+        
+        Parameters:
+        -----------
+        algorithm: str, default="leastsq"
+            The fitting algorithm to be used in the minimization. The possible 
+            choices are detailed on the LMFit documentation page:
+            https://lmfit.github.io/lmfit-py/fitting.html#fit-methods-table.
+        """
+        #retrieves all relevant parameters from models being fitted
+        self.model_params = Parameters()
+        for name in names:
+            #collects all parameter names of observation
+            model_param_names = self.joint_params[name]
+            #adds all parameters to overarching joint fit (parameters with same
+            #name are assumed to be linked and are overwritten).
+            for key in model_param_names:
+                self.model_params.add_many(self.joint[name].model_params[key])
+            
+        self.fit_result = minimize(self._minimizer,self.model_params,
+                                   method=algorithm,args=[names])
+        print(fit_report(self.fit_result,show_correl=False))
+        fit_params = self.fit_result.params
+        self.set_params(fit_params)
+        return
     
     def print_models(self,names=None):
         """
@@ -200,18 +285,18 @@ class JointFit():
             models.
         """
         if names == None:
-            names = self.hierarchy.keys()
+            names = self.joint.keys()
         
         if type(names) == list:
             for name in names:
                 print(f"{name}: \n")
                 print("-----------------------")
-                self.hierarchy[name].print_model()
+                self.joint[name].print_model()
                 print("-----------------------")
         else:
             print(f"{names}: \n")
             print("-----------------------")
-            self.hierarchy[names].print_model()
+            self.joint[names].print_model()
             print("-----------------------")
         
     def print_fit_results(self):
