@@ -16,6 +16,10 @@ class JointFit():
         default, observations that share parameters completely (simultaneous or
         different data products of observations) are packaged together in lists.
         
+    joint_params: dict{lists(str)}
+        Dictionary containing the names of model parameters for each distinct
+        fit object.
+        
     fit_result: lmfit.MinimizeResult
         A lmfit MinimizeResult, which stores the result (including best-fitting 
         parameter values, fit statistics etc) of a fit after it has been run. 
@@ -116,10 +120,6 @@ class JointFit():
         param_names : str or list(str), optional
             Parameter names of parameters to link between models. The default 
             is to share all parameters together
-
-        Returns
-        -------
-        None.
 
         """
         if param_names == None: #defaults to all parameters

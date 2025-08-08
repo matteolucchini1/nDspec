@@ -249,7 +249,7 @@ class priorLogNormal():
         The expectation of the distribution. 
     """    
     
-    def __init__(sigma,mu):
+    def __init__(self,sigma,mu):
         self.sigma = sigma
         self.mu = mu
         pass 
@@ -268,7 +268,7 @@ class priorLogNormal():
         --------
             The value of the likelihood for the input parameter.
         """
-        logprior = -0.5*(np.log(theta)-mu)**2/sigma**2+0.5*np.log(2.*np.pi*sigma**2/theta**2)
+        logprior = -0.5*(np.log(theta)-self.mu)**2/self.sigma**2+0.5*np.log(2.*np.pi*self.sigma**2/theta**2)
         return logprior
 
         
