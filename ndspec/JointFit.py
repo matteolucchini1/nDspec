@@ -1,7 +1,8 @@
 import numpy as np
+import lmfit
 from lmfit import fit_report, minimize
 from lmfit import Parameters
-from SimpleFit import SimpleFit
+from .SimpleFit import SimpleFit 
 
 class JointFit():
     """
@@ -23,12 +24,17 @@ class JointFit():
     fit_result: lmfit.MinimizeResult
         A lmfit MinimizeResult, which stores the result (including best-fitting 
         parameter values, fit statistics etc) of a fit after it has been run. 
+
+    model_params: lmfit.Parameters
+        The parameter values from which to start evalauting the model during
+        the fit.  
     """
     
     def __init__(self):
         self.joint = {}
         self.joint_params = {}
         self.fit_result = None
+        self.model_params = None
         
     def add_fitobj(self,fitobj,name):
         """
@@ -48,12 +54,12 @@ class JointFit():
         """
         if type(fitobj) == list:
             for obj in fitobj:
-                if issubclass(obj,SimpleFit):
+                if issubclass(type(obj),SimpleFit):
                     pass
                 else:
                     raise TypeError("Invalid object passed")
         else:
-            if issubclass(fitobj,SimpleFit):
+            if issubclass(type(fitobj),SimpleFit):
                 pass
             else:
                 raise TypeError("Invalid object passed")
@@ -62,9 +68,12 @@ class JointFit():
             self.joint[name] = fitobj
             if len(fitobj) > 1: #check if actually multiple models
                 first_fitobj = fitobj[0]
+                #if first added object, add model params
+                if self.model_params == None:
+                    self.model_params = fitobj[0].model_params
                 #links all model parameters to first model in list
                 for i in range(1,len(fitobj)): 
-                    self.link_params(first_fitobj, fitobj[i])
+                    self.share_params(first_fitobj, fitobj[i])
                 #pulls parameters names and saves to dictionary for model
                 #evaluation later
                 params = []
@@ -81,6 +90,8 @@ class JointFit():
                                   between multiple instances of the same type for
                                   different models.
                                   """)
+                        else:
+                            self.model_params.add_many(first_fitobj.model_params[key])
                     params.append(key)
                 self.joint_params[name] = params
             else:
@@ -91,6 +102,9 @@ class JointFit():
                                 """)
         else: #single observation case
             self.joint[name] = fitobj
+            #if first added object, add model params
+            if self.model_params == None:
+                self.model_params = fitobj.model_params
             #pulls parameters names and saves to dictionary for model
             #evaluation later
             params = []
@@ -104,60 +118,97 @@ class JointFit():
                               between multiple instances of the same type for
                               different models.
                               """)
+                    else:
+                        self.model_params.add_many(fitobj.model_params[key])
                 params.append(key)
             self.joint_params[name] = params
-            
-    def link_params(self,first_fitobj,second_fitobj,param_names=None):
+    
+    def model_decompose(self,model):
         """
-        Links parameters between models.
+        Decomposes lmfit composite models into their base Models.
+
+        Parameters
+        ----------
+        model: lmfit.compositemodel
+            composite model to be decomposed
+
+        Returns
+        -------
+        models: list(lmfit.model)
+            list of component lmfit.model objects.
+        """
+        #catches and returns inputted lmfit.models as list
+        if type(model) == lmfit.Model:
+            return [model] 
+        
+        if type(model) != lmfit.CompositeModel:
+            raise TypeError("Not a lmfit composite model")
+        models = []
+        
+        if type(model.left) == lmfit.Model:
+            models.append(model.left)
+        else:
+            models.extend(self.model_decompose(model.left))
+        
+        if type(model.right) ==  lmfit.Model:
+            models.append(model.right)
+        else:
+            models.extend(self.model_decompose(model.right))
+        
+        return models
+
+    def share_params(self,first_fitobj,second_fitobj,param_names=None):
+        """
+        Shares parameters between models.
 
         Parameters
         ----------
         first_fitobj : Fit... object 
-            DESCRIPTION
+            primary fit object that the secondary fit object is linked to.
         second_fitobj : Fit... object 
-            DESCRIPTION
+            secondary fit object that is linked to the primary.
         param_names : str or list(str), optional
-            Parameter names of parameters to link between models. The default 
+            Names of parameters (with the same name) to share between models. The default 
             is to share all parameters together
 
         """
-        if param_names == None: #defaults to all parameters
-            #checks that both models are correctly specified
-            if (((getattr(first_fitobj.model, '__module__', None) != "lmfit.compositemodel")&
-                (getattr(first_fitobj.model, '__module__', None) != "lmfit.model"))|
-                ((getattr(second_fitobj.model, '__module__', None) != "lmfit.compositemodel")&
-                    (getattr(second_fitobj.model, '__module__', None) != "lmfit.model"))):  
-                raise AttributeError("The model input must be an LMFit Model or CompositeModel object")
-            #makes class share single lmfit.Parameters object
-            second_fitobj.model_params = first_fitobj.model_params
+        #checks that both models are correctly specified
+        if (((type(first_fitobj.model) != lmfit.CompositeModel)&(type(first_fitobj.model) != lmfit.Model))|
+           ((type(second_fitobj.model) != lmfit.CompositeModel)&((type(second_fitobj.model) != lmfit.Model)))):  
+            raise AttributeError("The model input must be an LMFit Model or CompositeModel object")
         
-        if type(param_names) == list:
-            #check all parameters are shared
-            if ((set(param_names) <= first_fitobj.param_names)&
-                (set(param_names) <= second_fitobj.param_names)):
-                pass
-            else: #if parameters are not shared, soft error
-                print("Not all parameters inputted are shared between models")
-                return
-            
-            #forces models to share parameter objects
-            for name in param_names:
-                second_fitobj.model_params[name] = first_fitobj.model_params[name]
-            print("Multiple parameters linked")
-            
-        elif type(param_names) == str:
-            #check parameter is shared
-            if ((param_names in first_fitobj.param_names)&
-                (param_names in second_fitobj.param_names)):
-                pass
-            else: #if parameters are not shared, soft error
-                print(f"{param_names} is not shared between the models")
-                return
-            
-            print("Single parameter linked")
+        #adds all base models into list (decomposes CompositeModels into Models)
+        models = []
+        #adds all models from first fit object as a list of models
+        models.append(self.model_decompose(first_fitobj.model))
+        #adds all models from second fit object as a list of models
+        models.append(self.model_decompose(second_fitobj.model))
+
+        if param_names == None: #defaults to all parameters (models are identical)
+            #iterates through all fit objects
+            second_fitobj.model_params = first_fitobj.model_params
+        elif type(param_names) == list: #correct format
+            pass
+        elif type(param_names) == str: #translates to correct format
+            param_names = [param_names]
         else:
             raise TypeError("Input parameter name or list of parameter names")
+
+        #first check that all specified parameters are present in both fit objects
+        for fit_obj in models:
+            check = set(param_names)
+            for m in fit_obj: #iterates through all basic models
+                check = check - set(m.param_names)
+            if check == set(): #if check is an empty set, all parameter names are present in object
+                continue
+            else:
+                #if parameters are not shared, soft error
+                print("Not all parameters inputted are in models")
+                return
+        
+        for name in param_names:
+            #find parameter name in first fit objects models
+            second_fitobj.model_params[name] = first_fitobj.model_params[name]
     
     def eval_model(self,params,names = None):
         """
@@ -187,16 +238,12 @@ class JointFit():
                 raise AttributeError(f"{name} is not in model hierarchy")
             #retrieves model or models based on dictionary name
             fitobjs = self.joint[name] 
-            model_param_names = self.joint_params[name]
-            model_params = Parameters()
-            for key in model_param_names:
-                model_params.add_many(params[key])
             if type(fitobjs) == list: #if simultaneous, evaluate each one.
                 model_results = []
                 for fit_obj in fitobjs:
-                    model_results.append(fit_obj.eval_model(model_params))
+                    model_results.append(fit_obj.eval_model(self.model_params))
             else:
-                model_results = fitobjs.eval_model(model_params)
+                model_results = fitobjs.eval_model(self.model_params)
             model_hierarchy[name] = model_results
         
         return model_hierarchy
@@ -228,18 +275,19 @@ class JointFit():
             raise AttributeError("No loaded observations or models")
             
         if names == None: #retrieves all models
-            names = self.joint.keys()
+            names = list(self.joint.keys())
         elif type(names) == str:
             names = [names]
             
         if type(names) != list:
             raise TypeError("Inputted names are not valid type")
         else:
-            residual_dict = self.eval_model(params,names)
-            residuals = []
+            model_dict = self.eval_model(params,names)
+            residuals = np.array([])
             for name in names:
-                obs_residuals = residual_dict[name]
-                residuals.append(np.asarray(obs_residuals).flatten())
+                model = model_dict[name]
+                residuals = (self.joint[name].data-model)/self.joint[name].data_err
+                residuals = np.concat([residuals,np.asarray(residuals).flatten()])
             residuals = np.asarray(residuals).flatten()
         return residuals
     
@@ -260,18 +308,8 @@ class JointFit():
             https://lmfit.github.io/lmfit-py/fitting.html#fit-methods-table.
         """
         if names == None:
-            names = self.joint.keys()
+            names = list(self.joint.keys())
         
-        #retrieves all relevant parameters from models being fitted
-        self.model_params = Parameters()
-        for name in names:
-            #collects all parameter names of observation
-            model_param_names = self.joint_params[name]
-            #adds all parameters to overarching joint fit (parameters with same
-            #name are assumed to be linked and are overwritten).
-            for key in model_param_names:
-                self.model_params.add_many(self.joint[name].model_params[key])
-            
         self.fit_result = minimize(self._minimizer,self.model_params,
                                    method=algorithm,args=[names])
         print(fit_report(self.fit_result,show_correl=False))
@@ -279,6 +317,29 @@ class JointFit():
         self.set_params(fit_params)
         return
     
+    def set_params(self,params):
+        """
+        This method is used to set the model parameter names and values. It can
+        be used both to initialize a fit, and to test different parameter values 
+        before actually running the minimization algorithm.
+        
+        Parameters:
+        -----------                       
+        params: lmfit.parameter
+            The parameter values from which to start evalauting the model during
+            the fit.  
+        """
+        
+        #maybe find a way to go through the parameters of the model, and make sure 
+        #the object passed contains the same parameters?
+        if getattr(params, '__module__', None) != "lmfit.parameter":  
+            raise AttributeError("The parameters input must be an LMFit Parameters object")
+        
+        self.model_params = params
+        return 
+
+
+
     def print_models(self,names=None):
         """
         Prints the models contained within the joint fit. Defaults to printing
@@ -291,7 +352,7 @@ class JointFit():
             models.
         """
         if names == None:
-            names = self.joint.keys()
+            names = list(self.joint.keys())
         
         if type(names) == list:
             for name in names:
