@@ -33,11 +33,11 @@ Data fitting tutorials:
 nDspec core functionality:
 
 .. toctree::
+    xspec_interface
     response_basics
     response_optimization   
     timing
     numerics
-    xspec_interface
 
 References and tables
 ~~~~~~~~~~~~~~~~~~~~~
