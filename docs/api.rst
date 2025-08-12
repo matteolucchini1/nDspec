@@ -95,6 +95,12 @@ Emcee sampling functions
 
 .. autofunction:: ndspec.EmceeUtils.process_emcee
 
+Xspec library 
+~~~~~~~~~~~~~
+
+.. autoclass:: ndspec.xspec_library.XspecLibrary
+    :members:
+
 Model library
 ~~~~~~~~~~~~~
 
