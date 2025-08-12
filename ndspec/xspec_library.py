@@ -5,7 +5,7 @@ import os
 import warnings
 from sys import platform
 
-class XspecLibrary:
+class XspecLibrary():
     """
     This class allows users to load a library file containing Xspec-compatible 
     models (including the entire library that comes with a typical HEASOFT 
