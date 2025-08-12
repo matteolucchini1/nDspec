@@ -70,7 +70,9 @@ class JointFit():
                 first_fitobj = fitobj[0]
                 #if first added object, add model params
                 if self.model_params == None:
-                    self.model_params = fitobj[0].model_params
+                    self.model_params = Parameters()
+                    for par in fitobj[0].model_params:
+                        self.model_params.add_many(fitobj[0].model_params[par])
                 #links all model parameters to first model in list
                 for i in range(1,len(fitobj)): 
                     self.share_params(first_fitobj, fitobj[i])
@@ -104,7 +106,9 @@ class JointFit():
             self.joint[name] = fitobj
             #if first added object, add model params
             if self.model_params == None:
-                self.model_params = fitobj.model_params
+                    self.model_params = Parameters()
+                    for par in fitobj.model_params:
+                        self.model_params.add_many(fitobj.model_params[par])
             #pulls parameters names and saves to dictionary for model
             #evaluation later
             params = []
@@ -210,7 +214,7 @@ class JointFit():
             #find parameter name in first fit objects models
             second_fitobj.model_params[name] = first_fitobj.model_params[name]
     
-    def eval_model(self,params,names = None):
+    def eval_model(self,params=None,names = None):
         """
         This method is used to evaluate and return the model values of models 
         in the hierarchy.
@@ -229,7 +233,8 @@ class JointFit():
         """
         if names == None: #retrieves all models
             names = self.joint.keys()
-        
+        if params == None:
+            params = self.model_params
         #creates structure to return model results
         model_hierarchy = {}
         
@@ -241,9 +246,9 @@ class JointFit():
             if type(fitobjs) == list: #if simultaneous, evaluate each one.
                 model_results = []
                 for fit_obj in fitobjs:
-                    model_results.append(fit_obj.eval_model(self.model_params))
+                    model_results.append(fit_obj.eval_model(params))
             else:
-                model_results = fitobjs.eval_model(self.model_params)
+                model_results = fitobjs.eval_model(params)
             model_hierarchy[name] = model_results
         
         return model_hierarchy
@@ -316,7 +321,7 @@ class JointFit():
         fit_params = self.fit_result.params
         self.set_params(fit_params)
         return
-    
+
     def set_params(self,params):
         """
         This method is used to set the model parameter names and values. It can
@@ -332,10 +337,14 @@ class JointFit():
         
         #maybe find a way to go through the parameters of the model, and make sure 
         #the object passed contains the same parameters?
-        if getattr(params, '__module__', None) != "lmfit.parameter":  
+        if type(params) != lmfit.Parameters:  
             raise AttributeError("The parameters input must be an LMFit Parameters object")
-        
-        self.model_params = params
+        #updates the individually linked parameters rather than overwrites them.
+        for par in self.model_params:
+            self.model_params[par] = params[par]
+            for key in self.joint:
+                if par in list(self.joint[key].model_params.keys()):
+                    self.joint[key].model_params[par] = params[par]
         return 
 
 
