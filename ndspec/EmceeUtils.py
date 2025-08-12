@@ -41,12 +41,21 @@ def set_emcee_priors(fitobj,priors):
     """
     
     global emcee_priors
-    if type(fitobj) == JointFit:
-        pass
-    else:
-        input_par_names = list(priors.keys())
-        obj_par_names = list(fitobj.model_params.keys())
-        emcee_priors = priors 
+    input_par_names = list(priors.keys())
+    obj_par_names = list(fitobj.model_params.keys())
+
+    if set(input_par_names) > set(obj_par_names):
+        raise ValueError("Not all specified priors are parameters present in the model")
+    
+    for key in obj_par_names:
+        if (fitobj.model_params[key].vary is True) and (key not in input_par_names):
+            raise ValueError(f"{key} does not have a prior. Fix {key} or specify one.")
+        elif (fitobj.model_params[key].vary is False) and (key in input_par_names):
+            raise ValueError("Incorrectly specified a prior for a fixed parameter")
+        else:
+            continue
+
+    emcee_priors = priors 
     return 
 
 def set_emcee_model(fitobj): 
@@ -133,9 +142,9 @@ def set_emcee_parameters(params):
             theta = np.append(theta,params[key].value)  
     return theta
 
-def intialise_mcmc(fitobj,priors):
+def initialise_mcmc(fitobj,priors):
     """
-    This function is used to intialise an MCMC run. The Fit...Object can be
+    This function is used to initialise an MCMC run. The Fit...Object can be
     any of the particular data products, or a JointFit object containing
     multiple FitObjects.
 
@@ -155,6 +164,13 @@ def intialise_mcmc(fitobj,priors):
     theta: np.array 
         A numpy array containing the values of the free parameters in the model.
     """
+    global emcee_priors
+    global emcee_names 
+    global emcee_params
+    global emcee_data
+    global emcee_data_err
+    global emcee_model 
+
     if type(fitobj) == JointFit:
         pass
     elif issubclass(type(fitobj),SimpleFit):
@@ -166,7 +182,7 @@ def intialise_mcmc(fitobj,priors):
     set_emcee_data(fitobj)
     set_emcee_model(fitobj)
     set_emcee_priors(fitobj,priors)
-    return
+    return theta
 
 class priorUniform():
     """
