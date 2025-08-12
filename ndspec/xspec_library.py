@@ -323,13 +323,13 @@ class XspecLibrary():
             if (params[i] < par_data[key]['min']):
                 params[i] = par_data[key]['min'] 
                 warnings.warn(f"Model parameter {par_data[key]} value {params[i]} out of bounds") 
-            test_pars = False 
-            return test_pars 
+                test_pars = False 
+                return test_pars 
             elif (params[i] > par_data[key]['max']):
                 params[i] = par_data[key]['max']
                 warnings.warn(f"Model parameter {par_data[key]} value {params[i]}  out of bounds") 
-            test_pars = False 
-            return test_pars 
+                test_pars = False 
+                return test_pars 
             else:
                 return test_pars
     
