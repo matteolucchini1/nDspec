@@ -30,11 +30,15 @@ class JointFit():
         the fit.  
     """
     
-    def __init__(self):
+    def __init__(self,flatten=False):
         self.joint = {}
         self.joint_params = {}
         self.fit_result = None
         self.model_params = None
+        #defines whether model results should be returned in a dictionary or
+        #simply as a flat 1-d numpy array
+        self.flatten = flatten 
+
         
     def add_fitobj(self,fitobj,name):
         """
@@ -214,7 +218,7 @@ class JointFit():
             #find parameter name in first fit objects models
             second_fitobj.model_params[name] = first_fitobj.model_params[name]
     
-    def eval_model(self,params=None,names = None):
+    def eval_model(self,params=None,names=None):
         """
         This method is used to evaluate and return the model values of models 
         in the hierarchy.
@@ -227,7 +231,7 @@ class JointFit():
         
         Returns:
         --------
-        model: np.array(float)
+        model_hierarchy: dict(np.array(float))
             All models are evaluated and returned as a dictionary, corresponding
             to the top-level hierarchy.
         """
@@ -251,7 +255,13 @@ class JointFit():
                 model_results = fitobjs.eval_model(params)
             model_hierarchy[name] = model_results
         
-        return model_hierarchy
+        if self.flatten == False:
+            return model_hierarchy
+        else:
+            model = np.array([])
+            for key in model_hierarchy:
+                model = np.concat([model,model_hierarchy[key]])
+            return model
         
     def _minimizer(self,params,names = None):
         """
@@ -343,8 +353,13 @@ class JointFit():
         for par in self.model_params:
             self.model_params[par] = params[par]
             for key in self.joint:
-                if par in list(self.joint[key].model_params.keys()):
-                    self.joint[key].model_params[par] = params[par]
+                if type(self.joint[key]) == list:
+                    for m in self.joint[key]:
+                        if par in list(m.model_params.keys()):
+                            m.model_params[par] = params[par]
+                else:
+                    if par in list(self.joint[key].model_params.keys()):
+                        self.joint[key].model_params[par] = params[par]
         return 
 
 
