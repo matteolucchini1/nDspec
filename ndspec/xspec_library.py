@@ -5,8 +5,36 @@ import os
 import warnings
 from sys import platform
 
-#note: this is not compatible with Relxill specifically, will need a different wrapper urgh
 class XspecLibrary:
+    """
+    This class allows users to load a library file containing Xspec-compatible 
+    models (including the entire library that comes with a typical HEASOFT 
+    installation), initialize them into the class objects as class methods, and 
+    evaluate them in their own Python code. This class supports exclusively 
+    Fortran models, and the Xspec models are called through its Fortran 
+    wrappers.  
+    
+    Attributes:
+    -----------
+    models_info: dict 
+        A dictionary to store model information. The keywords store the
+        initialized model names (models_info['nthcomp']), the model type and 
+        parameters (e.g. models_info[['nthcomp']['type']), and the names, 
+        minimum and maximum parameter values, and units of each (e.g. 
+        models_info[['nthcomp']['parameters']['kTe']['unit'] = "keV").
+        
+    lib:  DLL ctype 
+        The compiled .so (if using a Linux system) or .dylib (if using MacOS) 
+        library file loaded. By default, the code looks for the Xspec models 
+        at path_to_heasoft/Xspec/platform_name/lib/libXSFunctions.so (or dylib)
+        file produced by an Xspec installation, and it contains (among other 
+        functions) the entire library of Xspec spectral models.
+        
+    _all_info: dict 
+        A dictionary containing the information of every model in the loaded 
+        library,  regardless of whether the user has initialized it for use or 
+        not. The structure is identical to models_info.         
+    """
     def __init__(self, lib_path=None,pars_path=None):
         # Default library path
         if lib_path is None:
@@ -30,11 +58,35 @@ class XspecLibrary:
         self.initialize_heasoft()
            
     def initialize_heasoft(self):
+        """
+        This method calls the fninit HEASOFT function, which initializes cross 
+        sections and abundances and is required to correctly evaluate Xspec 
+        models outside of the Xspec command interface. 
+        """
+    
         init_call = self.lib.fninit_
         init_call()
     
-    #this parses all the models and their parameters; next up, isolate just the model that I want 
     def parse_models(self,input_file=None):
+        """
+        This method parses the Xspec file with the model name, type, parameters
+        values and units, etc, and stores the necessary information in the 
+        _all_info dictionary. 
+        
+        Parameters:
+        -----------
+        input_file: str 
+            A path to the model file to be parsed. By default, the method looks 
+            for the Xspec model list in path_to_heasoft/Xspec/src/manager/. 
+            
+        Output:
+        -------
+        models_info: dict 
+            A dictionary containing model names and types, parameter values,
+            minimum nad maximum bounds, and parameter units for all models in 
+            the library. 
+        """
+    
         if input_file is None:
             headas_path = os.environ.get("HEADAS")
             input_file =  headas_path + f"/../Xspec/src/manager/model.dat"        
@@ -118,8 +170,14 @@ class XspecLibrary:
         return models_info    
 
     def print_model_info(self):
+        """
+        This method prints to terminal a list of all the models that are 
+        currently initialized and ready for use, as well as their model type, 
+        parameter names, as well as default/min/max values and units.
+        """
+    
         print()
-        print("Loaded Xspec models:")
+        print("Initialized Xspec models:")
         for component, details in self.models_info.items():
             print(f"{component}:")
             print(f"  type: {details['type']}")
@@ -130,11 +188,28 @@ class XspecLibrary:
             print()
         
     def add_model(self, func):
+        """
+        This method initializes a given model by adding it to the library object
+        as one of its methods - for example:
+        
+        def powerlaw(ear, params):
+            pass
+        
+        lib.add_model(powerlaw)
+        model = lib.powerlaw(arguments)
+        
+        Parameters:
+        -----------
+        func: function 
+            An empty function with the same name and input parameters as the 
+            model to be added to the library object. 
+        """
         func_name = func.__name__.rstrip('_')
 
         #sort out model parameters
         self.models_info[func_name] = self._all_info[func_name] 
     
+        #prepare the model call for the given model name
         lib_func = getattr(self.lib, f"{func_name}_")
         lib_func.argtypes = [
             ct.POINTER(ct.c_float),
@@ -146,6 +221,8 @@ class XspecLibrary:
         ]
         lib_func.restype = None
 
+        #specify the exact model call depending on whether the model is additive
+        #multiplicative or convolutional.
         if self.models_info[func_name]['type'] == "add":        
             @wraps(func)
             def wrapper(ear, params):
@@ -212,24 +289,62 @@ class XspecLibrary:
         return func
 
     def check_param_values(self,model_name,params):
+        """
+        This method ensures that the input parameters for a given model 
+        evaluation do not exceed its allowed bounds, by comparing the input 
+        values with the minimum and maximum stored in the models_info dictionary
+        
+        Parameters:
+        -----------
+        model_name: str 
+            A string containing the name of the model being computed 
+            
+        params: np.array, dtype=float32 
+            An array of parameter values stored as float32 being used in the 
+            model computation 
+            
+        Output:
+        -------
+        test_pars: bool 
+            A boolean which returns false if one of the number of parameters 
+            being passed is incorrect, or if one of the values is out of bounds. 
+            In the latter case, the model evaluation returns NaN. 
+            If none of the above happen, the method evalutes to True.
+        """    
         #check that we're within bounds. This takes a microsecond to loop over ~15 parameters so we just call it every time
+        test_pars = True 
+        
         par_data = self.models_info[model_name]['parameters']
         if len(par_data) != len(params):
             warnings.warn(f"Wrong parameter number {len(par_data)} required but {len(params)} passed")
-            return False 
+            test_pars = False 
+            return test_pars 
         for i, key in enumerate(par_data):
             if (params[i] < par_data[key]['min']):
                 params[i] = par_data[key]['min'] 
-                warnings.warn(f"Model parameter {par_data[key]} value {params[i]} out of bounds, defaulting to {par_data[key]['min']}") 
-                return False
+                warnings.warn(f"Model parameter {par_data[key]} value {params[i]} out of bounds") 
+            test_pars = False 
+            return test_pars 
             elif (params[i] > par_data[key]['max']):
                 params[i] = par_data[key]['max']
-                warnings.warn(f"Model parameter {par_data[key]} value {params[i]}  out of bounds, defaulting to {par_data[key]['max']}") 
-                return False
+                warnings.warn(f"Model parameter {par_data[key]} value {params[i]}  out of bounds") 
+            test_pars = False 
+            return test_pars 
             else:
-                return True
+                return test_pars
     
     def load_models(self, models):
+        """
+        This method allows users to initialized multiple models simultaneously 
+        by passing a dictionary with model names and calling functions. 
+        
+        Parameters:
+        -----------
+        models: dict 
+            A dictionary whose keys are identical to the function names users 
+            want to intialize in the class. 
+        """
+    
         for model_name, model_func in models.items():
             # Apply the decorator to each model function
             self.add_model(model_func)
