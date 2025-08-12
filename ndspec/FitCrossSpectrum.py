@@ -1604,7 +1604,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             scale_min = np.min(self.data[:self.n_bins])
             scale_max = np.max(self.data[:self.n_bins])
     
-            fig, axs = plt.subplots(2, 3, figsize=(15.,9.), sharex=True) 
+            fig, axs = plt.subplots(3, 2, figsize=(12.,15.), sharex=True, layout="constrained") 
             for row in range(2):
                 ax = axs[row][0]
                 left_plot = ax.pcolormesh(x_axis,y_axis,plot_info[row],cmap="viridis",
@@ -1614,9 +1614,9 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                 ax.set_ylabel("Energy (keV)")
                 ax.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],
                              self.ebounds[-1]+0.5*self.ewidths[-1]])
-            axs[0][0].set_title(left_title)
-            ax.set_xlabel("Frequency (Hz)")            
-            fig.subplots_adjust(wspace=0.075)
+            axs[0][0].set_title(left_title+" data")
+            axs[1][0].set_title(left_title+" model")
+            axs[2][0].set_xlabel("Frequency (Hz)")
             cbar = fig.colorbar(left_plot, ax=axs[0:2,0],aspect = 40)
             cbar.formatter.set_powerlimits((0, 0))
  
@@ -1651,8 +1651,9 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                 ax.set_yticklabels([])
                 ax.set_ylim([self.ebounds[0]-0.5*self.ewidths[0],
                              self.ebounds[-1]+0.5*self.ewidths[-1]])            
-            axs[0][1].set_title(mid_title)
-            ax.set_xlabel("Frequency (Hz)")
+            axs[0][1].set_title(mid_title+" data")
+            axs[1][1].set_title(mid_title+" model")
+            axs[2][1].set_xlabel("Frequency (Hz)")
             cbar = fig.colorbar(mid_plot, ax=axs[0:2,1],aspect = 40)
             cbar.formatter.set_powerlimits((0, 0))
 
@@ -1660,23 +1661,23 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             #arrays, to two-d arrays with the data stored in the right order for 
             #2d plotting with colormesh
             if self.dependence == "energy":
-                top_res = model_res[self._all_bins:].reshape((self._all_freqs,self._all_chans))
-                bot_res = model_res[:self._all_bins].reshape((self._all_freqs,self._all_chans))
+                right_res = model_res[self._all_bins:].reshape((self._all_freqs,self._all_chans))
+                left_res = model_res[:self._all_bins].reshape((self._all_freqs,self._all_chans))
             elif self.dependence == "frequency":
-                top_res = np.transpose(model_res[self._all_bins:].reshape((self._all_chans,self._all_freqs)))
-                bot_res = np.transpose(model_res[:self._all_bins].reshape((self._all_chans,self._all_freqs)))
+                right_res = np.transpose(model_res[self._all_bins:].reshape((self._all_chans,self._all_freqs)))
+                left_res = np.transpose(model_res[:self._all_bins].reshape((self._all_chans,self._all_freqs)))
             
-            top_res = np.transpose(np.ma.masked_where(twod_mask, top_res))
-            bot_res = np.transpose(np.ma.masked_where(twod_mask, bot_res))
-            plot_info = [top_res,bot_res]
+            right_res = np.transpose(np.ma.masked_where(twod_mask, right_res))
+            left_res = np.transpose(np.ma.masked_where(twod_mask, left_res))
+            plot_info = [left_res,right_res]
 
-            for row in range(2):
-                ax = axs[row][2]                
-                res_min = np.min([np.min(plot_info[row]),-1])
-                res_max = np.max([np.max(plot_info[row]),1])
+            for column in range(2):
+                ax = axs[2][column]                
+                res_min = np.min([np.min(plot_info[column]),-1])
+                res_max = np.max([np.max(plot_info[column]),1])
                 
                 res_norm = TwoSlopeNorm(vmin=res_min,vcenter=0,vmax=res_max) 
-                mid_plot = ax.pcolormesh(x_axis,y_axis,plot_info[row],cmap="BrBG",
+                mid_plot = ax.pcolormesh(x_axis,y_axis,plot_info[column],cmap="BrBG",
                                             shading='auto',rasterized=True,norm=res_norm)
                 ax.set_xscale("log")
                 ax.set_yscale("log")
@@ -1685,9 +1686,9 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                              self.ebounds[-1]+0.5*self.ewidths[-1]])
                 cbar = fig.colorbar(mid_plot, ax=ax)
                 cbar.formatter.set_powerlimits((0, 0))
-            axs[0][2].set_title(mid_title+" residuals")
-            axs[1][2].set_title(left_title+" residuals")
-            ax.set_xlabel("Frequency (Hz)")
+            axs[2][1].set_title(mid_title+" residuals")
+            axs[2][0].set_title(left_title+" residuals")
+            axs[2][0].set_ylabel("Energy (keV)")
         else:
             fig, ((ax1),(ax2),(ax3)) = plt.subplots(1, 3, figsize=(15.,5.), sharex=True)             
 
