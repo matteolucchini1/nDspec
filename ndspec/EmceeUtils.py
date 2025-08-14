@@ -54,7 +54,6 @@ def set_emcee_priors(fitobj,priors):
             raise ValueError("Incorrectly specified a prior for a fixed parameter")
         else:
             continue
-
     emcee_priors = priors 
     return 
 
@@ -164,13 +163,6 @@ def initialise_mcmc(fitobj,priors):
     theta: np.array 
         A numpy array containing the values of the free parameters in the model.
     """
-    global emcee_priors
-    global emcee_names 
-    global emcee_params
-    global emcee_data
-    global emcee_data_err
-    global emcee_model 
-
     if type(fitobj) == JointFit:
         pass
     elif issubclass(type(fitobj),SimpleFit):
