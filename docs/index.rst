@@ -12,10 +12,12 @@ Currently, the software is built on two core functionalities which users can use
 
 Along with these two core functionalities, the current release of nDspec provides classes for modelling time-averaged spectra, power spectra, and cross-spectra as a function of both energy and frequency (or both). In the latter case, users can fit lags alone (in units of time), or jointly model the real and imaginary, or modulus and phase, as a unique dataset, without the need to instatiate multiple models and/or tie or define multiple parameters. nDspec provides classes for handling model and parameter management, chi-squared optimization and plotting, and to interface with the `emcee <https://emcee.readthedocs.io/en/stable/>`_ Python package for performing Bayesian inference. Finally, a small library of one and two dimensional phenomenological models is included. Alternatively, users can implement their own models, either by writing them in Python directly, or interfacing Python with their own compiled code (e.g. through the use of `pybind <https://pybind11.readthedocs.io/en/stable/basics.html>`_ or `f2py <https://numpy.org/doc/stable/f2py/>`_). An interface to call the Xspec-compatible models within Python is also included. 
 
+The beta release of nDspec includes a new class, JointFit, which allows users to fit multiple datasets together, as well as link parameters between the datasets. This is useful for fitting multiple datasets from the same source, or to fit a model to both the time-averaged spectrum and the power spectrum of a source simultaneously. The JointFit class is designed to be flexible and can handle a wide range of fitting scenarios. The beta release has also added a new interface to Xspec models, as well as any models which adhere to the Xspec model format generally adopted by the X-ray astronomy community. This allows users to use their existing Xspec models directly in nDspec, without the need to rewrite them in Python.
+
 Installation and testing
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-The alpha release of the software can only be installed from the repository. 
+The beta release of the software can only be installed from the repository. 
 
 Unit tests utilize `py-test <https://pytest.org>`_. Running the unit tests simply requires opening the folder in which users downloaded the repository, and running the command `pytest` in the command line. 
 
@@ -29,6 +31,7 @@ Data fitting tutorials:
     fit_spec
     fit_cross_1d
     fit_cross_2d
+    joint_inference
 
 nDspec core functionality:
 

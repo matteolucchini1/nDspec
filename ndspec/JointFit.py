@@ -6,9 +6,21 @@ from .SimpleFit import SimpleFit
 
 class JointFit():
     """
-    Generic joint fitting class. Use this class if you have multiple 
+    Generic joint inference class. Use this class if you have multiple 
     non-simultaneous observations that you wish to share parameters 
     between or mutliple simultaneous observations that share a single model.
+
+    Users can simply add other Fit...Objs from ndspec to this structural class
+    and this will handle evaluating the model, sharing parameters between 
+    models, sharing whole models between observations, and perform inference
+    and/or optimization of models. There is no restriction on the type of
+    Fit...Objs that can be added, nor the number of Fit...Objs, which 
+    technically allows for extremely numerous joint inference of observations.
+    
+    Note that JointFit does not perform extra performance enhancements to make
+    evaluations run faster, so optimization and joint inference on many 
+    parameters is still subject to the usual computational problems that come
+    with such scenario. 
     
     Attributes:
     ------------
@@ -42,9 +54,10 @@ class JointFit():
         
     def add_fitobj(self,fitobj,name):
         """
-        Adds a model or models to the joint fitting hierarchy. If a list of 
+        Adds a model to the joint fitting hierarchy. If a list of 
         fitting objects is added, it is assumed that the objects are intended
-        as a simultaneous fit.
+        as simultaneous observations (i.e. a NuSTAR and XMM-Newton observation)
+        which share a model.
 
         Parameters
         ----------
@@ -134,6 +147,8 @@ class JointFit():
     def model_decompose(self,model):
         """
         Decomposes lmfit composite models into their base Models.
+        Mainly useful for retrieving parameter names from complex
+        composite models, and is only for internal model use.
 
         Parameters
         ----------
@@ -167,7 +182,9 @@ class JointFit():
 
     def share_params(self,first_fitobj,second_fitobj,param_names=None):
         """
-        Shares parameters between models.
+        Shares parameters between models and links the parameters of individual 
+        models that compose the joint fit to the parameters inferred in the 
+        optimization process.
 
         Parameters
         ----------
@@ -225,6 +242,10 @@ class JointFit():
         
         Parameters:
         ------------
+        params: lmfit.Parameters, default None
+            The parameter values to use in evaluating the model/models. If 
+            none are provided, the model_params attribute is used.
+
         names: list(str), default None
             names of the models that should be evalualated. Defaults to
             evaluating all models.
@@ -321,6 +342,10 @@ class JointFit():
             The fitting algorithm to be used in the minimization. The possible 
             choices are detailed on the LMFit documentation page:
             https://lmfit.github.io/lmfit-py/fitting.html#fit-methods-table.
+        
+        names: list(str), default None
+            names of the models that should be evalualated. Defaults to
+            evaluating all models.
         """
         if names == None:
             names = list(self.joint.keys())
@@ -398,3 +423,10 @@ class JointFit():
             print(fit_report(self.fit_result,show_correl=False))
         else:
             print("No current fit result.")
+    
+    def __getitem__(self, key):
+        """
+        This method returns a particular fit object stored within
+        the class.
+        """
+        return self.joint[key]
