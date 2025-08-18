@@ -40,6 +40,12 @@ SimpleFit Classes
    
 .. autoclass:: ndspec.SimpleFit.FrequencyDependentFit
    :members:
+
+JointFit Class
+~~~~~~~~~~~~~~~~~
+
+.. autoclass:: ndspec.SimpleFit.JointFit
+   :members:
    
 Data loading utilities
 ~~~~~~~~~~~~~~~~~~~~~~
