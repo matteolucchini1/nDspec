@@ -232,6 +232,7 @@ class FortranInterface(ModelInterface):
     typical HEASOFT installation. 
     """    
     def __init__(self, lib_path=None, pars_path=None):
+        default_xspec = False
         if lib_path is None:
             headas_path = os.environ.get("HEADAS")
             input_file =  headas_path + f"/../Xspec/src/manager/model.dat"       
