@@ -10,7 +10,7 @@ class XspecLibrary:
         if lib_path is None:
             headas_path = os.environ.get("HEADAS")
             if headas_path:
-                lib_path = headas_path + f"/../Xspec/{os.path.basename(headas_path)}/lib/libXSFunctions.dylib"
+                lib_path = headas_path + f"/../Xspec/{os.path.basename(headas_path)}/lib/libXSFunctions.so"
             else:
                 raise EnvironmentError("HEADAS environment variable not set.")
 
