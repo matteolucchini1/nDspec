@@ -272,6 +272,14 @@ class FortranInterface(ModelInterface):
         func: function 
             An empty function with the same name and input parameters as the 
             model to be added to the library object. 
+
+        symbol: str, optional
+            A string containing the name of the function in the library to be
+            called. If not provided, it defaults to the function name. Generally, 
+            a user does not need to provide this argument, as the function name 
+            is usually sufficient to identify the model in the library. However, 
+            if a user wants to use a different name for the function they are 
+            calling via ndspec, they can provide the original function name here.
         """
         func_name = func.__name__.rstrip('_')
 
