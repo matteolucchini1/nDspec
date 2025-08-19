@@ -213,7 +213,7 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
             # Evaluate the model at the default frequency grid
             power_spectrum = self.eval_model(params=params)
             # Calculate the rms from the power spectrum
-            rms = np.sqrt(np.sum(power_spectrum))
+            rms = np.sqrt(np.sum(power_spectrum**2*np.diff(self.freqs)))
 
         N = int(obs_time/dt)
         mean_flux = countrate * dt  # mean count rate per bin
