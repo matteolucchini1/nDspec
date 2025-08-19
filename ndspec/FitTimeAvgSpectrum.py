@@ -209,7 +209,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
 
         return model
     
-    def simulate_spectrum(self,params=None,mask=False, exposure_time=None):
+    def simulate_spectrum(self,params=None,mask=False,exposure_time=None):
         """
         This method simulates a spectrum given a set of parameters, by evaluating 
         the model and folding it through the response. It is used to generate 
@@ -226,7 +226,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
             include the noticed energy channels, or to also return the ones 
             that have been ignored by the users. Default is False, so that
             the simulated spectrum is returned in the same energy grid as the
-            response matrix.
+            full response matrix.
 
         exposure_time: float, default None
             The exposure time to use for the simulation. If None, the exposure
@@ -242,6 +242,8 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         if self.response is None:
             raise AttributeError("No response matrix set. Please set a response matrix " \
             "before simulating a spectrum using either set_data() or set_response().")
+        if self.model is None:
+            raise AttributeError("No model set. Please set a model before simulating a spectrum.")
 
         # evaluate the model with the given parameters and fold it through the response
         simulated_spectrum = self.eval_model(params=params,fold=True,mask=mask)
