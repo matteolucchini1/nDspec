@@ -187,9 +187,8 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
         rms: float, default None
             The root mean square of the simulated lightcurve, which is used to
             set the variability of the simulated lightcurve. By default, the rms
-            is calculated from the power spectrum model evaluated at the default
-            frequency grid. If a specific rms value is provided, it will be used
-            instead.
+            is calculated from the power spectrum model. If a specific rms value 
+            is provided, it will be used instead.
                        
         params: lmfit.Parameters, default None
             The parameter values to use in evaluating the model. If none are 
@@ -209,18 +208,19 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
         if params is None:
             params = self.model_params
 
-        if rms is None:
-            # Evaluate the model at the default frequency grid
-            power_spectrum = self.eval_model(params=params)
-            # Calculate the rms from the power spectrum
-            rms = np.sqrt(np.sum(power_spectrum**2*np.diff(self.freqs)))
-
+        # Transform the observation time and time resolution into a number of bins
+        # and a frequency grid for the simulation
         N = int(obs_time/dt)
+        w = np.fft.rfftfreq(N, d=dt)[1:]
+        #simulate
+        power_spectrum = self.eval_model(params=params,freq=w)
+
+        if rms is None:
+            # Calculate the rms from the power spectrum
+            rms = np.sqrt(np.sum(power_spectrum**2*np.diff(w)))
+
         mean_flux = countrate * dt  # mean count rate per bin
         sim = simulator.Simulator(N=N, mean=mean_flux, dt=dt, rms=rms,poisson=True)
-        # Define a frequency grid for the simulation
-        w = np.fft.rfftfreq(sim.N, d=sim.dt)[1:]
-        power_spectrum = self.eval_model(params=params,freq=w)
         # Simulate
         lc = sim.simulate(power_spectrum)
         return lc
