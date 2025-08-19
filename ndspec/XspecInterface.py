@@ -256,7 +256,7 @@ class FortranInterface(ModelInterface):
             self.initialize_heasoft()
         pass
 
-    def add_model(self, func):
+    def add_model(self, func, symbol=None):
         """
         This method initializes a given model by adding it to the library object
         as one of its methods - for example:
@@ -275,11 +275,14 @@ class FortranInterface(ModelInterface):
         """
         func_name = func.__name__.rstrip('_')
 
+        if symbol is None:
+            symbol = func_name + "_"
+
         #sort out model parameters
         self.models_info[func_name] = self._all_info[func_name] 
     
         #prepare the model call for the given model name
-        lib_func = getattr(self.lib, f"{func_name}_")
+        lib_func = getattr(self.lib, f"{symbol}")
         lib_func.argtypes = [
             ct.POINTER(ct.c_float),
             ct.POINTER(ct.c_int),
