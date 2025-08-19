@@ -816,7 +816,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         self.bkg_exposure = exposure
         return
 
-    def simulate_lag_spectrum(self,ref_Elo,ref_Ehi,sub_Elo,sub_Ehi,Texp,
+    def simulate_model(self,ref_Elo,ref_Ehi,sub_Elo,sub_Ehi,Texp,
                               coh2,pow,time_avg_model,
                               bkg_file_path=None,params=None):
         r"""

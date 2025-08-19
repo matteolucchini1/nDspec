@@ -209,7 +209,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
 
         return model
     
-    def simulate_spectrum(self,params=None,mask=False,exposure_time=None):
+    def simulate_model(self,params=None,mask=False,exposure_time=None):
         """
         This method simulates a spectrum given a set of parameters, by evaluating 
         the model and folding it through the response. It is used to generate 

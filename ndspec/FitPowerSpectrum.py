@@ -9,6 +9,8 @@ plt.rcParams.update({'font.size': 17})
 
 from lmfit.model import ModelResult as LM_result
 
+from stingray.simulator import simulator
+
 from .SimpleFit import SimpleFit, FrequencyDependentFit
 
 class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
@@ -157,6 +159,72 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
             
         return model
     
+    def simulate_model(self,obs_time,dt,countrate,rms=None,
+                       params=None):
+        """
+        This method is used to simulate a lightcurve of the set model
+        for a given set of parameters for a given timespan at a given
+        time resolution. 
+
+        Practically, this method is a wrapper for the stingray simulator
+        module (https://docs.stingray.science/en/stable/api.html#simulator).    
+        
+        Parameters:
+        -----------          
+        obs_time: float
+            The total observation time, in seconds, over which the lightcurve
+            is simulated. This is used to determine the number of bins in the
+            simulated lightcurve.
+
+        dt: float
+            The time resolution of the simulated lightcurve, in seconds. This
+            determines the time binning of the simulated lightcurve.
+
+        countrate: float
+            The mean count rate of the simulated lightcurve, in counts per
+            second. This is used to set the mean flux of the simulated lightcurve.
+
+        rms: float, default None
+            The root mean square of the simulated lightcurve, which is used to
+            set the variability of the simulated lightcurve. By default, the rms
+            is calculated from the power spectrum model evaluated at the default
+            frequency grid. If a specific rms value is provided, it will be used
+            instead.
+                       
+        params: lmfit.Parameters, default None
+            The parameter values to use in evaluating the model. If none are 
+            provided, the model_params attribute is used.
+            
+        Returns:
+        --------
+        lightcurve: stingray.lightcurve.Lightcurve
+            The resulting lightcurve object, containing the simulated
+            lightcurve of the model evaluated over the given Fourier frequency
+            array, for the given input parameters.
+        """
+        if self.model is None:
+            raise AttributeError("No model defined. Please define a model before simulating a lightcurve.")
+        if self.freqs is None:
+            raise AttributeError("No frequency grid defined. Please set a frequency grid before simulating a lightcurve.")
+        if params is None:
+            params = self.model_params
+
+        if rms is None:
+            # Evaluate the model at the default frequency grid
+            power_spectrum = self.eval_model(params=params)
+            # Calculate the rms from the power spectrum
+            rms = np.sqrt(np.sum(power_spectrum))
+
+        N = int(obs_time/dt)
+        mean_flux = countrate * dt  # mean count rate per bin
+        sim = simulator.Simulator(N=N, mean=mean_flux, dt=dt, rms=rms,poisson=True)
+        # Define a frequency grid for the simulation
+        w = np.fft.rfftfreq(sim.N, d=sim.dt)[1:]
+        power_spectrum = self.eval_model(params=params,freq=w)
+        # Simulate
+        lc = sim.simulate(power_spectrum)
+        return lc
+
     def _minimizer(self,params):
         """
         This method is used exclusively when running a minimization algorithm.
