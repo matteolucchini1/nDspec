@@ -103,6 +103,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
     
     def __init__(self):
         SimpleFit.__init__(self)
+        self.response = None
         pass
 
     def set_data(self,response,data):
@@ -134,6 +135,26 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         self.data_err = error/exposure/self.ewidths
         self._set_unmasked_data()
         return 
+    
+    def set_response(self,response):
+        """
+        This method sets the response matrix for the observation. It defines
+        the energy grids over which model and data are defined. Generally,
+        this method should only be called if the user is intending to simulate
+        data from a model, as the response is not rebinned to reflect the
+        data loaded by the user. Use the set_data method instead to set the
+        data and response together.
+        
+        Parameters:
+        -----------
+        response: nDspec.ResponseMatrix
+            An instrument response (including both rmf and arf) loaded into a 
+            nDspec ResponseMatrix object. 
+        """
+        if not isinstance(response,ResponseMatrix):
+            raise TypeError("Response must be an instance of nDspec.ResponseMatrix")
+        self.response = response
+        return
 
     def eval_model(self,params=None,energ=None,fold=True,mask=True):    
         """
@@ -187,6 +208,55 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
             model = np.extract(self.ebounds_mask,model)            
 
         return model
+    
+    def simulate_spectrum(self,params=None,mask=False, exposure_time=None):
+        """
+        This method simulates a spectrum given a set of parameters, by evaluating 
+        the model and folding it through the response. It is used to generate 
+        synthetic spectra for testing purposes. 
+        
+        Parameters:
+        -----------
+        params: lmfit.Parameters, default None
+            The parameter values to use in evaluating the model. If none are 
+            provided, the model_params attribute is used.
+            
+        mask: bool, default False
+            A boolean switch to choose whether to mask the model output to only 
+            include the noticed energy channels, or to also return the ones 
+            that have been ignored by the users. Default is False, so that
+            the simulated spectrum is returned in the same energy grid as the
+            response matrix.
+
+        exposure_time: float, default None
+            The exposure time to use for the simulation. If None, the exposure
+            time stored in the response matrix is used. This is used to convert
+            the model counts to expected counts in each channel.
+        
+        Returns:
+        --------
+        simulated_spectrum: np.array(float)
+            The simulated spectrum evaluated over the noticed energy channels
+            and Poisson sampled. The spectrum is in units of counts/channel.
+        """
+        if self.response is None:
+            raise AttributeError("No response matrix set. Please set a response matrix " \
+            "before simulating a spectrum using either set_data() or set_response().")
+
+        # evaluate the model with the given parameters and fold it through the response
+        simulated_spectrum = self.eval_model(params=params,fold=True,mask=mask)
+        # multiply by exposure time to get expected counts
+        if exposure_time is None:
+            exposure_time = self.response.exposure_time
+        simulated_spectrum = simulated_spectrum*exposure_time 
+        # convert to expected counts/channel
+        if mask is True:
+            simulated_spectrum *= self.ewidths
+        else:
+            simulated_spectrum *= self._ewidths_unmasked 
+        # Poisson sample the spectrum
+        simulated_spectrum = np.poisson(simulated_spectrum)
+        return simulated_spectrum
 
     def _minimizer(self,params):
         """
