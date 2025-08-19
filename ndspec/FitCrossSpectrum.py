@@ -18,12 +18,14 @@ plt.rcParams.update({'font.size': 17})
 from lmfit import Model as LM_Model
 from lmfit import Parameters as LM_Parameters
 
+from astropy.io import fits
+
 from stingray import AveragedCrossspectrum, AveragedPowerspectrum
 from stingray.fourier import poisson_level, get_average_ctrate
 
 from .Response import ResponseMatrix
 from .Timing import PowerSpectrum, CrossSpectrum
-from .SimpleFit import SimpleFit, EnergyDependentFit, FrequencyDependentFit
+from .SimpleFit import SimpleFit, EnergyDependentFit, FrequencyDependentFit, load_pha
 
 pyfftw.interfaces.cache.enable()
 
@@ -238,6 +240,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         self._supported_products = ["frequency","energy"]
         self.renorm_phase = False
         self.renorm_modulus = False
+        self.needbkg = False
         pass
 
     def set_product_dependence(self,depend):
@@ -687,7 +690,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         """
     
         if model_type not in self._supported_models:
-            raise AttributeError("Unsopprted model type")  
+            raise AttributeError("Unsupported model type")  
         self.model_type = model_type
         self.crossspec = CrossSpectrum(self._times,freqs=self.freqs,energ=self.energs)
         self.model = model 
@@ -784,6 +787,111 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         if mask is True:
             model = self._filter_2d_by_mask(model)
         return model
+    
+    def set_background(self,bkg_file_path):
+        """
+        This method is used to set the background file to be used in the 
+        simulation of lag spectra. The background file should contain the 
+        background counts in each energy channel.
+        
+        Parameters:
+        -----------
+        bkg_file: str
+            The path to the background file containing the background counts 
+            for each energy channel.
+        """
+        (bin_bounds_lo, bin_bounds_hi, 
+         counts, error, exposure) = load_pha(bkg_file_path)
+        bkg_rate = counts/exposure
+        self.bkg_counts = counts
+        self.bkg_counts_err = error
+        self.bkg_rate = bkg_rate
+        self.bkg_exposure = exposure
+        return
+
+    def simulate_lag_spectrum(self,ref_Elo,ref_Ehi,sub_Elo,sub_Ehi,Texp,
+                              coh2,pow,time_avg_model,
+                              bkg_file_path=None,params=None):
+        """
+        This method will simulate a lag spectrum based on the model. The model
+        must be able to evaluate the cross spectrum and a background file must be provided.
+
+        Parameters
+        ----------- 
+
+        """
+        ear = self.energs
+        ne = len(ear)
+        flo = self.freqs[:-1]
+        fhi = self.freqs[1:]
+        fc = (flo+fhi)/2.
+        # Read in background array if needed
+        if self.needbkg:
+            self.set_background(bkg_file_path)  # Implement this method as needed
+            self.needbkg = False
+
+        #saves units and dependence to reset after simulation
+        reset_units = self.units
+        reset_dependence = self.dependence
+
+        #evaluate the folded lags model
+        self.set_product_dependence("energy")
+        self.set_coordinates("lags")
+        lags = self.eval_model(params=params,fold=True)
+
+        #evaluate the cross spectrum
+        self.set_coordinates("cartesian")
+        cross_spectrum = self.eval_model(params=params)
+
+        #evaluate the time-averaged spectrum
+        time_avg_spectrum = time_avg_model.eval_model(params=params)
+        #finds the closest eneergy channels to the reference band edges
+        #ilo is reference band channel number low, ihi is channel number high
+        ilo = np.argmin(np.abs(ear-ref_Elo))
+        ihi = np.argmin(np.abs(ear-ref_Ehi))
+        #find the closest energy channels to the subject band edges
+        #Elo is subject band channel number low, Ehi is channel number high
+        Elo = np.argmin(np.abs(ear-sub_Elo))
+        Ehi = np.argmin(np.abs(ear-sub_Ehi))
+
+        # Calculate background in reference band
+        br = np.sum(self.bkg_rate[ilo:ihi+1])
+
+        # Calculate background in subject
+        bs = np.sum(self.bkg_rate[Elo:Ehi+1])
+
+        # Calculate reference band power (absolute rms^2)
+        Pr = pow * np.sum(cross_spectrum[0,Elo:Ehi+1])
+        # Calculate reference band Poisson noise (absolute rms^2)
+        mur = np.sum(time_avg_spectrum[Elo:Ehi+1])
+        # Calculate total noise
+        Prnoise = 2.0 * (br + mur)
+
+        # Loop through energy bins
+        lagsim = np.zeros(ne)
+        dlag = np.zeros(ne)
+        for i in range(1,ne):
+            dE = ear[i] - ear[i-1]
+            mus = np.sum(time_avg_spectrum[ear[i-1]:ear[i]])
+            Psnoise = 2.0 * (mus + bs[i])
+            ReG = np.sum(cross_spectrum[0,ear[i-1]:ear[i]])
+            ImG = np.sum(cross_spectrum[1,ear[i-1]:ear[i]])
+            G2 = pow**2 * (ReG**2 + ImG**2)
+            # Calculate error
+            dlag[i] = 1.0 + Prnoise/Pr
+            dlag[i] *= (G2*(1.0-coh2) + Psnoise*Pr)
+            dlag[i] /= (coh2*G2)
+            dlag[i] /= (2.0 * Texp * (fhi-flo))
+            dlag[i] = np.sqrt(dlag[i])
+            dlag[i] /= (2.0 * np.pi * fc)
+            # Generate simulated data
+            lagsim[i] = lags[i] + np.random.normal(loc=0,scale=1,size=1) * dlag[i]
+
+        # Reset units and dependence
+        self.set_product_dependence(reset_dependence)
+        self.set_coordinates(reset_units)
+
+        return lagsim, dlag
 
     def _freq_dependent_model(self,cross_eval):
         """
