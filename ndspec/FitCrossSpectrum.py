@@ -226,7 +226,14 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
     
     _supported_products: str 
         A string that checks whether the data provided (e.g. lags) is a function 
-        of Fourier frequency or energy.             
+        of Fourier frequency or energy.    
+
+    needbkg: bool, default=True
+        A boolean that indicates whether the background is needed for the simulation
+        of the cross spectrum. If it is set to True, the class will attempt to read
+        the background from a file specified by the user and set this attribute to 
+        False. If it is set to False, it is assumed that the background file has
+        already been read in and will not be read again.
     """
     
     def __init__(self):
@@ -240,7 +247,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         self._supported_products = ["frequency","energy"]
         self.renorm_phase = False
         self.renorm_modulus = False
-        self.needbkg = False
+        self.needbkg = True
         pass
 
     def set_product_dependence(self,depend):
@@ -812,13 +819,62 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
     def simulate_lag_spectrum(self,ref_Elo,ref_Ehi,sub_Elo,sub_Ehi,Texp,
                               coh2,pow,time_avg_model,
                               bkg_file_path=None,params=None):
-        """
+        r"""
         This method will simulate a lag spectrum based on the model. The model
         must be able to evaluate the cross spectrum and a background file must be provided.
+        For further explanation for how the lag spectrum is simulated, see section 3 of
+        Ingram et al. 2022, https://ui.adsabs.harvard.edu/abs/2022MNRAS.509..619I/abstract.
 
         Parameters
         ----------- 
+        ref_Elo: float
+            The lower energy bound of the reference band in keV.
 
+        ref_Ehi: float
+            The upper energy bound of the reference band in keV.
+
+        sub_Elo: float
+            The lower energy bound of the subject band in keV.
+
+        sub_Ehi: float 
+            The upper energy bound of the subject band in keV.
+
+        Texp: float
+            The exposure time in seconds for which the lag spectrum is simulated.
+
+        coh2: float
+            The coherence squared value, which is a measure of the correlation 
+            between the reference and subject bands.
+        
+        pow: float
+            The power in rms/mean$^2$/Hz units ($\alpha_{\nu}$), which is used to scale the
+            cross spectrum.
+
+        time_avg_model: lmfit.Model or lmfit.CompositeModel
+            A model that evaluates the time-averaged power spectrum, which is 
+            used to calculate the background noise in the reference and subject 
+            bands. This model should share the same physical assumptions as the
+            model used to evaluate the cross spectrum and share all relevant
+            physical parameters
+
+        bkg_file_path: str, optional
+            The path to the background file containing the background counts 
+            for each energy channel. If not provided, the method will default to
+            the background file already set in the class. A background file must be
+            provided to simulate the lag spectrum.
+        
+        params: lmfit.Parameters, optional
+            The parameters to use for evaluating the model. If not provided, the
+            default parameters stored in the model_params attribute will be used.
+        
+        Returns
+        --------
+        lagsim: np.array(float)
+            A one-dimensional array containing the simulated lags for each energy 
+            channel, based on the model and the specified parameters. The size of 
+            this array is equal to the number of energy channels defined in the 
+            instrument response matrix.
+        
         """
         ear = self.energs
         ne = len(ear)
@@ -844,7 +900,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         cross_spectrum = self.eval_model(params=params)
 
         #evaluate the time-averaged spectrum
-        time_avg_spectrum = time_avg_model.eval_model(params=params)
+        time_avg_spectrum = time_avg_model.eval(params=params)
         #finds the closest eneergy channels to the reference band edges
         #ilo is reference band channel number low, ihi is channel number high
         ilo = np.argmin(np.abs(ear-ref_Elo))
@@ -891,7 +947,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         self.set_product_dependence(reset_dependence)
         self.set_coordinates(reset_units)
 
-        return lagsim, dlag
+        return lagsim
 
     def _freq_dependent_model(self,cross_eval):
         """
