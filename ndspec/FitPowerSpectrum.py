@@ -164,7 +164,14 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
         """
         This method is used to simulate a lightcurve of the set model
         for a given set of parameters for a given timespan at a given
-        time resolution. 
+        time resolution. By default, this will simulate using the specified
+        model and model parameters and will self-consistently calculate the
+        root mean square of the lightcurve from the power spectrum model.
+        The count rate must always be provided, as the mean flux of the
+        lightcurve cannot be determined from the model alone. This method
+        does not take into account the instrument response, and therefore
+        all lightcurves simulated with this method will be mono-energetic
+        and will not include any energy-dependent effects.
 
         Practically, this method is a wrapper for the stingray simulator
         module (https://docs.stingray.science/en/stable/api.html#simulator).    

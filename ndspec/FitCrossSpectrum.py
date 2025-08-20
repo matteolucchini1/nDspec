@@ -822,6 +822,13 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         r"""
         This method will simulate a lag spectrum based on the model. The model
         must be able to evaluate the cross spectrum and a background file must be provided.
+        You must also provide the energy bounds of the reference and subject bands,
+        the exposure time, the coherence squared value, and the power in rms/mean$^2$/Hz units
+        ($\alpha_{\nu}$), as well as a time-averaged model that shares the same physical
+        assumptions (and thus share relevant parameters) as the set cross-spectrum model. 
+        The method will return a one-dimensional array containing the simulated lags for 
+        each energy channel, based on the model and the specified parameters. 
+
         For further explanation for how the lag spectrum is simulated, see section 3 of
         Ingram et al. 2022, https://ui.adsabs.harvard.edu/abs/2022MNRAS.509..619I/abstract.
 
@@ -876,6 +883,17 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             instrument response matrix.
         
         """
+        if self.model is None:
+            raise AttributeError("Model not set. Please set a model before simulating.")
+        if bkg_file_path is None and self.needbkg is True:
+            raise AttributeError("Background file not set. Please provide a background file to simulate the lag spectrum.")
+        if params is None and self.model_params is None:
+            raise AttributeError("Model parameters not set. Please provide parameters to simulate the lag spectrum.")
+        if self.response is None:
+            raise AttributeError("Instrument response not set. Please set the instrument response before simulating.")
+        if self.freqs is None:
+            raise AttributeError("Frequency grid not set. Please set the frequency grid before simulating.")
+        
         ear = self.energs
         ne = len(ear)
         flo = self.freqs[:-1]
@@ -927,7 +945,6 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         lagsim = np.zeros(ne)
         dlag = np.zeros(ne)
         for i in range(1,ne):
-            dE = ear[i] - ear[i-1]
             mus = np.sum(time_avg_spectrum[ear[i-1]:ear[i]])
             Psnoise = 2.0 * (mus + bs[i])
             ReG = np.sum(cross_spectrum[0,ear[i-1]:ear[i]])
