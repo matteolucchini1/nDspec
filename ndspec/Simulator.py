@@ -1,6 +1,5 @@
 import numpy as np
-
-
+from stingray.simulator import simulator
 
 def simulate_lightcurve(Fitobj,obs_time,dt,countrate,rms=None,
                        params=None):

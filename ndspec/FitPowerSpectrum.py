@@ -9,8 +9,6 @@ plt.rcParams.update({'font.size': 17})
 
 from lmfit.model import ModelResult as LM_result
 
-from stingray.simulator import simulator
-
 from .SimpleFit import SimpleFit, FrequencyDependentFit
 
 class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
