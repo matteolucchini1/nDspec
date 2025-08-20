@@ -208,57 +208,6 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
             model = np.extract(self.ebounds_mask,model)            
 
         return model
-    
-    def simulate_model(self,params=None,mask=False,exposure_time=None):
-        """
-        This method simulates a spectrum given a set of parameters, by evaluating 
-        the model and folding it through the response. It is used to generate 
-        synthetic spectra for testing purposes. 
-        
-        Parameters:
-        -----------
-        params: lmfit.Parameters, default None
-            The parameter values to use in evaluating the model. If none are 
-            provided, the model_params attribute is used.
-            
-        mask: bool, default False
-            A boolean switch to choose whether to mask the model output to only 
-            include the noticed energy channels, or to also return the ones 
-            that have been ignored by the users. Default is False, so that
-            the simulated spectrum is returned in the same energy grid as the
-            full response matrix.
-
-        exposure_time: float, default None
-            The exposure time to use for the simulation. If None, the exposure
-            time stored in the response matrix is used. This is used to convert
-            the model counts to expected counts in each channel.
-        
-        Returns:
-        --------
-        simulated_spectrum: np.array(float)
-            The simulated spectrum evaluated over the noticed energy channels
-            and Poisson sampled. The spectrum is in units of counts/channel.
-        """
-        if self.response is None:
-            raise AttributeError("No response matrix set. Please set a response matrix " \
-            "before simulating a spectrum using either set_data() or set_response().")
-        if self.model is None:
-            raise AttributeError("No model set. Please set a model before simulating a spectrum.")
-
-        # evaluate the model with the given parameters and fold it through the response
-        simulated_spectrum = self.eval_model(params=params,fold=True,mask=mask)
-        # multiply by exposure time to get expected counts
-        if exposure_time is None:
-            exposure_time = self.response.exposure_time
-        simulated_spectrum = simulated_spectrum*exposure_time 
-        # convert to expected counts/channel
-        if mask is True:
-            simulated_spectrum *= self.ewidths
-        else:
-            simulated_spectrum *= self._ewidths_unmasked 
-        # Poisson sample the spectrum
-        simulated_spectrum = np.poisson(simulated_spectrum)
-        return simulated_spectrum
 
     def _minimizer(self,params):
         """
