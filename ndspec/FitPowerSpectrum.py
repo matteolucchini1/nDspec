@@ -156,7 +156,7 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
             model = np.extract(self.freqs_mask,model)
             
         return model
-    
+
     def _minimizer(self,params):
         """
         This method is used exclusively when running a minimization algorithm.

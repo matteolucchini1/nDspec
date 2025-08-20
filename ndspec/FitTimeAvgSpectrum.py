@@ -103,6 +103,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
     
     def __init__(self):
         SimpleFit.__init__(self)
+        self.response = None
         pass
 
     def set_data(self,response,data):
@@ -134,6 +135,26 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         self.data_err = error/exposure/self.ewidths
         self._set_unmasked_data()
         return 
+    
+    def set_response(self,response):
+        """
+        This method sets the response matrix for the observation. It defines
+        the energy grids over which model and data are defined. Generally,
+        this method should only be called if the user is intending to simulate
+        data from a model, as the response is not rebinned to reflect the
+        data loaded by the user. Use the set_data method instead to set the
+        data and response together.
+        
+        Parameters:
+        -----------
+        response: nDspec.ResponseMatrix
+            An instrument response (including both rmf and arf) loaded into a 
+            nDspec ResponseMatrix object. 
+        """
+        if not isinstance(response,ResponseMatrix):
+            raise TypeError("Response must be an instance of nDspec.ResponseMatrix")
+        self.response = response
+        return
 
     def eval_model(self,params=None,energ=None,fold=True,mask=True):    
         """

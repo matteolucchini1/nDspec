@@ -18,12 +18,14 @@ plt.rcParams.update({'font.size': 17})
 from lmfit import Model as LM_Model
 from lmfit import Parameters as LM_Parameters
 
+from astropy.io import fits
+
 from stingray import AveragedCrossspectrum, AveragedPowerspectrum
 from stingray.fourier import poisson_level, get_average_ctrate
 
 from .Response import ResponseMatrix
 from .Timing import PowerSpectrum, CrossSpectrum
-from .SimpleFit import SimpleFit, EnergyDependentFit, FrequencyDependentFit
+from .SimpleFit import SimpleFit, EnergyDependentFit, FrequencyDependentFit, load_pha
 
 pyfftw.interfaces.cache.enable()
 
@@ -224,7 +226,14 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
     
     _supported_products: str 
         A string that checks whether the data provided (e.g. lags) is a function 
-        of Fourier frequency or energy.             
+        of Fourier frequency or energy.    
+
+    needbkg: bool, default=True
+        A boolean that indicates whether the background is needed for the simulation
+        of the cross spectrum. If it is set to True, the class will attempt to read
+        the background from a file specified by the user and set this attribute to 
+        False. If it is set to False, it is assumed that the background file has
+        already been read in and will not be read again.
     """
     
     def __init__(self):
@@ -238,6 +247,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         self._supported_products = ["frequency","energy"]
         self.renorm_phase = False
         self.renorm_modulus = False
+        self.needbkg = True
         pass
 
     def set_product_dependence(self,depend):
@@ -687,7 +697,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         """
     
         if model_type not in self._supported_models:
-            raise AttributeError("Unsopprted model type")  
+            raise AttributeError("Unsupported model type")  
         self.model_type = model_type
         self.crossspec = CrossSpectrum(self._times,freqs=self.freqs,energ=self.energs)
         self.model = model 
@@ -784,6 +794,27 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         if mask is True:
             model = self._filter_2d_by_mask(model)
         return model
+    
+    def set_background(self,bkg_file_path):
+        """
+        This method is used to set the background file to be used in the 
+        simulation of lag spectra. The background file should contain the 
+        background counts in each energy channel.
+        
+        Parameters:
+        -----------
+        bkg_file: str
+            The path to the background file containing the background counts 
+            for each energy channel.
+        """
+        (bin_bounds_lo, bin_bounds_hi, 
+         counts, error, exposure) = load_pha(bkg_file_path)
+        bkg_rate = counts/exposure
+        self.bkg_counts = counts
+        self.bkg_counts_err = error
+        self.bkg_rate = bkg_rate
+        self.bkg_exposure = exposure
+        return
 
     def _freq_dependent_model(self,cross_eval):
         """

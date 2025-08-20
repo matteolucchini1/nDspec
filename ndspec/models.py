@@ -412,7 +412,7 @@ def bbody_fred(array1,array2,params,return_full=False):
     else:
         raise TypeError("Params has too many dimensions, limit to 1 or 2 dimensions")
     if return_full is True:
-        return fred_pulse, model_profile, line_profile
+        return fred_pulse, model_profile, pulse_profile
     else:
         return fred_pulse
     
