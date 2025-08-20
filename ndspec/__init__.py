@@ -12,5 +12,5 @@ from . import XspecInterface
 from . import Simulator
 
 __all__ = ["EmceeUtils","FitCrossSpectrum","FitPowerSpectrum","FitTimeAvgSpectrum",
-           "JointFit","models","Operator","Response","SimpleFit","Simulator","Timing",
+           "JointFit","Models","Operator","Response","SimpleFit","Simulator","Timing",
            "XspecInterface"]
