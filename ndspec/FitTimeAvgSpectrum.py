@@ -154,6 +154,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         if not isinstance(response,ResponseMatrix):
             raise TypeError("Response must be an instance of nDspec.ResponseMatrix")
         self.response = response
+        EnergyDependentFit.__init__(self)  
         return
 
     def eval_model(self,params=None,energ=None,fold=True,mask=True):    
