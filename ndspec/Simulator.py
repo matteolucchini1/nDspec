@@ -83,7 +83,7 @@ def simulate_lightcurve(Fitobj,obs_time,dt,countrate,rms=None,
     lc = sim.simulate(power_spectrum)
     return lc
 
-def simulate_timelags(fitobj,ref_Elo,ref_Ehi,sub_Elo,sub_Ehi,Texp,
+def simulate_time_lags(fitobj,ref_Elo,ref_Ehi,sub_Elo,sub_Ehi,Texp,
                               coh2,pow,time_avg_model,
                               bkg_file_path=None,params=None):
     r"""
@@ -240,11 +240,11 @@ def simulate_timelags(fitobj,ref_Elo,ref_Ehi,sub_Elo,sub_Ehi,Texp,
     return lagsim
 
 
-def simulate_model(fitobj,params=None,mask=False,exposure_time=None):
+def simulate_time_averaged(fitobj,params=None,mask=False,exposure_time=None):
     """
-    This method simulates a spectrum given a set of parameters, by evaluating 
-    the model and folding it through the response. It is used to generate 
-    synthetic spectra for testing purposes. 
+    This method simulates a time-averaged spectrum given a set of parameters, 
+    by evaluating the model and folding it through the response. It is used 
+    to generate synthetic spectra for testing purposes. 
     
     Parameters:
     -----------
