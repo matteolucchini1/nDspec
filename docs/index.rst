@@ -31,12 +31,10 @@ Data fitting tutorials:
     fit_spec
     fit_cross_1d
     fit_cross_2d
-    joint_inference
 
 nDspec core functionality:
 
 .. toctree::
-    xspec_interface
     response_basics
     response_optimization   
     timing

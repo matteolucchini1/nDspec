@@ -101,18 +101,6 @@ Emcee sampling functions
 
 .. autofunction:: ndspec.EmceeUtils.process_emcee
 
-Xspec library 
-~~~~~~~~~~~~~
-
-.. autoclass:: ndspec.XspecInterface.ModelInterface
-    :members:
-    
-.. autoclass:: ndspec.XspecInterface.FortranInterface
-    :members:
-    
-.. autoclass:: ndspec.XspecInterface.CInterface
-    :members:
-
 Model library
 ~~~~~~~~~~~~~
 
