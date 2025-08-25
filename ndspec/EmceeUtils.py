@@ -7,6 +7,10 @@ import matplotlib.pyplot as plt
 import matplotlib.pylab as pl
 from matplotlib import rc, rcParams
 from matplotlib.colors import TwoSlopeNorm
+
+from .JointFit import JointFit
+from .SimpleFit import SimpleFit
+
 rc('text',usetex=True)
 rc('font',**{'family':'serif','serif':['Computer Modern']})
 fi = 22
@@ -19,14 +23,16 @@ emcee_data = None
 emcee_data_err = None
 emcee_model = None 
 
-def set_emcee_priors(priors):
+def set_emcee_priors(fitobj,priors):
     """
     This function is used to set the priors to be used with emcee sampling.  
     These priors are saved in a global variable called emcee_priors; therefore,  
     users should never re-use the variable name emcee_priors in their code.
     
-    Input:
-    ------
+    Parameters:
+    -----------
+    fitobj: ndspec.Fit...Object or ndspec.JointFit 
+        Object containing the data, specified model, and parameters
     priors: dict 
         A dictionary of priors to be used in emcee. The key of each dictionary 
         should be the name of the parameter. Each key should contain an object 
@@ -35,49 +41,70 @@ def set_emcee_priors(priors):
     """
     
     global emcee_priors
+    input_par_names = list(priors.keys())
+    obj_par_names = list(fitobj.model_params.keys())
+
+    if set(input_par_names) > set(obj_par_names):
+        raise ValueError("Not all specified priors are parameters present in the model")
+    
+    for key in obj_par_names:
+        if (fitobj.model_params[key].vary is True) and (key not in input_par_names):
+            raise ValueError(f"{key} does not have a prior. Fix {key} or specify one.")
+        elif (fitobj.model_params[key].vary is False) and (key in input_par_names):
+            raise ValueError("Incorrectly specified a prior for a fixed parameter")
+        else:
+            continue
     emcee_priors = priors 
     return 
 
-def set_emcee_model(model): 
+def set_emcee_model(fitobj): 
     """
     This function is used to set the model to be used with emcee sampling.  
     This model is saved in a global variable called emcee_model; therefore,  
     users should never re-use the variable name emcee_model in their code.
     
-    Input:
-    ------
-    model: lmfit.model or lmfit.compositemodel  
-        The lmfit model (or composite model) object defined by the user to be 
-        used in the emcee sampling. 
+    Parameters:
+    -----------
+    fitobj: ndspec.Fit...Object or ndspec.JointFit 
+        Object containing the data, specified model, and parameters
     """
     
     global emcee_model
-    emcee_model = model  
+    if type(fitobj) == JointFit:
+        fitobj.flatten = True
+    emcee_model = fitobj.eval_model
     return 
     
-def set_emcee_data(data,error):
+def set_emcee_data(fitobj):
     """
     This function is used to set the data and its error to be used with emcee 
     sampling. These are saved in global variables called emcee_data and 
     emcee_data_err; therefore, users should never re-use the variable names 
     emcee_data and emcee_data_err in their code.
     
-    Input:
-    ------
-    data: np.array(float)  
-        A one-dimensional array of floats containing the data points to be used 
-        in the sampling. 
-        
-    error: np.array(float) 
-        A one-dimensional array of floats containing the errors on the data 
-        points to be used in the sampling.     
+    Parameters:
+    -----------
+    fitobj: ndspec.Fit...Object or ndspec.JointFit 
+        Object containing the data, specified model, and parameters
     """
     
     global emcee_data
     global emcee_data_err
-    emcee_data = data 
-    emcee_data_err = error 
-    return     
+    if type(fitobj) == JointFit:
+        emcee_data = np.array([])
+        emcee_data_err = np.array([])
+        for obs in fitobj.joint:
+            if type(fitobj.joint[obs]) == list:
+                for m in fitobj.joint[obs]:
+                    emcee_data = np.concat([emcee_data,m.data])
+                    emcee_data_err = np.concat([emcee_data_err,m.data_err])
+            else:
+                emcee_data = np.concat([emcee_data,fitobj.joint[obs].data])
+                emcee_data_err = np.concat([emcee_data_err,fitobj.joint[obs].data_err])
+    else:
+        emcee_data = fitobj.data 
+        emcee_data_err = fitobj.data_err
+    return
 
 def set_emcee_parameters(params):
     """
@@ -87,13 +114,13 @@ def set_emcee_parameters(params):
     variables called emcee_names, emcee_values and emcee_params; therefore, 
     users should never re-use these variable names in their code.
     
-    Input:
-    ------
+    Parameters:
+    -----------
     params: lmfit.Parameters
         The lmfit parameters object used in the model, including those kept
         constant. 
         
-    Output:
+    Returns:
     -------
     theta: np.array 
         A numpy array containing the values of the free parameters in the model.
@@ -113,7 +140,42 @@ def set_emcee_parameters(params):
             emcee_values = np.append(emcee_values,params[key].value)
             theta = np.append(theta,params[key].value)  
     return theta
+
+def initialise_mcmc(fitobj,priors):
+    """
+    This function is used to initialise an MCMC run. The Fit...Object can be
+    any of the particular data products, or a JointFit object containing
+    multiple FitObjects.
+
+    Parameters:
+    -----------
+    fitobj: ndspec.Fit...Object or ndspec.JointFit 
+        Object containing the data, specified model, and parameters
+
+    priors: dict
+        A dictionary of priors to be used in emcee. The key of each dictionary 
+        should be the name of the parameter. Each key should contain an object 
+        with a method called "logprob", which returns the (negative) logarithm 
+        of the prior evaluated at a given point.
+
+    Returns:
+    -------
+    theta: np.array 
+        A numpy array containing the values of the free parameters in the model.
+    """
+    if type(fitobj) == JointFit:
+        pass
+    elif issubclass(type(fitobj),SimpleFit):
+        pass
+    else:
+        raise TypeError("Invalid fit object passed")
     
+    theta = set_emcee_parameters(fitobj.model_params)
+    set_emcee_data(fitobj)
+    set_emcee_model(fitobj)
+    set_emcee_priors(fitobj,priors)
+    return theta
+
 class priorUniform():
     """
     This class is used to compute a uniform prior distribution during Bayesian
@@ -249,7 +311,7 @@ class priorLogNormal():
         The expectation of the distribution. 
     """    
     
-    def __init__(sigma,mu):
+    def __init__(self,sigma,mu):
         self.sigma = sigma
         self.mu = mu
         pass 
@@ -268,7 +330,7 @@ class priorLogNormal():
         --------
             The value of the likelihood for the input parameter.
         """
-        logprior = -0.5*(np.log(theta)-mu)**2/sigma**2+0.5*np.log(2.*np.pi*sigma**2/theta**2)
+        logprior = -0.5*(np.log(theta)-self.mu)**2/self.sigma**2+0.5*np.log(2.*np.pi*self.sigma**2/theta**2)
         return logprior
 
         
@@ -277,8 +339,8 @@ def log_priors(theta, prior_dict):
     This function computes the total log-probability of a set of priors, given 
     a st of input parameter values. 
     
-    Input:
-    ------
+    Parameters:
+    -----------
     theta: np.array(float)
         An array of parameter values for which to compute the priors 
             
@@ -306,8 +368,8 @@ def chi_square_likelihood(theta):
     the user to have set the global variables emcee_priors, emcee_names, 
     emcee_params, emcee_data, emcee_data_err and emcee_model beforehand. 
     
-    Input: 
-    ------
+    Parameters: 
+    -----------
     theta: np.array(float)
         An array of parameter values for which to compute the log likelihood. 
         
@@ -428,8 +490,8 @@ def process_emcee(sampler,labels=None,discard=2000,thin=100,values=None,get_auto
     than for publication quality plots. All the plots produced by this function 
     have more customization options than the default ones used here.  
     
-    Input:
-    ------
+    Parameters:
+    -----------
     sampler: emcee.EnsamleSampler
         The sampler from which to plot the data 
     

@@ -261,6 +261,15 @@ class SimpleFit():
             choices are detailed on the LMFit documentation page:
             https://lmfit.github.io/lmfit-py/fitting.html#fit-methods-table.
         """
+        if self.data == None:
+            raise ValueError("No data to fit. Please set the data using the .set_data() method.")
+        elif self.data_err == None:
+            raise ValueError("No data error to fit. Please set the data error using the .set_data() method.")
+
+        if self.model == None:
+            raise ValueError("No model to fit. Please set the model using the .set_model() method.")
+        elif self.model_params == None:
+            raise ValueError("No model parameters to fit. Please set the model parameters using the .set_params() method.")
         
         self.fit_result = minimize(self._minimizer,self.model_params,
                                    method=algorithm)
@@ -268,6 +277,30 @@ class SimpleFit():
         fit_params = self.fit_result.params
         self.set_params(fit_params)
         return
+    
+    def print_model(self):
+        """
+        This method prints out model components, model parameters, and their
+        settings.
+        """
+        print("Model \n")
+        print("-----------------------")
+        print(self.model.name)
+        print("\n")
+        print("Parameters \n")
+        print("-----------------------")
+        self.model_params.pretty_print()
+        print("-----------------------")
+        
+    def print_fit_report(self):
+        """
+        This method prints the current fit result.
+        """
+        
+        if self.fit_result != None:
+            print(fit_report(self.fit_result,show_correl=False))
+        else:
+            print("No current fit result.")
 
 class EnergyDependentFit():
     """
