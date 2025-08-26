@@ -196,11 +196,14 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
     
         if energ is None:
             energ = self.energs
+            energ_bounds = self.energ_bounds
+        else:
+            energ_bounds = np.diff(energ)
 
         if params is None:
-            model = self.model.eval(self.model_params,energ=energ)*self.energ_bounds
+            model = self.model.eval(self.model_params,energ=energ)*energ_bounds
         else:
-            model = self.model.eval(params,energ=energ)*self.energ_bounds
+            model = self.model.eval(params,energ=energ)*energ_bounds
 
         if fold is True:
             model = self.response.convolve_response(model) 

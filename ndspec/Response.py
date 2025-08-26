@@ -261,10 +261,11 @@ class ResponseMatrix(nDspecOperator):
         
         if "EXPOSURE" in list(hdr.keys()):
             self.exposure = hdr["EXPOSURE"]
+            print(("Exposure header found in ARF, setting exposure time to"
+                  f" {self.exposure} second"))
         else:
             self.exposure = 1.0
-            print(("No exposure header found in ARF, setting exposure time to"
-                  " 1 second"))
+            
         
         for k in range(self.n_chans):
             for j in range(self.n_energs):
@@ -429,7 +430,7 @@ class ResponseMatrix(nDspecOperator):
             or b) a CrossSpectrum object from nDspec, containing the model cross
             spectrum to be folded with the instrument response.
             
-        units_in: string, default="rate"
+        units_in: string, default="xspec"
             A string detailing the normalization of the iinput model. The base 
             "xspec" normalization assumes the input is in units of count rate
             times energy bin width in each bin; "rate" normalization assumes the

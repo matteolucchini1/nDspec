@@ -240,7 +240,7 @@ def simulate_time_lags(fitobj,ref_Elo,ref_Ehi,sub_Elo,sub_Ehi,Texp,
     return lagsim
 
 
-def simulate_time_averaged(fitobj,params=None,mask=False,exposure_time=None):
+def simulate_time_averaged(fitobj,params=None,mask=False,exposure_time=None, energs=None):
     """
     This method simulates a time-averaged spectrum given a set of parameters, 
     by evaluating the model and folding it through the response. It is used 
@@ -268,6 +268,11 @@ def simulate_time_averaged(fitobj,params=None,mask=False,exposure_time=None):
         The exposure time to use for the simulation. If None, the exposure
         time stored in the response matrix is used. This is used to convert
         the model counts to expected counts in each channel.
+
+    energs: np.array(float), default None
+        An optional array of energy channels to use for the simulation. If not
+        provided, the energy channels defined in the FitTimeAvgSpectrum object
+        are used. This allows for simulating the spectrum over a custom energy grid.
     
     Returns:
     --------
@@ -280,18 +285,18 @@ def simulate_time_averaged(fitobj,params=None,mask=False,exposure_time=None):
         "before simulating a spectrum using either set_data() or set_response().")
     if fitobj.model is None:
         raise AttributeError("No model set. Please set a model before simulating a spectrum.")
+    if energs is None:
+        energs = fitobj.energs
+    if params is None:
+        params = fitobj.model_params
 
     # evaluate the model with the given parameters and fold it through the response
-    simulated_spectrum = fitobj.eval_model(params=params,fold=True,mask=mask)
+    simulated_spectrum = fitobj.model.eval(params=params,energ=energs)
+    simulated_spectrum = fitobj.response.convolve_response(simulated_spectrum,units_in="xspec",units_out="channel") 
     # multiply by exposure time to get expected counts
     if exposure_time is None:
         exposure_time = fitobj.response.exposure_time
     simulated_spectrum = simulated_spectrum*exposure_time 
-    # convert to expected counts/channel
-    if mask is True:
-        simulated_spectrum *= fitobj.ewidths
-    else:
-        simulated_spectrum *= fitobj._ewidths_unmasked 
     # Poisson sample the spectrum
-    simulated_spectrum = np.poisson(simulated_spectrum)
+    simulated_spectrum = np.random.poisson(simulated_spectrum)
     return simulated_spectrum
