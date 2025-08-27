@@ -3,6 +3,9 @@ import lmfit
 from lmfit import fit_report, minimize
 from lmfit import Parameters
 from .SimpleFit import SimpleFit 
+from .FitCrossSpectrum import FitCrossSpectrum
+from .FitTimeAvgSpectrum import FitTimeAvgSpectrum
+from .FitPowerSpectrum import FitPowerSpectrum
 
 class JointFit():
     """
@@ -52,12 +55,13 @@ class JointFit():
         self.flatten = flatten 
 
         
-    def add_fitobj(self,fitobj,name):
+    def add_fitobj(self,fitobj,name,grids=None):
         """
         Adds a model to the joint fitting hierarchy. If a list of 
         fitting objects is added, it is assumed that the objects are intended
         as simultaneous observations (i.e. a NuSTAR and XMM-Newton observation)
-        which share a model.
+        which share a model. These simultaneous observations can consist of
+        multiple data products (i.e time-averaged spectra and power spectra).
 
         Parameters
         ----------
@@ -68,6 +72,27 @@ class JointFit():
         
         name: str
             name of the model
+
+        grids: dict(str: np.ndarray), default None
+            Dictionary of energy or frequency grids that will be used for simultaneous
+            evaluations of models. This exists to reduce computation time by
+            evaluating the model only once per data product for simultaneous
+            observations which is then interpolated to the appropriate instrument. 
+            
+            This is particularly helpful for computationally expensive models. 
+            If no grid is provided, a grid is automatically generated consisting 
+            of 1000 log spaced bins between the minimum and maximum values of the
+            energy and frequency grids of all simultaneous observations of the same
+            data product. It is advised that users provide their own grids whenever
+            possible to ensure optimal performance and resolution.
+
+            Follows the format of:
+            {
+                "TimeAvg": timeavg_grid,
+                "Power": power_grid,
+                "CrossEnergy": cross_energy_grid,
+                "CrossFreq": cross_freq_grid
+            }
         """
         if type(fitobj) == list:
             for obj in fitobj:
@@ -82,8 +107,59 @@ class JointFit():
                 raise TypeError("Invalid object passed")
         #if simultaneous observations (so same underlying model)
         if type(fitobj) == list: 
-            self.joint[name] = fitobj
+            self.joint[name] = {}
+            self.joint[name]["Grids"] = {}
             if len(fitobj) > 1: #check if actually multiple models
+                #Split objects into dataproducts
+                timeavg = []
+                power = []
+                cross = []
+                for obj in fitobj:
+                    if type(obj) == FitTimeAvgSpectrum:
+                        timeavg.append(obj)
+                    elif type(obj) == FitPowerSpectrum:
+                        power.append(obj)
+                    elif type(obj) == FitCrossSpectrum:
+                        cross.append(obj)
+                    else: # add new types of data products above
+                        raise TypeError(f"{type(obj)} is not supported in a simultaneous fit.")
+
+                #Assign objects to simultaneous observation dictionary
+                if timeavg != []:
+                    self.joint[name]["TimeAvg"] = {"objects": timeavg,"model":timeavg[0].model}
+                    if "TimeAvg" in grids:  
+                        self.joint[name]["Grids"]["TimeAvg"] = grids["TimeAvg"]
+                    else:
+                        timeavg_grid = np.logspace(np.log10(min([obj.energs.min() for obj in timeavg])),
+                                                    np.log10(max([obj.energs.max() for obj in timeavg])),
+                                                    1000)
+                        self.joint[name]["Grids"]["TimeAvg"] = timeavg_grid
+                if power != []:
+                    self.joint[name]["Power"] = {"objects": power,"model":power[0].model}
+                    if "Power" in grids:  
+                        self.joint[name]["Grids"]["Power"] = grids["Power"]
+                    else:
+                        power_grid = np.logspace(np.log10(min([obj.freqs.min() for obj in power])),
+                                                  np.log10(max([obj.freqs.max() for obj in power])),
+                                                  1000)
+                        self.joint[name]["Grids"]["Power"] = power_grid
+                if cross != []:
+                    self.joint[name]["Cross"] = {"objects": cross,"model":cross[0].model}
+                    if "CrossEnergy" in grids:  
+                        self.joint[name]["Grids"]["CrossEnergy"] = grids["CrossEnergy"]
+                    else:
+                        cross_energy_grid = np.logspace(np.log10(min([obj.energs.min() for obj in cross])),
+                                                          np.log10(max([obj.energs.max() for obj in cross])),
+                                                          1000)
+                        self.joint[name]["Grids"]["CrossEnergy"] = cross_energy_grid
+                    if "CrossFreq" in grids:  
+                        self.joint[name]["Grids"]["CrossFreq"] = grids["CrossFreq"]
+                    else:
+                        cross_freq_grid = np.logspace(np.log10(min([obj.freqs.min() for obj in cross])),
+                                                        np.log10(max([obj.freqs.max() for obj in cross])),
+                                                        1000)
+                        self.joint[name]["Grids"]["CrossFreq"] = cross_freq_grid
+
                 first_fitobj = fitobj[0]
                 #if first added object, add model params
                 if self.model_params == None:
@@ -106,7 +182,7 @@ class JointFit():
                                   Caution: {key} is already a model parameter.
                                   Do you intend for these parameters to be linked?
                                   If not, give it a different name to differentiate
-                                  between multiple instances of the same type for
+                                  between multiple instances of the same parameters for
                                   different models.
                                   """)
                         else:
@@ -269,9 +345,9 @@ class JointFit():
             #retrieves model or models based on dictionary name
             fitobjs = self.joint[name] 
             if type(fitobjs) == list: #if simultaneous, evaluate each one.
-                model_results = []
+                egrid = []
                 for fit_obj in fitobjs:
-                    model_results.append(fit_obj.eval_model(params))
+                    egrid.append(fit_obj.energs)
             else:
                 model_results = fitobjs.eval_model(params)
             model_hierarchy[name] = model_results
