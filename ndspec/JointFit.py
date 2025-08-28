@@ -58,7 +58,7 @@ class JointFit():
         self.flatten = flatten 
 
         
-    def add_fitobj(self,fitobj,name,grids=None):
+    def add_fitobj(self,fitobj,name,grids=None,interpolate=False):
         """
         Adds a model to the joint fitting hierarchy. If a list of 
         fitting objects is added, it is assumed that the objects are intended
@@ -96,6 +96,11 @@ class JointFit():
                 "Cross_Energy": cross_energy_grid,
                 "Cross_Freq": cross_freq_grid
             }
+        
+        interpolate: bool, default False
+            Flag indicating whether to interpolate the models from the grids to the instrument
+            responses or to evaluate the models directly on the instrument responses in the
+            case where adding multiple data products with the same model.
         """
         if type(fitobj) == list:
             for obj in fitobj:
@@ -110,7 +115,7 @@ class JointFit():
                 raise TypeError("Invalid object passed")
         #if simultaneous observations (so same underlying model)
         if type(fitobj) == list: 
-            self._add_simultaneous_fitobjs(fitobj,name,grids)
+            self._add_simultaneous_fitobjs(fitobj,name,grids,interpolate)
         else: #single observation case
             self.joint[name] = fitobj
             #if first added object, add model params
@@ -136,7 +141,7 @@ class JointFit():
                 params.append(key)
             self.joint_params[name] = params
     
-    def _add_simultaneous_fitobjs(self,fitobj,name,grids=None):
+    def _add_simultaneous_fitobjs(self,fitobj,name,grids=None,interpolate=False):
         """
         Adds a fit object to the list of simultaneous fit objects.
 
@@ -144,10 +149,16 @@ class JointFit():
         ----------
         fitobj: Fit...Obj
             The fit object to be added.
+
         name: str
             The name of the data product.
+
         grids: dict, optional
             A dictionary containing grid information for the fit object.
+
+        interpolate: bool, default False
+            Whether to interpolate the models from the grids to the instrument
+            response or to evaluate the models directly on the instrument response.
         """
         self.joint[name] = {}
         self.joint[name]["Grids"] = {}
@@ -168,11 +179,14 @@ class JointFit():
 
             #Assign objects to simultaneous observation dictionary
             if timeavg != []:
-                self._assign_grids(timeavg, grids, self.joint[name], "TimeAvg")
+                self._assign_grids(timeavg, grids, self.joint[name], "TimeAvg",
+                                   interpolate)
             if power != []:
-                self._assign_grids(power, grids, self.joint[name], "Power")
+                self._assign_grids(power, grids, self.joint[name], "Power",
+                                   interpolate)
             if cross != []:
-                self._assign_grids(cross, grids, self.joint[name], "Cross")
+                self._assign_grids(cross, grids, self.joint[name], "Cross",
+                                   interpolate)
 
             #collects all objects
             objects = []
@@ -207,7 +221,7 @@ class JointFit():
                             or only add the model as a single entry.
                             """)
 
-    def _assign_grids(self,objs,grids,obs_dict,name):
+    def _assign_grids(self,objs,grids,obs_dict,name,interpolate):
         """
         Assigns a grid for model evaluation to a data product.
 
@@ -222,12 +236,11 @@ class JointFit():
         name: str
             Name of the data product.
         """
-        interp_grid = True #whether to interpolate model on dummy grid
         #Specify observation dictionary of simultaneous observations
         #of same data products
         obs_dict[name] = {"objects": objs,
                           "model":objs[0].model,
-                          "interp":interp_grid} 
+                          "interp":interpolate} 
         #Specify grids for frequency dependent fits
         if issubclass(type(objs[0]),FrequencyDependentFit):
             # Change name if 2D to be dependent else use original name
@@ -235,7 +248,7 @@ class JointFit():
             if freqname in grids:
                 freq_grid = grids[freqname]
             else:
-                if interp_grid == True:
+                if interpolate == True:
                     #case where you use dummy grid and interpolate model
                     freq_grid = np.logspace(np.log10(min([obj.freqs.min() for obj in objs])),
                                             np.log10(max([obj.freqs.max() for obj in objs])),
@@ -252,7 +265,7 @@ class JointFit():
             if energname in grids:
                 energy_grid = grids[energname]
             else:
-                if interp_grid == True: 
+                if interpolate == True: 
                     #case where you use dummy grid and interpolate model
                     energy_grid = np.logspace(np.log10(min([obj.energs.min() for obj in objs])),
                                             np.log10(max([obj.energs.max() for obj in objs])),
@@ -389,15 +402,18 @@ class JointFit():
             #retrieves model or models based on dictionary name
             fitobjs = self.joint[name] 
             if type(fitobjs) == dict: #if simultaneous, evaluate each one.
+                model_results = np.array([])
                 for dname, dataproduct in fitobjs.items():
                     if dname == "Grids":
                         pass
-                    model_results = self._simultaneous_eval_model(dataproduct["model"],
-                                                                  dataproduct["objects"],
-                                                                  params,
-                                                                  fitobjs["Grids"],
-                                                                  dname,
-                                                                  dataproduct["interp"])
+                    model_data_product_result = self._simultaneous_eval_model(
+                                                                dataproduct["model"],
+                                                                dataproduct["objects"],
+                                                                params,
+                                                                fitobjs["Grids"],
+                                                                dname,
+                                                                dataproduct["interp"])
+                    model_results = np.concatenate([model_results, model_data_product_result])
             else:
                 model_results = fitobjs.eval_model(params)
             model_hierarchy[name] = model_results
@@ -407,18 +423,63 @@ class JointFit():
         else:
             model = np.array([])
             for key in model_hierarchy:
-                model = np.concat([model,model_hierarchy[key]])
-            return model
+                model = np.concatenate([model, model_hierarchy[key]])
+            return model.flatten()
         
     def _simultaneous_eval_model(self,model,objs,params,grids,name,interp):
         """
         This method evaluates a model simultaneously across multiple objects
         of a particular data product. 
 
+        Parameters:
+        -----------
+        model: lmfit.Model or lmfit.CompositeModel
+            The model to evaluate.
+
+        objs: list(Fit...Objs)
+            The objects containing instrument and data-product information.
+
+        params: lmfit.Parameters
+            The parameters to use for the model evaluation.
+
+        grids: dict(str: np.ndarray), default None
+            Dictionary of energy or frequency grids that will be used for simultaneous
+            evaluations of models. This exists to reduce computation time by
+            evaluating the model only once per data product for simultaneous
+            observations which is then interpolated to the appropriate instrument. 
+            
+            This is particularly helpful for computationally expensive models. 
+            If no grid is provided, a grid is automatically generated consisting 
+            of 1000 log spaced bins between the minimum and maximum values of the
+            energy and frequency grids of all simultaneous observations of the same
+            data product. It is advised that users provide their own grids whenever
+            possible to ensure optimal performance and resolution.
+
+            Follows the format of:
+            {
+                "TimeAvg": timeavg_grid,
+                "Power": power_grid,
+                "Cross_Energy": cross_energy_grid,
+                "Cross_Freq": cross_freq_grid
+            }
+
+        name: str
+            The name of the data product.
+
+        interp: bool
+            Whether to perform interpolation onto the instrument grids from
+            a dummy grid, either provided by the user or automatically generated
+            by _assign_grids when objects are added to the JointFit object.
+
+        Returns:
+        -------
+        model_results: np.ndarray
+            The model results for the given objects. This is returned as a
+            1D array containing the results for each object.
         """
-        #Specify grids for frequency dependent fits
         energ_dependent = False
         freq_dependent = False
+
         two_d = True if len(objs[0].__bases__)>2 else False
         grid_kwargs = {}
         if issubclass(type(objs[0]),FrequencyDependentFit):
@@ -449,16 +510,18 @@ class JointFit():
             if interp is True: #Interpolation case
                 keys = grid_kwargs.keys()
                 if two_d == True: #2-D case
-                    grid = [getattr(obj,k) for k in keys] #retrieves instrument-specific grids
+                    grid = [getattr(obj,k) for k in keys] #retrieves grids
                     xg, yg = np.meshgrid(*grid,indexing='ij',sparse=True)
                     obj_result = model_interpolator(xg, yg)
                     obj._to_cross_spec(obj_result)
+
                     if energ_dependent == True: #fold with response
                         obj_result = obj.response.convolve_response(obj_result,
                                                             units_in="rate",
                                                             units_out="channel")  
                     
                     obj_result = self._return_dependent_model(obj_result,params)
+
                 else: #1-D case
                     grid = getattr(obj,keys[0]) #retrieves grid
                     obj_result = model_interpolator(grid)
