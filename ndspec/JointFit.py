@@ -57,7 +57,6 @@ class JointFit():
         #simply as a flat 1-d numpy array
         self.flatten = flatten 
 
-        
     def add_fitobj(self,fitobj,name,grids=None,interpolate=False):
         """
         Adds a model to the joint fitting hierarchy. If a list of 
@@ -113,37 +112,42 @@ class JointFit():
                 pass
             else:
                 raise TypeError("Invalid object passed")
-        #if simultaneous observations (so same underlying model)
+            
         if type(fitobj) == list: 
+            #simultaneous observations with same underlying model
             self._add_simultaneous_fitobjs(fitobj,name,grids,interpolate)
-        else: #single observation case
-            self.joint[name] = fitobj
-            #if first added object, add model params
-            if self.model_params == None:
-                    self.model_params = Parameters()
-                    for par in fitobj.model_params:
-                        self.model_params.add_many(fitobj.model_params[par])
-            #pulls parameters names and saves to dictionary for model
-            #evaluation later
-            params = []
-            for key in fitobj.model_params.valuesdict().keys():
-                for joint_obs in self.joint_params:
-                    if key in self.joint_params[joint_obs]:
-                        print(f"""
-                              Caution: {key} is already a model parameter.
-                              Do you intend for these parameters to be linked?
-                              If not, give it a different name to differentiate
-                              between multiple instances of the same type for
-                              different models.
-                              """)
-                    else:
-                        self.model_params.add_many(fitobj.model_params[key])
-                params.append(key)
-            self.joint_params[name] = params
+        else: 
+            #single observation case with separate model
+            self._add_single_fitobj(fitobj,name)
+    
+    def _add_single_fitobj(self,fitobj,name):
+        """
+        Adds a single fit object to the JointFit instance.
+        """
+        self.joint[name] = fitobj
+        #if first added object, add model params
+        if self.model_params == None:
+                self.model_params = Parameters()
+                for par in fitobj.model_params:
+                    self.model_params.add_many(fitobj.model_params[par])
+        #pulls parameters names and saves to dictionary for model
+        #evaluation later
+        params = []
+        for key in fitobj.model_params.valuesdict().keys():
+            #iterates through current fit objects
+            param_flag = True #add parameter flag
+            for joint_obs in self.joint_params:
+                if key in self.joint_params[joint_obs]:
+                    param_flag = False #don't add parameter if already present
+            if param_flag == True:
+                self.model_params.add_many(fitobj.model_params[key])
+            params.append(key)
+        self.joint_params[name] = params
     
     def _add_simultaneous_fitobjs(self,fitobj,name,grids=None,interpolate=False):
         """
-        Adds a fit object to the list of simultaneous fit objects.
+        Adds a list of fit objects that are part of a single or simultaneous
+        observations.
 
         Parameters
         ----------
@@ -213,6 +217,7 @@ class JointFit():
                     if param_flag == True:
                         self.model_params.add_many(dataproducts[0].model_params[key])
                     params.append(key)
+                    
             self.joint_params[name] = params
         else:
             raise TypeError("""
