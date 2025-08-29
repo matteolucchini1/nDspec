@@ -228,7 +228,11 @@ class JointFit():
 
     def _assign_grids(self,objs,grids,obs_dict,name,interpolate):
         """
-        Assigns a grid for model evaluation to a data product.
+        Internal method that assigns a grid for model evaluation of
+        simultaneous model evaluations. This method either sets the grid
+        to a provided grid, creates a new dummy grid to interpolate to
+        the original instrument responses, or concatenates together
+        instrument grids to evaluate the models on the combined grid.
 
         Parameters
         ----------
@@ -258,11 +262,14 @@ class JointFit():
                     freq_grid = np.logspace(np.log10(min([obj.freqs.min() for obj in objs])),
                                             np.log10(max([obj.freqs.max() for obj in objs])),
                                             1000)
+                    obs_dict["Grids"][freqname] = freq_grid
                 else:
                     #case where you evaluate on all instrument responses 
                     # (assumes model is not in xspec units)
                     freq_grid = np.unique(np.concatenate([obj.freqs for obj in objs]))
-            obs_dict["Grids"][freqname] = freq_grid
+                    freq_grid_masks = [np.ind1d(freq_grid == obj.freqs) for obj in objs]
+                    obs_dict["Grids"][freqname] = [freq_grid, freq_grid_masks]
+
         #Specify grids for energy dependent fits
         if issubclass(type(objs[0]),EnergyDependentFit):
             # Change name if 2D to be dependent else use original name
@@ -275,11 +282,16 @@ class JointFit():
                     energy_grid = np.logspace(np.log10(min([obj.energs.min() for obj in objs])),
                                             np.log10(max([obj.energs.max() for obj in objs])),
                                             1000)
+                    obs_dict["Grids"][energname] = energy_grid
                 else: 
-                    #case where you evaluate on all instrument responses 
+                    # case where you evaluate on all instrument responses 
                     # (assumes model is not in xspec units)
-                    energy_grid = np.unique(np.concatenate([obj.energs for obj in objs]))
-            obs_dict["Grids"][energname] = energy_grid
+                    # Concatenate energy grids together, remove duplicate values and sort
+                    energy_grid = np.sort(np.unique(np.concatenate([obj.energs for obj in objs])))
+                    # Construct list of boolean masks for each object's energy grid to extract model
+                    # values later
+                    energy_grid_masks = [np.ind1d(energy_grid == obj.energs) for obj in objs]
+                    obs_dict["Grids"][energname] = [energy_grid, energy_grid_masks]
         #Add grids as needed for new dependencies
         return
 
@@ -487,17 +499,22 @@ class JointFit():
 
         two_d = True if len(objs[0].__bases__)>2 else False
         grid_kwargs = {}
+        grid_masks = {}
         if issubclass(type(objs[0]),FrequencyDependentFit):
             freq_dependent = True
             # Change name if 2D to be dependent else use original name
             freqname = name+"_Freq" if two_d == True else name
-            grid_kwargs["freq"] = grids[freqname]
+            grid_kwargs["freq"] = grids[freqname] if interp == True else grids[freqname][0]
+            if interp == True:
+                grid_masks["freq"] = grids[freqname][1]
         #Specify grids for energy dependent fits
         if issubclass(type(objs[0]),EnergyDependentFit):
             energ_dependent = True
             # Change name if 2D to be dependent else use original name
             energname = name+"_Energy" if two_d == True else name
-            grid_kwargs["energ"] = grids[energname]
+            grid_kwargs["energ"] = grids[energname] if interp == True else grids[energname][0]
+            if interp == True:
+                grid_masks["energ"] = grids[energname][1]
 
         if interp is True: #if interpolation is performed
             results = model.eval(params,**grid_kwargs)
@@ -511,7 +528,7 @@ class JointFit():
             results = model.eval(params,**grid_kwargs)
         
         model_results = np.array([])
-        for obj in objs:
+        for ind, obj in enumerate(objs):
             if interp is True: #Interpolation case
                 keys = grid_kwargs.keys()
                 if two_d == True: #2-D case
@@ -534,8 +551,25 @@ class JointFit():
                         obj_result = obj.response.convolve_response(obj_result,
                                                             units_in="rate",
                                                             units_out="channel")  
-            else:
-                pass #Add code here to extract model results per instrument energy grid
+            else: #Extraction case
+                keys = grid_kwargs.keys()
+                if two_d == True: #2-D case
+                    grid = [grid_masks[k] for k in keys] #retrieves grid masks
+                    xg, yg = np.meshgrid(*grid,indexing='ij',sparse=True) #Constructs mesh 
+                    obj_result = results[xg, yg] #extracts model values
+                    if energ_dependent == True: #fold with response
+                        obj_result = obj.response.convolve_response(obj_result,
+                                                            units_in="rate",
+                                                            units_out="channel")  
+                    
+                    obj_result = self._return_dependent_model(obj_result,params)
+                else: #1-D case
+                    grid = grid_masks[keys[0]] #retrieves grid
+                    obj_result = results[grid]
+                    if energ_dependent == True: #fold with response
+                        obj_result = obj.response.convolve_response(obj_result,
+                                                            units_in="rate",
+                                                            units_out="channel")  
             model_results = np.concatenate([model_results,obj_result])
 
         return model_results
