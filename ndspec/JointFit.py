@@ -92,8 +92,8 @@ class JointFit():
             {
                 "TimeAvg": timeavg_grid,
                 "Power": power_grid,
-                "Cross_Energy": cross_energy_grid,
-                "Cross_Freq": cross_freq_grid
+                "Cross_energs": cross_energy_grid,
+                "Cross_freqs": cross_freq_grid
             }
         
         interpolate: bool, default False
@@ -252,47 +252,41 @@ class JointFit():
                           "interp":interpolate} 
         #Specify grids for frequency dependent fits
         if issubclass(type(objs[0]),FrequencyDependentFit):
-            # Change name if 2D to be dependent else use original name
-            freqname = name+"_Freq" if len(objs[0].__bases__)>2 else name
-            if freqname in grids:
-                freq_grid = grids[freqname]
-            else:
-                if interpolate == True:
-                    #case where you use dummy grid and interpolate model
-                    freq_grid = np.logspace(np.log10(min([obj.freqs.min() for obj in objs])),
-                                            np.log10(max([obj.freqs.max() for obj in objs])),
-                                            1000)
-                    obs_dict["Grids"][freqname] = freq_grid
-                else:
-                    #case where you evaluate on all instrument responses 
-                    # (assumes model is not in xspec units)
-                    freq_grid = np.unique(np.concatenate([obj.freqs for obj in objs]))
-                    freq_grid_masks = [np.ind1d(freq_grid == obj.freqs) for obj in objs]
-                    obs_dict["Grids"][freqname] = [freq_grid, freq_grid_masks]
-
+            self._assign_grid_dependent(name,objs,grids,obs_dict,interpolate,"freqs")
         #Specify grids for energy dependent fits
         if issubclass(type(objs[0]),EnergyDependentFit):
-            # Change name if 2D to be dependent else use original name
-            energname = name+"_Energy" if len(objs[0].__bases__)>2 else name
-            if energname in grids:
-                energy_grid = grids[energname]
+            self._assign_grid_dependent(name,objs,grids,obs_dict,interpolate,"energs")
+        #Add as needed for new dependencies
+        return
+    
+    def _assign_grid_dependent(self,name,objs,grids,
+                               obs_dict,interpolate,
+                               dependency):
+        """
+        Internal method that assigns a grid for model evaluation of
+        simultaneous model evaluations. This method either sets the grid
+        to a provided grid, creates a new dummy grid to interpolate to
+        the original instrument responses, or concatenates together
+        instrument grids to evaluate the models on the combined grid.
+        """
+        # Change name if 2D to be dependent else use original name
+        dependentname = name+f"_{dependency}" if len(objs[0].__bases__)>2 else name
+        if dependentname in grids:
+            grid = grids[dependentname]
+        else:
+            obj_grid = [getattr(obj,dependency) for obj in objs]
+            if interpolate == True:
+                #case where you use dummy grid and interpolate model
+                grid = np.logspace(np.log10(min([obj_grid.min() for obj in objs])),
+                                        np.log10(max([obj_grid.max() for obj in objs])),
+                                        1000)
+                obs_dict["Grids"][dependentname] = grid
             else:
-                if interpolate == True: 
-                    #case where you use dummy grid and interpolate model
-                    energy_grid = np.logspace(np.log10(min([obj.energs.min() for obj in objs])),
-                                            np.log10(max([obj.energs.max() for obj in objs])),
-                                            1000)
-                    obs_dict["Grids"][energname] = energy_grid
-                else: 
-                    # case where you evaluate on all instrument responses 
-                    # (assumes model is not in xspec units)
-                    # Concatenate energy grids together, remove duplicate values and sort
-                    energy_grid = np.sort(np.unique(np.concatenate([obj.energs for obj in objs])))
-                    # Construct list of boolean masks for each object's energy grid to extract model
-                    # values later
-                    energy_grid_masks = [np.ind1d(energy_grid == obj.energs) for obj in objs]
-                    obs_dict["Grids"][energname] = [energy_grid, energy_grid_masks]
-        #Add grids as needed for new dependencies
+                #case where you evaluate on all instrument responses 
+                # (assumes model is not in xspec units)
+                grid = np.unique(np.concatenate([depend_grid for depend_grid in obj_grid]))
+                grid_masks = [np.isin(grid, depend_grid) for depend_grid in obj_grid]
+                obs_dict["Grids"][dependentname] = [grid, grid_masks]
         return
 
     def model_decompose(self,model):
