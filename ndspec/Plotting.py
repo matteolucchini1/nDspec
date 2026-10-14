@@ -252,7 +252,7 @@ def make_polar_data(angle=None,degree=None,angle_err=None,degree_err=None,
 
 def make_layout(nrows=1,ncols=1,height_ratios=None,width_ratios=None,
                 sharex=False,projections=None,colorbars=False,
-                panel_size=(6.,4.5),panels=None):
+                figsize=(6.,4.5),panels=None):
     """
     This function assembles the dictionary describing the geometry of a panel 
     grid, without creating any plot object. It is used by the get_plot_layout 
@@ -285,8 +285,8 @@ def make_layout(nrows=1,ncols=1,height_ratios=None,width_ratios=None,
         A boolean to choose whether the panels in the grid require space to be 
         reserved for a colorbar. 
         
-    panel_size: tuple(float), default=(6.,4.5)
-        The size in inches of a single panel of the grid. 
+    figsize: tuple(float), default=(6.,4.5)
+        The size in inches of the plot. 
         
     panels: dict, default=None 
         The role of each panel of the grid, keyed by name and containing the 
@@ -326,7 +326,7 @@ def make_layout(nrows=1,ncols=1,height_ratios=None,width_ratios=None,
                   sharex=sharex,
                   projections=projections,
                   colorbars=colorbars,
-                  panel_size=panel_size,
+                  figsize=figsize,
                   panels=panels)
     
     return layout
@@ -372,8 +372,7 @@ def make_panels(layout,fig=None,subplot_spec=None,squeeze=True,hspace=None,wspac
     constrained = (hspace is None and wspace is None)
     
     if fig is None:
-        figsize = (layout["ncols"]*layout["panel_size"][0],
-                   layout["nrows"]*layout["panel_size"][1])
+        figsize = layout["figsize"]
         fig = plt.figure(figsize=figsize,constrained_layout=constrained)
     
     if subplot_spec is None:
@@ -402,6 +401,8 @@ def make_panels(layout,fig=None,subplot_spec=None,squeeze=True,hspace=None,wspac
             axes[row,col] = fig.add_subplot(grid[row,col],
                                             projection=projection,
                                             sharex=shared_axis)
+            if layout["sharex"] is True and row < layout["nrows"]-1:
+                axes[row,col].tick_params(labelbottom=False)
     
     if squeeze is True:
         if axes.size == 1:
@@ -658,6 +659,7 @@ def draw_residual_panel(axes,panel_data,residuals,color="C0",
         axes.set_xscale("log",base=10)
     if log_yaxis is True:
         axes.set_yscale("log",base=10)
+    axes.yaxis.set_major_locator(MaxNLocator(prune='upper'))
     
     return
 
@@ -926,7 +928,7 @@ def plot_marginal_colormesh(xaxis,yaxis,values,marginal_x=None,
                             marginal_y=None,x_label="",y_label="",z_label="",
                             marginal_labels=("",""),cmap="PuRd",
                             diverging=False,log_xaxis=False,log_yaxis=False,
-                            log_zaxis=False,color=None,panel_size=(9.0,9.0),
+                            log_zaxis=False,color=None,figsize=(9.0,9.0),
                             mesh_kwargs=None,bottom_kwargs=None,side_kwargs=None):
     """
     This function displays a two-dimensional array as a colormesh, together 
@@ -974,8 +976,8 @@ def plot_marginal_colormesh(xaxis,yaxis,values,marginal_x=None,
         The color of the two projections. If it is None, a color is sampled 
         from the colormap of the mesh.
     
-    panel_size: tuple(float), default=(3.5,3.5)
-        The size in inches of a single panel of the figure.
+    figsize: tuple(float), default=(9.0,9.0)
+        The size in inches of the figure.
         
     mesh_kwargs, bottom_kwargs, side_kwargs: dict, default=None 
         Keyword arguments passed to matplotlib for the mesh and for each 
@@ -1017,8 +1019,8 @@ def plot_marginal_colormesh(xaxis,yaxis,values,marginal_x=None,
     panels = {"mesh":(0,0),"bottom":(1,0),"right":(0,1),"unused":(1,1)}
     layout = make_layout(nrows=2,ncols=2,height_ratios=[3,1],
                          width_ratios=[3,1],sharex=False,
-                         panel_size=(0.5*panel_size[0],0.5*panel_size[1]),
-                         panels=panels)
+                         figsize=figsize,panels=panels)
+                         
     fig, axes = make_panels(layout,squeeze=False,hspace=0,wspace=0)
     axes[panels["unused"]].remove()
 

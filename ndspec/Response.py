@@ -842,7 +842,7 @@ class ResponseMatrix(nDspecOperator):
             The panel containing the plot produced by the method.
         """
     
-        plot_layout = Plotting.make_layout(panel_size=(6.5,4.5))
+        plot_layout = Plotting.make_layout(figsize=(6.5,4.5))
         fig, panel = Plotting.make_panels(plot_layout)
         
         if plot_type == "channel":
@@ -903,7 +903,7 @@ class ResponseMatrix(nDspecOperator):
         else:
             arf_array = self.specresp
 
-        plot_layout = Plotting.make_layout(panel_size=(6.5,4.5))
+        plot_layout = Plotting.make_layout(figsize=(6.5,4.5))
         fig, panel = Plotting.make_panels(plot_layout)            
 
         data = Plotting.make_panel_data(model_points=energy_array,

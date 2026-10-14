@@ -328,7 +328,7 @@ class PolarimetryProduct(nDspecOperator):
         x_axis = self.bins
 
         plot_layout = Plotting.make_layout(ncols=len(arrays),
-                                           panel_size=(6.5,4.5))
+                                           figsize=(6.5*len(arrays),4.5))
         fig, panels = Plotting.make_panels(plot_layout)
 
         model_style = dict(drawstyle="steps-mid")
@@ -383,7 +383,7 @@ class PolarimetryProduct(nDspecOperator):
         x_axis = self.bins
         
         plot_layout = Plotting.make_layout(ncols=len(arrays),
-                                           panel_size=(6.5,4.5))
+                                           figsize=(6.5*len(arrays),4.5))
         fig, panels = Plotting.make_panels(plot_layout)
 
         model_style = dict(drawstyle="steps-mid")
@@ -445,7 +445,7 @@ class PolarimetryProduct(nDspecOperator):
             """
             self._require('pol_degree', 'pol_angle')
             
-            plot_layout = Plotting.make_layout(panel_size=(6.5,4.5),
+            plot_layout = Plotting.make_layout(figsize=(6.5,4.5),
                                    projections=["polar"])
             fig, panel = Plotting.make_panels(plot_layout)
             
@@ -532,7 +532,7 @@ class PolarimetryProduct(nDspecOperator):
         if bin_index is None and curve.shape[0] == 1:
             bin_index = [0]
         
-        plot_layout = Plotting.make_layout(panel_size=(6.5,4.5))
+        plot_layout = Plotting.make_layout(figsize=(6.5,4.5))
         fig, panel = Plotting.make_panels(plot_layout)
         
         if bin_index is None:
