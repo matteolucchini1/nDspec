@@ -392,19 +392,19 @@ class SimpleFit():
             residuals, bars = ratio(data,error,model,summed=False)
         elif res_type == "chisq":
             residuals = chisq(data,error,model,summed=False)
-            bars = np.ones(len(self.data))
+            bars = np.ones(len(residuals))
         elif res_type == "cstat":
             exp = self.exposure 
             bins = self.ewidths
             residuals = cstat(data,model,exp,bins,noise=noise,summed=False)
-            bars = np.ones(len(self.data))
+            bars = np.ones(len(residuals))
         elif res_type == "custom":
             custom_args = [model,data]
             if self.custom_args is not None:
                 for arg in self.custom_args:
                     custom_args.append(arg)
             residuals = self.custom_likelihood(*custom_args)
-            bars = np.ones(len(self.data))
+            bars = np.ones(len(residuals))
         else:
             raise ValueError("The supported residual types are ratio, chisq, and cstat")    
         return residuals, bars

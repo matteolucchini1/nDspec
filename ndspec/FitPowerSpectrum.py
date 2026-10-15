@@ -226,6 +226,9 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
         return_plot: bool, default=False
             A boolean to decide whether to return the figure objected containing 
             the plot or not.
+
+        data_kwargs: dict, default=None 
+            Keyword arguments for the data points in the plot.
             
         Returns: 
         --------
@@ -321,16 +324,7 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
         if params is None:
             params = self.model_params
         model = self.eval_model(params=params,mask=True)
-
-        if residuals == "chisq":
-            res_label = "$\\Delta\\chi$"
-        elif residuals == "ratio":
-            res_label = "Data/model"
-        elif self.likelihood == "custom":
-            res_label = "Residuals"
-        else:
-            raise ValueError("Residual format not supported")
-            
+           
         if units == "power":
             scale = np.ones(self.n_freqs)
             y_label = "Power"
@@ -348,6 +342,14 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
 
         resid, reserr = None, None
         if plot_data is True:
+            if residuals == "chisq":
+                res_label = "$\\Delta\\chi$"
+            elif residuals == "ratio":
+                res_label = "Data/model"
+            elif self.likelihood == "custom":
+                res_label = "Residuals"
+            else:
+                raise ValueError("Residual format not supported")
             resid, reserr = self.get_residuals(res_type=residuals,model=model)
 
         data = Plotting.make_panel_data(x_points=self.freqs,
