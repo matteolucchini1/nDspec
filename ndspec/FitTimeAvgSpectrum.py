@@ -347,7 +347,10 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         """
         if len(array) != self._all_chans:
             raise ValueError(f"The input array should have length {self._all_chans}")
-        
+
+        #the ignored channels become NaN to show gaps when plotting with 
+        #ax.stairs         
+        array = np.where(self.ebounds_mask,array,np.nan)
         if units == "data":
             converted_array = array
         elif units.count("unfold"):
@@ -356,10 +359,6 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
                               self._ebounds_unmasked**power
         else: 
             raise ValueError("Plot units not recognized")
-        
-        #the ignored channels become NaN to show gaps when plotting with 
-        #ax.stairs 
-        converted_array =  np.where(self.ebounds_mask,converted_array,np.nan)
         
         return converted_array        
 
@@ -478,10 +477,11 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         plot_data: bool, default=True
             If true, both model and data are plotted; if false, just the model. 
             
-        plot_components: bool, default=False 
-            If true, the model components are overplotted; if false, they are 
-            not. Only additive model components will display their values 
-            correctly. 
+        plot_components: bool or str, default=False 
+            If True, the additive model components are overplotted, with 
+            multiplicative and convolution factors applied to each. If 
+            "additive", the additive components are returned without being 
+            affected by  any multiplicative or convolution factors.
             
         plot_bkg; str, default=False:
             A boolean to choose whether you want to plot the background
@@ -533,7 +533,6 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         if residuals is None:
             residuals = self.likelihood              
         
-        #get model points 
         if params is None:
             params = self.model_params  
         model_fold = self.eval_model(params=params,mask=False)
@@ -541,7 +540,6 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         model_edges=np.append(self._emin_unmasked,
                               self._emax_unmasked[-1])
 
-        #get data and  residual points
         resid, reserr = None, None
         data, data_err = None, None 
         res_label = None 
@@ -558,24 +556,27 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
                 raise ValueError("Residual format not supported")
             data = self._to_plot_units(self._data_unmasked,units)
             data_err = self._to_plot_units(self._data_err_unmasked,units)            
-            resid, reserr = self.get_residuals(residuals,model=model_fold,
-                                               mask=False)
-            resid = np.where(self.ebounds_mask,resid,np.nan)
-            reserr = np.where(self.ebounds_mask,reserr,np.nan)
+            #this horrible jank here is necessary to avoid raising annoying 
+            #warnings about channels that are not being noticed, while still
+            #supporting having gaps in the noticed channels 
+            res, err = self.get_residuals(residuals,
+                                          model=np.extract(self.ebounds_mask,model_fold))
+            resid = np.full(len(self.ebounds_mask),np.nan)
+            reserr = np.full(len(self.ebounds_mask),np.nan)
+            resid[self.ebounds_mask] = res
+            reserr[self.ebounds_mask] = err
         
-        #get/correct for background 
         bkg = None
         if plot_bkg is True:
             bkg = self._to_plot_units(self._noise_unmasked,units)
         
-        #get model components 
         components = None
-        if plot_components is True:
-            components = model_expand(self.model,params)
+        if plot_components is not False:
+            components = model_expand(self.model,params,
+                                      distribute=(plot_components != "additive"),
+                                      energ=self.energs,ear=self.ear)
             for key in components.keys():
-                components[key] = self.response.fold_response(components[key]*self.energ_bounds,
-                                                              energ=self.energs, 
-                                                              ear=self.ear)
+                components[key] = self.response.convolve_response(components[key]*self.energ_bounds)
                 components[key] = self._apply_gain(components[key],params)
                 components[key] = self._to_plot_units(components[key],units)
 
@@ -585,7 +586,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
                                         y_bars=data_err,
                                         bkg_vals = bkg,
                                         model_edges=model_edges,
-                                        model_vals=model_vals,
+                                        model_vals=model_vals,                                        
                                         component_vals=components,
                                         resid=resid,
                                         reserr=reserr,
@@ -597,7 +598,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
             plot_layout = Plotting.make_layout(figsize=(6.5,4.5))
             fig, panels = Plotting.make_panels(plot_layout)
             Plotting.draw_main_panel(panels,data,draw_data=False,
-                                     draw_components=plot_components,
+                                     draw_components = (plot_components is not False),
                                      model_kwargs=model_kwargs,
                                      component_kwargs=component_kwargs) 
         else:                 
@@ -607,7 +608,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
                                                        "residuals":(1,0)})
             fig, panels = Plotting.make_panels(plot_layout)
             Plotting.draw_main_panel(panels[0],data,
-                                     draw_components=plot_components,
+                                     draw_components = (plot_components is not False),
                                      data_kwargs=data_kwargs,
                                      model_kwargs=model_kwargs,
                                      component_kwargs=component_kwargs)

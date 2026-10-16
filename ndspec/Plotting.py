@@ -579,18 +579,20 @@ def draw_model_components(axes,panel_data,color="C0",
     if panel_data.get("model_points") is None and panel_data.get("model_edges") is None:
         raise ValueError("panel_data contains component_vals but neither "
                          "model_points nor model_edges to draw them against")
-
-    style = _merge_style(dict(linestyle='-',linewidth=2.,alpha=0.8),
-                         component_kwargs)
-    
+   
     for key in panel_data["component_vals"].keys():
+        overrides = component_kwargs
+        if component_kwargs is not None and isinstance(component_kwargs.get(key),dict):
+            overrides = component_kwargs[key]
+        style = _merge_style(dict(linestyle='-',linewidth=2.,alpha=1.,label=key),
+                             overrides)
+                
         if panel_data.get("model_edges") is not None:
             axes.stairs(panel_data["component_vals"][key],
-                        panel_data["model_edges"],baseline=None,label=key,
-                        **style)
+                        panel_data["model_edges"],baseline=None,**style)
         else:
             axes.plot(panel_data["model_points"],
-                      panel_data["component_vals"][key],label=key,**style)
+                      panel_data["component_vals"][key],**style)
     
     axes.legend(loc="best")
     

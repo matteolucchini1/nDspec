@@ -285,10 +285,11 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
         plot_data: bool, default=True
             If true, both model and data are plotted; if false, just the model. 
             
-        plot_components: bool, default=False 
-            If true, the model components are overplotted; if false, they are 
-            not. Only additive model components will display their values 
-            correctly. 
+        plot_components: bool or str, default=False 
+            If True, the additive model components are overplotted, with 
+            multiplicative and convolution factors applied to each. If 
+            "additive", the additive components are returned without being 
+            affected by  any multiplicative or convolution factors. 
             
         params: lmfit.parameters, default=None 
             The parameters to be used to evaluate the model. If False, the set 
@@ -335,8 +336,9 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
             raise ValueError("Y axis units not supported")
 
         components = None
-        if plot_components is True:
-            components = model_expand(self.model,params,freq=self.freqs)
+        if plot_components is not False:
+            components = model_expand(self.model,params,freq=self.freqs,
+                                      distribute=(plot_components != "additive"))
             for key in components.keys():
                 components[key] = components[key]*scale
 
@@ -368,7 +370,7 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
             plot_layout = Plotting.make_layout(figsize=(6.5,4.5))
             fig, panels = Plotting.make_panels(plot_layout)
             Plotting.draw_main_panel(panels,data,draw_data=False,
-                                     draw_components=plot_components,
+                                     draw_components = (plot_components is not False),
                                      model_kwargs=model_kwargs,
                                      component_kwargs=component_kwargs)
         else:
@@ -378,7 +380,7 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
                                                        "residuals":(1,0)})
             fig, panels = Plotting.make_panels(plot_layout)
             Plotting.draw_main_panel(panels[0],data,
-                                     draw_components=plot_components,
+                                     draw_components = (plot_components is not False),
                                      data_kwargs=data_kwargs,
                                      model_kwargs=model_kwargs,
                                      component_kwargs=component_kwargs)
