@@ -249,11 +249,14 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
             y_label = "Power$\\times$frequency"
         else:
             raise ValueError("Y axis units not recognized")
+
+        x_bars = 0.5*np.append(np.diff(self.freqs),self.freqs[-1]-self.freqs[-2])
         
         plot_layout = Plotting.make_layout(figsize=(6.5,4.5))
         fig, panel = Plotting.make_panels(plot_layout)
         
         data = Plotting.make_panel_data(x_points=self.freqs,
+                                        x_bars = x_bars,
                                         y_points=y_points,
                                         y_bars=y_bars,
                                         x_label="Frequency (Hz)",
@@ -354,7 +357,10 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
                 raise ValueError("Residual format not supported")
             resid, reserr = self.get_residuals(res_type=residuals,model=model)
 
+        x_bars = 0.5*np.append(np.diff(self.freqs),self.freqs[-1]-self.freqs[-2])
+
         data = Plotting.make_panel_data(x_points=self.freqs,
+                                        x_bars=x_bars,
                                         y_points=self.data*scale,
                                         y_bars=self.data_err*scale,
                                         model_points=self.freqs,

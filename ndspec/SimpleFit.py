@@ -614,19 +614,22 @@ class EnergyDependentFit():
                
     ebounds: np.array(float) 
         The array of energy channel bin centers for the instrument energy
-        channels,  as stored in the instrument response provided. Only contains 
+        channels, as stored in the instrument response provided. Only contains 
         the channels that are noticed during the fit.
 
     ewidths: np.array(float) 
         The array of energy channel bin widths for the instrument energy
-        channels,  as stored in the instrument response provided. Only contains 
+        channels, as stored in the instrument response provided. Only contains 
         the channels that are noticed during the fit.
+    
+    emin, emax: np.array(float)
+        The array of lower and upper bounds of the noticed energy channels.
         
     ebounds_mask: np.array(bool)
         The array of instrument energy channels that are either ignored or 
         noticed during the fit. A given channel i is noticed if ebounds_mask[i]
         is True, and ignored if it is false. 
-        
+               
     n_chans: int 
         The number of channels that are to be noticed during the fit.
         
@@ -665,6 +668,8 @@ class EnergyDependentFit():
         self.ear = np.append(self.response.energ_lo,self.response.energ_hi[-1])        
         self.ebounds = 0.5*(self.response.emax+self.response.emin)
         self.ewidths = self.response.emax - self.response.emin
+        self.emin = self.response.emin
+        self.emax = self.response.emax
         self.ebounds_mask = np.full((self.response.n_chans), True)
         self.gain_params = None
         self._gain_keys = None
@@ -947,7 +952,7 @@ class FrequencyDependentFit():
         power spectrum), this is the array of Fourier frequency over which all 
         data and model are defined, including bins that are ignored in the fit. 
         
-        If instead the data depends from some other energy (e.g. energy), it 
+        If instead the data depends from some other quantity (e.g. energy), it 
         contains both noticed and ignored frequency intervals over which to 
         produce spectral-timing products. For example, a user might input a set 
         of 7 ranges of frequencies to calculate lag energy spectra, but only 
@@ -956,7 +961,12 @@ class FrequencyDependentFit():
     freqs_mask np.array(bool)
         The array of Fourier frequencies that are either ignored or noticed 
         during the fit. A given channel i is noticed if freqs_mask[i] is True,
-        and ignored if it is false.      
+        and ignored if it is false. 
+        
+    fmin, fmax: np.array(float)
+        Only defined if the data depends on Fourier frequency implicitely (e.g. 
+        lag-energy spectra). They contain the lower and upper bounds of the 
+        noticed Fourier frequency bins.     
     
     n_freqs: int 
         The number of Fourier frequency bins that are noticed in the fit. 
@@ -979,6 +989,8 @@ class FrequencyDependentFit():
             self._all_freqs = self._freqs_unmasked.size
         else:
             self._all_freqs = self._freqs_unmasked.size-1
+            self.fmin = self._freqs_unmasked[:-1]
+            self.fmax = self._freqs_unmasked[1:]
         self.n_freqs = self._all_freqs
         self.freqs_mask = np.full((self._all_freqs), True)
         pass
@@ -1007,14 +1019,15 @@ class FrequencyDependentFit():
             self.freqs = np.extract(self.freqs_mask,self._freqs_unmasked)
             self.n_freqs = self.freqs_mask[self.freqs_mask==True].size
         else:
-            #this is for products that do not depend on energy explicitely, but 
+            #this is for products that do not depend on frequency explicitely, but 
             #only implicitely - for example, lag-energy data.
             fmin = self._freqs_unmasked[:-1]
             fmax = self._freqs_unmasked[1:]
             self.freqs_mask = ((fmin<bound_lo)|
                                (fmax>bound_hi))&self.freqs_mask
-            self.freq_bounds = np.extract(self.freqs_mask,self._freqs_unmasked)
-            self.n_freqs = self.freqs_mask[self.freqs_mask==True].size#-1 
+            self.fmin = np.extract(self.freqs_mask,fmin)
+            self.fmax = np.extract(self.freqs_mask,fmax)
+            self.n_freqs = self.freqs_mask[self.freqs_mask==True].size 
 
         #filter and re-flatten the data using the same mask 
         self._reflatten_data()   
@@ -1023,14 +1036,14 @@ class FrequencyDependentFit():
     def notice_frequencies(self,bound_lo,bound_hi):
         """
         This method adjusts the arrays stored such that they (and the fit) 
-        ignore selected frequencies based on user-supplied bounds bounds.
+        notice selected frequencies based on user-supplied bounds bounds.
 
         Parameters:
         -----------
         bound_lo : float
-            Lower bound of ignored frequency interval.
+            Lower bound of noticed frequency interval.
         bound_hi : float
-            Higher bound of ignored frequency interval.    
+            Higher bound of noticed frequency interval.    
         """
         
         if ((isinstance(bound_lo, (np.floating, float, int)) != True)|
@@ -1049,8 +1062,9 @@ class FrequencyDependentFit():
             self.freqs_mask = self.freqs_mask|np.logical_not(
                               (fmin<bound_lo)|
                               (fmax>bound_hi))
-            self.freq_bounds = np.extract(self.freqs_mask,self._freqs_unmasked)
-            self.n_freqs = self.freqs_mask[self.freqs_mask==True].size-1 
+            self.fmin = np.extract(self.freqs_mask,fmin)
+            self.fmax = np.extract(self.freqs_mask,fmax)
+            self.n_freqs = self.freqs_mask[self.freqs_mask==True].size
 
         #filter and re-flatten the data using the same mask 
         self._reflatten_data()  

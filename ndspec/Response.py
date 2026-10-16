@@ -101,9 +101,10 @@ class ResponseMatrix(nDspecOperator):
     n_energs: int
         The length of the energ_lo/energ_hi arrays.
         
-    resp_matrix: numpy.array(float x float)
-        The instrument response in matrix form, with size (n_energs x n_chans). 
-        Only contains the redistribution matrix if no arf is loaded yet.
+    resp_matrix: scipy.sparse
+        The instrument response in sparse matrix form, with size 
+        (n_energs x n_chans). Only contains the redistribution matrix if no arf 
+        is loaded yet.
 
     specresp: numpy.array(float)
         The instrument effective area as a function of energy as contained in 
@@ -858,7 +859,7 @@ class ResponseMatrix(nDspecOperator):
 
         data = Plotting.make_mesh_data(x_points=x_axis,
                                        y_points=energy_array,
-                                       z_values=np.log10(self.resp_matrix),
+                                       z_values=np.ma.log10(self.resp_matrix.toarray()),
                                        x_label=x_label,
                                        y_label="Energy (keV)",
                                        z_label="log10(Response)",

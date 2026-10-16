@@ -495,7 +495,7 @@ def draw_main_panel(axes,panel_data,color="C0",draw_data=True,
             raise ValueError("draw_data is True but panel_data does not "
                              "contain both x_points and y_points")
 
-        style = _merge_style(dict(linestyle='',marker='o',alpha=0.35,
+        style = _merge_style(dict(linestyle='',marker='o',alpha=0.75,
                                   color=color),data_kwargs)
         axes.errorbar(panel_data["x_points"],panel_data["y_points"],
                       xerr=panel_data["x_bars"],yerr=panel_data["y_bars"],
@@ -506,7 +506,7 @@ def draw_main_panel(axes,panel_data,color="C0",draw_data=True,
             raise ValueError("draw_bkg is True but panel_data does not "
                              "contain bkg_vals")
 
-        style = _merge_style(dict(linestyle='',marker='s',alpha=0.35,
+        style = _merge_style(dict(linestyle='',marker='s',alpha=0.5,
                                   color=color),bkg_kwargs)
         axes.errorbar(panel_data["x_points"],panel_data["bkg_vals"],
                       xerr=panel_data["x_bars"],**style)
@@ -911,8 +911,8 @@ def get_diverging_norm(values,n_ticks=5):
         The positions of the colorbar ticks. 
     """
     
-    minimum = np.min(values)
-    maximum = np.max(values)
+    minimum = np.nanmin(values)
+    maximum = np.nanmax(values)
     
     #if the array is only positive or only negative, set an 
     #artificial cap/floor to create the ticks and normalization
