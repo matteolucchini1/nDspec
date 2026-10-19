@@ -1486,7 +1486,6 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         
         resid, reserr = None, None
         data, data_err = None, None 
-        res_label = None 
         data = self._plot_format(self._data_unmasked)
         data_err = self._plot_format(self._data_err_unmasked)
         #this horrible jank here is necessary to avoid raising annoying 
