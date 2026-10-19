@@ -741,7 +741,7 @@ class EnergyDependentFit():
         return
 
     def set_gain(self,slope=1.0,offset=0.0,vary=True,
-                 slope_bounds=(0.9,1.1),offset_bounds=(-0.3,0.3),
+                 slope_bounds=(0.95,1.05),offset_bounds=(-0.1,0.1),
                  label=None):
         """
         This method sets a gain correction to the instrument channel to energy
