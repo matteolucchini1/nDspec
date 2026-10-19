@@ -220,8 +220,8 @@ class SimpleFit():
             twod_mask = self.ebounds_mask.reshape((self._all_chans,1))* \
                         self.freqs_mask.reshape((1,self._all_freqs))  
         elif self.dependence == "generic":
-            twod_mask = self.row_mask.reshape((self._all_rows,1))* \
-                        self.column_mask.reshape((1,self._all_columns))
+            twod_mask = self.column_mask.reshape((self._all_columns,1))* \
+                        self.row_mask.reshape((1,self._all_rows))
         else:
             raise AttributeError("Data dependence not specified")
         twod_mask = np.array(twod_mask).flatten()

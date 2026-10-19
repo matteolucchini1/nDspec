@@ -606,7 +606,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
                                                sharex=True,figsize=(6.5,6.),
                                                panels={"data":(0,0),
                                                        "residuals":(1,0)})
-            fig, panels = Plotting.make_panels(plot_layout)
+            fig, panels = Plotting.make_panels(plot_layout,squeeze=False)
             Plotting.draw_main_panel(panels[0],data,
                                      draw_components = (plot_components is not False),
                                      data_kwargs=data_kwargs,
@@ -615,7 +615,6 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
             panels[0].set_xlabel("")
             Plotting.draw_residual_panel(panels[1],data,residuals,
                                         resid_kwargs=resid_kwargs)
-            fig.tight_layout(h_pad=0.)
         
         if return_plot is True:
             return fig, panels

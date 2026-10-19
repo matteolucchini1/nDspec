@@ -1271,11 +1271,11 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                 if data_kwargs is not None:
                     spec_kwargs.update(data_kwargs)
                 panel_data = Plotting.make_panel_data(x_points=x_axis,
-                                                x_bars=x_bars,
-                                                y_points=data[col,i],
-                                                y_bars=data_err[col,i],
-                                                x_label=x_label,
-                                                y_label=y_labels[col])
+                                                      x_bars=x_bars,
+                                                      y_points=data[col,i],
+                                                      y_bars=data_err[col,i],
+                                                      x_label=x_label,
+                                                      y_label=y_labels[col])
                 Plotting.draw_main_panel(panels[col],panel_data,color="C"+str(i),
                                          draw_model=False,log_yaxis=log_yaxis,
                                          data_kwargs=spec_kwargs)
@@ -1540,8 +1540,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                     Plotting.draw_residual_panel(panels[1,col],panel_data,residuals,
                                                  color="C"+str(i),
                                                  resid_kwargs=resid_kwargs)
-        
-        fig.tight_layout(h_pad=0.)                             
+                          
         panels[0,-1].legend(loc="best",ncol=2,fontsize=12)
         
         if return_plot is True:
@@ -1576,7 +1575,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             it converts the lags to phases for ease of visualization over a large 
             range in lag timescales.
 
-        cmaps: list(str), default=None
+        cmaps: list(str)
             A list of colormaps of each panel. If set to none, lags use 
             `twilight`, modulus uses `magma`,real+imaginary use`PuOr`, and 
             residuals use `BrBG`.  
@@ -1636,16 +1635,17 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         if plot_data is True:
             rows = ["data","model","residuals"]
             meshes["data"] = self._plot_format(self._data_unmasked,twod=True)
-            if residuals is None:
-                residuals = self.likelihood
-            res, _ = self.get_residuals(residuals,
-                                        model=self._filter_2d_by_mask(model))
+
             if residuals == "chisq":
                 res_label = "$\\Delta\\chi$"
             elif residuals == "ratio":
                 res_label = "Data/model"
             else:
-                raise ValueError("Residual format not supported")
+                res_label = "Residuals"
+            if residuals is None:
+                residuals = self.likelihood
+            res, _ = self.get_residuals(residuals,
+                                        model=self._filter_2d_by_mask(model))
             noticed = self._filter_2d_by_mask(np.arange(self._data_unmasked.size))
             #this jank is necessary to support ignored bins in the 2d plot
             resid = np.full(self._data_unmasked.size,np.nan)
