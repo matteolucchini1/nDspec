@@ -121,8 +121,8 @@ class PolarimetryProduct(nDspecOperator):
                 f"This object was initialized with input_type={self.input_type!r}; "
                 "set_polarization() is only valid for input_type='polarization'."
             )
-        if np.any(degree < 0.) or np.any(degree > 1.):
-            raise ValueError("The polarization degree must be between 0 and 1")
+        if np.any(np.abs(degree) > 1.):
+            raise ValueError("The polarization degree must be between -1 and 1")
             
         self.stokes_I = self._check_shape(I, self.n_bins, "I")
         self.pol_degree = self._check_shape(degree, self.n_bins, "polarization degree")

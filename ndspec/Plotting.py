@@ -402,7 +402,7 @@ def make_panels(layout,fig=None,subplot_spec=None,squeeze=True,hspace=None,wspac
                                             projection=projection,
                                             sharex=shared_axis)
             if layout["sharex"] is True and row < layout["nrows"]-1:
-                axes[row,col].tick_params(labelbottom=False)
+                axes[row,col].tick_params(which="both",labelbottom=False)
     
     if squeeze is True:
         if axes.size == 1:
