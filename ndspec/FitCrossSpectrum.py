@@ -1579,7 +1579,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
 
         cmaps: list(str), default=None
             A list of colormaps of each panel. If set to none, lags use 
-            `twilight`, modulus uses `magma`,real+imaginary use`PuOr`.  
+            `twilight`, modulus uses `magma`,real+imaginary use`PuOr`, and 
+            residuals use `BrBG`.  
 
         residuals: str, default=None
             The units to use for the residuals. If residuals="chisq", the plot 
@@ -1613,16 +1614,16 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         
         if self.units == "lags" and use_phase is True:
             z_labels = ["Phase (rad)"]
-            default_cmaps = ["twilight"]
+            default_cmaps = ["twilight","BrBG"]
         elif self.units == "lags":
             z_labels = ["Lag (s)"]
-            default_cmaps = ["twilight"]
+            default_cmaps = ["twilight","BrBG"]
         elif self.units == "polar":
             z_labels = ["log10(Modulus)","Phase (rad)"]
-            default_cmaps = ["magma","twilight"]
+            default_cmaps = ["magma","twilight","BrBG"]
         else:
             z_labels = ["Real part","Imaginary part"]
-            default_cmaps = ["PuOr","PuOr"]
+            default_cmaps = ["PuOr","PuOr","BrBG"]
         if cmaps is None:
             cmaps = default_cmaps
         n_quant = len(z_labels)         
@@ -1654,7 +1655,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
 
         for name in meshes.keys():
             if name == "residuals":
-                    continue
+                continue
             if self.units == "polar":
                 meshes[name][0] = np.log10(meshes[name][0])
             elif self.units == "lags" and use_phase is True:
@@ -1672,40 +1673,59 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             panels = panels.T
              
         for col in range(n_quant):
-                #the modulus is the only quantity without a diverging colour scale
-                diverging = (self.units != "polar") or (col == 1)
-                #data and model share the colour scale of the data
-                shared = {}
-                if plot_data is True and diverging is True:
-                    shared["norm"], _ = Plotting.get_diverging_norm(meshes["data"][col])
-                elif plot_data is True:
-                    shared["vmin"] = np.nanmin(meshes["data"][col])
-                    shared["vmax"] = np.nanmax(meshes["data"][col])
-                
-                for row, name in enumerate(rows):
-                    if name == "residuals":
-                        cmap = "BrBG"
-                        z_label = res_label
-                        style = {}
-                        panel_diverging = True
-                    else:
-                        cmap = cmaps[col]
-                        z_label = z_labels[col]
-                        style = dict(shared)
-                        panel_diverging = diverging and len(shared) == 0
-                    if mesh_kwargs is not None:
-                        style.update(mesh_kwargs)
-                    mesh_data = Plotting.make_mesh_data(x_points=x_axis,
-                                                        y_points=self._ebounds_unmasked,
-                                                        z_values=meshes[name][col],
-                                                        x_label="Frequency (Hz)",
-                                                        y_label="Energy (keV)",
-                                                        z_label=z_label)
-                    Plotting.draw_colormesh_panel(panels[row,col],mesh_data,cmap=cmap,
-                                                  diverging=panel_diverging,
-                                                  log_xaxis=True,log_yaxis=True,
-                                                  ylim=ylim,mesh_kwargs=style)
-                    panels[row,col].set_title(name.capitalize())
+            #the modulus is the only quantity without a diverging colour scale
+            diverging = (self.units != "polar") or (col == 1)
+            #data and model share the colour scale of the data
+            shared = {}
+            ticks = None
+            if plot_data is True and diverging is True:
+                shared["norm"], _ = Plotting.get_diverging_norm(meshes["data"][col])
+            elif plot_data is True:
+                shared["vmin"] = np.nanmin(meshes["data"][col])
+                shared["vmax"] = np.nanmax(meshes["data"][col])            
+            for row, name in enumerate(rows):
+                if name == "residuals":
+                    cmap = cmaps[-1]
+                    z_label = res_label
+                    style = {}
+                    panel_diverging = True
+                else:
+                    cmap = cmaps[col]
+                    z_label = z_labels[col]
+                    style = dict(shared)
+                    panel_diverging = diverging and len(shared) == 0
+                if mesh_kwargs is not None:
+                    style.update(mesh_kwargs)
+                mesh_data = Plotting.make_mesh_data(x_points=x_axis,
+                                                    y_points=self._ebounds_unmasked,
+                                                    z_values=meshes[name][col],
+                                                    x_label="Frequency (Hz)",
+                                                    y_label="Energy (keV)",
+                                                    z_label=z_label)
+                mesh = Plotting.draw_colormesh_panel(panels[row,col],mesh_data,cmap=cmap,
+                                                     diverging=panel_diverging,
+                                                     colorbar=(name == "residuals" or plot_data is False),
+                                                     log_xaxis=True,log_yaxis=True,
+                                                     ylim=ylim,mesh_kwargs=style)
+                panels[row,col].set_title(name.capitalize())
+                if name == "model":
+                    mesh_model = mesh
+                #set labels so only the leftmost/bottom panels retain them 
+                if (self.units == "lags" and row > 0) or col > 0:
+                    panels[row,col].set_ylabel("")
+                    panels[row,col].tick_params(labelleft=False)
+                if self.units != "lags" and row < len(rows)-1:
+                    panels[row,col].set_xlabel("")
+                    panels[row,col].tick_params(labelbottom=False)
+            
+            if plot_data is True:
+                #set aspect to keep the bar width consistent for all plots 
+                aspect = 20
+                if self.units != "lags":
+                    aspect = 40
+                bar = fig.colorbar(mesh_model,ax=[panels[0,col],panels[1,col]],
+                                   ticks=ticks,aspect=aspect)
+                bar.set_label(z_labels[col])
             
         if self.units == "lags":
             panels = panels[:,0]
