@@ -1014,8 +1014,8 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
                 np.where(self.pol_ebounds_mask,stokes_U,np.nan)]
 
 
-    def plot_data(self,units="stokes",plot_bkg=False,return_plot=False,
-                  data_kwargs=None,bkg_kwargs=None):
+    def plot_data(self,units="stokes",plot_bkg=False,panels=None,
+                  return_plot=False,data_kwargs=None,bkg_kwargs=None):
         """
         This method plots the spectro-polarimetric data loaded by the user as a
         function of energy, either as the three Stokes parameters or as the 
@@ -1034,8 +1034,13 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
             A boolean to choose whether to overplot the background. Only 
             supported when plotting Stokes parameters.
  
+        panels : matplotlib.axes or numpy.ndarray(matplotlib.axes), default=None
+            Existing panels to draw into, e.g as returned by calling plot_model 
+            from a second fitter. If None, a new figure is created.
+            
         return_plot: bool, default=False
-            A boolean to decide whether to return the figure and panels.
+            A boolean to decide whether to return the figure objected containing 
+            the plot or not.
             
         data_kwargs, bkg_kwargs: dict, default=None 
             Keyword arguments for the data and background points.
@@ -1056,7 +1061,7 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
         grid_pol = (self._pol_ebounds_unmasked,0.5*self._pol_ewidths_unmasked,
                     np.append(self._pol_emin_unmasked,self._pol_emax_unmasked[-1]))
  
-        bkg = [None,None,None]
+        bkg = None
         if units == "stokes":
             data = self._plot_format(self._data_unmasked)
             data_err = self._plot_format(self._data_err_unmasked)
@@ -1082,12 +1087,17 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
                         "Polarization angle (deg)"]
         else:
             raise ValueError("Plot units not supported")
-        n_panels = len(data)
-        
-        plot_layout = Plotting.make_layout(ncols=n_panels,
-                                           figsize=(4.9*n_panels,4.0))
-        fig, panels = Plotting.make_panels(plot_layout)
-        
+        n_quant = len(data)
+
+        layout_kwargs = dict(ncols=n_quant,figsize=(4.9*n_quant,4.0))
+        if panels is None:
+            plot_layout = Plotting.make_layout(**layout_kwargs)
+            fig, panels = Plotting.make_panels(plot_layout,squeeze=False)
+        else:
+            #The panels need to be sorted to lay out the plot correctly 
+            panels = np.reshape(np.asarray(panels,dtype=object),(1,n_quant))
+            fig = panels[0,0].get_figure()        
+     
         for k, panel in enumerate(panels):
             x_axis, x_bars, _ = grids[k]
             #only Stokes I is positive definite
@@ -1098,7 +1108,7 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
                                                   y_points=data[k],
                                                   x_bars=x_bars,
                                                   y_bars=data_err[k],
-                                                  bkg_vals=bkg[k],
+                                                  bkg_vals=None if bkg is None else bkg[k],
                                                   x_label="Energy (keV)",
                                                   y_label=y_labels[k])
             Plotting.draw_main_panel(panel,panel_data,draw_model=False,
@@ -1265,18 +1275,18 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
                 reserr[k][self.pol_ebounds_mask] = err[k]
         else:
             raise ValueError("Plot units not supported")
-        n_panels = len(model_vals)
+        n_quant = len(model_vals)
         
         if plot_data is True:
-            plot_layout = Plotting.make_layout(nrows=2,ncols=n_panels,
+            plot_layout = Plotting.make_layout(nrows=2,ncols=n_quant,
                                                height_ratios=[2,1],sharex=True,
-                                               figsize=(6.5*n_panels,6.))
+                                               figsize=(6.5*n_quant,6.))
         else:
-            plot_layout = Plotting.make_layout(ncols=n_panels,
-                                               figsize=(6.5*n_panels,4.5))
+            plot_layout = Plotting.make_layout(ncols=n_quant,
+                                               figsize=(6.5*n_quant,4.5))
         fig, panels = Plotting.make_panels(plot_layout,squeeze=False)
  
-        for k in range(n_panels):
+        for k in range(n_quant):
             x_axis, x_error, x_edges = grids[k]
             #only Stokes I is positive definite
             log_yaxis = (units == "stokes" and k == 0)

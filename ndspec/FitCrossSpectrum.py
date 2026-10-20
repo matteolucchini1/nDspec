@@ -676,7 +676,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         elif (time_res is not None)&(seg_size is not None):
             n_samples = int(seg_size/time_res)
             freqs = rfftfreq(n_samples,time_res)
-            self.freqs = freqs[freqs>0]        
+            self.freqs = freqs[1:(n_samples+1)//2]        
             self._times = np.linspace(time_res,n_samples*time_res,n_samples)
         #or we can explicitely pass a frequency grid alone, and the time grid is 
         #reconstructed automatically 
@@ -1371,7 +1371,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         
         plot_layout = Plotting.make_layout(ncols=n_quant,colorbars=True,
                                            figsize=(6.5*n_quant,4.5))
-        fig, panels = Plotting.make_panels(plot_layout)
+        fig, panels = Plotting.make_panels(plot_layout,squeeze=False)
         panels = np.atleast_1d(panels)
         
         for col in range(n_quant):
@@ -1381,7 +1381,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                                                 x_label="Frequency (Hz)",
                                                 y_label="Energy (keV)",
                                                 z_label=z_labels[col])
-            Plotting.draw_colormesh_panel(panels[col],mesh_data,cmap=cmaps[col],
+            Plotting.draw_colormesh_panel(panels[0,col],mesh_data,cmap=cmaps[col],
                                           diverging=(self.units != "polar" or col == 1),
                                           log_xaxis=True,log_yaxis=True,ylim=ylim,
                                           mesh_kwargs=mesh_kwargs)
