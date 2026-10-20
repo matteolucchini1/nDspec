@@ -533,9 +533,9 @@ class FitTwoD(SimpleFit):
         array = array.reshape((self._all_columns,self._all_rows))
         return np.transpose(np.where(twod_mask,array,np.nan))
 
-    def plot_data(self,x_name=None,y_name=None,z_name=None,cmap='plasma',
-                  log_xaxis=False,log_yaxis=False,log_zaxis=False,return_plot=False,
-                  mesh_kwargs=None):
+    def plot_data_2d(self,x_name=None,y_name=None,z_name=None,cmap='plasma',
+                     log_xaxis=False,log_yaxis=False,log_zaxis=False,
+                     return_plot=False,mesh_kwargs=None):
         """
         This method creates a 2d plot of the data loaded by the user as a 
         function of whatever units are in used for the rows and columns. 
@@ -624,10 +624,10 @@ class FitTwoD(SimpleFit):
         else:
             return 
             
-    def plot_model(self,plot_data=True,params=None,residuals=None,x_name=None,
-                   y_name=None,z_name=None,cmaps=None,log_xaxis=False,
-                   log_yaxis=False,log_zaxis=False,return_plot=False,
-                   mesh_kwargs=None):
+    def plot_model_2d(self,plot_data=True,params=None,residuals=None,x_name=None,
+                      y_name=None,z_name=None,cmaps=None,log_xaxis=False,
+                      log_yaxis=False,log_zaxis=False,return_plot=False,
+                      mesh_kwargs=None):
         """
         This method creates a 2d plot of the data loaded by the user, the 
         model for the given parameters (either passed as an object, or already 

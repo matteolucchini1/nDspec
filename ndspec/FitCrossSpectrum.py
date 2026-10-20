@@ -1194,7 +1194,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         else:
             return np.transpose(array,(0,2,1))[:,self.freqs_mask,:]
     
-    def plot_data_1d(self,panels=None,return_plot=False,data_kwargs=None):
+    def plot_data(self,panels=None,return_plot=False,data_kwargs=None):
         """
         This method plots the cross spectrum loaded by the user as a function of 
         the unit dependence specified (ie, Fourier frequency or energy). If the 
@@ -1323,10 +1323,10 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         cmaps: list(str), default=None
             A list of colormaps of each panel. If set to none, lags use 
             `twilight`, modulus uses `magma`,real+imaginary use`PuOr`.            
-                    
+                  
         return_plot: bool, default=False
             A boolean to decide whether to return the figure objected containing 
-            the plot or not.            
+            the plot or not.          
             
         mesh_kwargs: dict, default=None 
             Keyword arguments for the 2d colormesh, applied to every panel.
@@ -1375,13 +1375,13 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         panels = np.atleast_1d(panels)
         
         for col in range(n_quant):
-            data = Plotting.make_mesh_data(x_points=x_axis,
-                                           y_points=self._ebounds_unmasked,
-                                           z_values=values[col],
-                                           x_label="Frequency (Hz)",
-                                           y_label="Energy (keV)",
-                                           z_label=z_labels[col])
-            Plotting.draw_colormesh_panel(panels[col],data,cmap=cmaps[col],
+            mesh_data = Plotting.make_mesh_data(x_points=x_axis,
+                                                y_points=self._ebounds_unmasked,
+                                                z_values=values[col],
+                                                x_label="Frequency (Hz)",
+                                                y_label="Energy (keV)",
+                                                z_label=z_labels[col])
+            Plotting.draw_colormesh_panel(panels[col],mesh_data,cmap=cmaps[col],
                                           diverging=(self.units != "polar" or col == 1),
                                           log_xaxis=True,log_yaxis=True,ylim=ylim,
                                           mesh_kwargs=mesh_kwargs)
@@ -1393,7 +1393,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         else:
             return 
 
-    def plot_model_1d(self,plot_data=True,params=None,use_phase=False,
+    def plot_model(self,plot_data=True,params=None,use_phase=False,
                       residuals="chisq",panels=None,return_plot=False,
                       data_kwargs=None,model_kwargs=None,resid_kwargs=None):
         """
