@@ -441,10 +441,10 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         else:
             raise AttributeError("Data dependency not found! Set frequency or energy")    
         
-        if len(self.freqs) < 500:
+        if len(self.freqs) < 50:
             warnings.warn(f"Model frequency grid contains only {len(self.freqs)} bins,"\
                            "model computations might be inaccurate! Suggest you use "\
-                           "at least 500!",UserWarning)   
+                           "at least 50!",UserWarning)   
         
         self._set_unmasked_data()
         return
@@ -526,7 +526,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             #use a geometrically spaced time grid
             lc_length = ps_ref.n*time_res
             time_samples = int(lc_length/time_res)
-            if frebin_fac is not None:
+            if frebin_fac is None:
                 self._times = np.linspace(time_res,lc_length,time_samples)
             else:
                 self._times = np.geomspace(time_res,lc_length,time_samples)
@@ -555,7 +555,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                                                                dt=time_res,norm=norm,
                                                                silent=True)    
                     if frebin_fac is not None:
-                        cs = cs.rebin_log(frebin_fac)
+                        ps_sub = ps_sub.rebin_log(frebin_fac)
                     ctrate_sub = get_average_ctrate(events_sub.time,events_sub.gti,seg_size)                    
                     noise_sub = poisson_level(norm=norm, meanrate=ctrate_sub)                      
                     data_size = len(cs.freq)
@@ -1194,7 +1194,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         else:
             return np.transpose(array,(0,2,1))[:,self.freqs_mask,:]
     
-    def plot_data_1d(self,return_plot=False,data_kwargs=None):
+    def plot_data_1d(self,panels=None,return_plot=False,data_kwargs=None):
         """
         This method plots the cross spectrum loaded by the user as a function of 
         the unit dependence specified (ie, Fourier frequency or energy). If the 
@@ -1213,7 +1213,11 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         to save it to file.
         
         Parameters:
-        -----------            
+        -----------          
+        panels : matplotlib.axes or numpy.ndarray(matplotlib.axes), default=None
+            An existing panel to draw into, e.g as returned by calling plot_data 
+            from a second fitter. If None, a new figure is created.
+                  
         return_plot: bool, default=False
             A boolean to decide whether to return the figure objected containing 
             the plot or not.
@@ -1255,17 +1259,22 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         
         data = self._plot_format(self._data_unmasked)
         data_err = self._plot_format(self._data_err_unmasked)
-
-        plot_layout = Plotting.make_layout(ncols=n_quant,
-                                           figsize=(6.5*n_quant,4.5))
-        fig, panels = Plotting.make_panels(plot_layout,squeeze=False)
-        panels = panels[0]
+        
+        layout_kwargs = dict(ncols=n_quant,figsize=(6.5*n_quant,4.5))
+        if panels is None:
+            plot_layout = Plotting.make_layout(**layout_kwargs)
+            fig, panels = Plotting.make_panels(plot_layout,squeeze=False)
+        else:
+            #This method only ever draws one row and multiple columns 
+            #plotting the model and data in 2d might require more 
+            panels = np.reshape(np.asarray(panels,dtype=object),(1,n_quant))
+            fig = panels[0,0].get_figure()
 
         for col in range(n_quant):
             #the first quantity is plotted in log space unless it is a lag 
             log_yaxis = (col == 0) and (self.units != "lags")
             if log_yaxis is False:
-                panels[col].axhline(0,color='black',ls=':',zorder=3)        
+                panels[0,col].axhline(0,color='black',ls=':',zorder=3)        
             for i in range(len(spec_lo)):
                 spec_kwargs = dict(label=f"{spec_lo[i]:.1f}-{spec_hi[i]:.1f} {units}")
                 if data_kwargs is not None:
@@ -1276,12 +1285,13 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                                                       y_bars=data_err[col,i],
                                                       x_label=x_label,
                                                       y_label=y_labels[col])
-                Plotting.draw_main_panel(panels[col],panel_data,color="C"+str(i),
+                Plotting.draw_main_panel(panels[0,col],panel_data,color="C"+str(i),
                                          draw_model=False,log_yaxis=log_yaxis,
                                          data_kwargs=spec_kwargs)
                                      
-        panels[-1].legend(loc="best",ncol=2,fontsize=12)
+        panels[0,-1].legend(loc="best",ncol=2,fontsize=12)
 
+        panels = panels[0]
         if self.units == "lags":
             panels = panels[0]
         
@@ -1384,8 +1394,8 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
             return 
 
     def plot_model_1d(self,plot_data=True,params=None,use_phase=False,
-                      residuals="chisq",return_plot=False,data_kwargs=None,
-                      model_kwargs=None,resid_kwargs=None):
+                      residuals="chisq",panels=None,return_plot=False,
+                      data_kwargs=None,model_kwargs=None,resid_kwargs=None):
         """
         This method plots the model defined by the user as a function of  the  
         unit dependence specified (ie, Fourier frequency or energy). 
@@ -1500,16 +1510,20 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
         reserr[noticed] = err
         resid = self._plot_format(resid)
         reserr = self._plot_format(reserr)
-        
+
+        layout_kwargs = dict(figsize=(6.5*n_quant,4.5),ncols=n_quant)
         if plot_data is True:
-            plot_layout = Plotting.make_layout(ncols=n_quant,nrows=2,
-                                               height_ratios=[2,1],sharex=True,
-                                               figsize=(6.5*n_quant,6.0))
+            layout_kwargs = dict(nrows=2,ncols=n_quant,height_ratios=[2,1],
+                                 sharex=True,figsize=(6.5*n_quant,6.))        
+        if panels is None:
+            plot_layout = Plotting.make_layout(**layout_kwargs)
             fig, panels = Plotting.make_panels(plot_layout,squeeze=False)
         else:
-            plot_layout = Plotting.make_layout(ncols=n_quant,nrows=1,                                               
-                                               figsize=(6.5*n_quant,6.0))
-            fig, panels = Plotting.make_panels(plot_layout,squeeze=False)        
+            #To lay out the panels correctly we need to reshape to a nrowsxncols
+            #grid layout
+            panels = np.reshape(np.asarray(panels,dtype=object),
+                                (layout_kwargs.get("nrows",1),n_quant))
+            fig = panels[0,0].get_figure()
         
         for col in range(n_quant):
             log_yaxis = (col == 0) and (self.units != "lags")

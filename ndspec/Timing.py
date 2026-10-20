@@ -248,7 +248,7 @@ class FourierProduct(nDspecOperator):
             minbin = 0            
         
         if self.n_times % 2 == 0:
-            return slice(minbin, self.n_times // 2 + 1)                        
+            return slice(minbin, self.n_times // 2)
         return slice(minbin, (self.n_times + 1) // 2)
 
     def _sinc_decomp(self):
