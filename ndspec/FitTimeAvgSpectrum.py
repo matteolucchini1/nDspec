@@ -362,7 +362,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         
         return converted_array        
 
-    def plot_data(self,units="data",plot_bkg=False,return_plot=False,
+    def plot_data(self,units="data",plot_bkg=False,panels=None,return_plot=False,
                   data_kwargs=None,bkg_kwargs=None):
         """
         This method plots the spectrum loaded by the user as a function of 
@@ -386,7 +386,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         Parameters:
         -----------
         units: str, default="data"
-            The units to use for the y axis. units="data", the detector, plots 
+            The units to use for the y axis. units="data", the default, plots 
             the data in detector space in units of counts/s/keV. units="unfold" 
             instead plots unfolded data and follows the Xspec convention for the 
             y axis - the y axis is in units of counts/s/keV/cm^2, times one 
@@ -394,9 +394,13 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
             For instance, units="eeunfold" plots units of kev^2 counts/s/keV/cm^2,
             i.e. units of nuFnu. 
             
-        plot_bkg; str, default="False:
+        plot_bkg; bool, default="False:
             A boolean to choose whether you want to plot the background
         
+        panels : matplotlib.axes or numpy.ndarray(matplotlib.axes), default=None
+            An existing panel to draw into, e.g as returned by calling plot_data 
+            from a second fitter. If None, a new figure is created.
+            
         return_plot: bool, default=False
             A boolean to decide whether to return the figure objected containing 
             the plot or not.
@@ -426,19 +430,31 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         
         bkg = None
         if plot_bkg is True:
+            if self.noise is None:
+                raise AttributeError("No background loaded")
             bkg = self._to_plot_units(self._noise_unmasked,units)
+            
+        data = self._to_plot_units(self._data_unmasked,units)
+        data_err = self._to_plot_units(self._data_err_unmasked,units)
         
-        data = Plotting.make_panel_data(x_points=self._ebounds_unmasked,
-                                        y_points=self._to_plot_units(self._data_unmasked,units),
-                                        x_bars=0.5*self._ewidths_unmasked,
-                                        y_bars=self._to_plot_units(self._data_err_unmasked,units),
-                                        bkg_vals=bkg,
-                                        x_label="Energy (keV)",
-                                        y_label=y_label)
+        panel_data = Plotting.make_panel_data(x_points=self._ebounds_unmasked,
+                                              y_points=data,
+                                              x_bars=0.5*self._ewidths_unmasked,
+                                              y_bars=data_err,
+                                              bkg_vals=bkg,
+                                              x_label="Energy (keV)",
+                                              y_label=y_label)
         
-        plot_layout = Plotting.make_layout(figsize=(6.5,4.5))
-        fig, panel = Plotting.make_panels(plot_layout)
-        Plotting.draw_main_panel(panel,data,draw_model=False,draw_bkg=plot_bkg,
+        if panels is None:
+            plot_layout = Plotting.make_layout(figsize=(6.5,4.5))
+            fig, panel = Plotting.make_panels(plot_layout)
+        else:
+            #this fitter only ever works on a single panel, other fitters will
+            #have more complex layouts 
+            panel = panels
+            fig = panel.get_figure()   
+            
+        Plotting.draw_main_panel(panel,panel_data,draw_model=False,draw_bkg=plot_bkg,
                                  data_kwargs=data_kwargs,bkg_kwargs=bkg_kwargs)
         
         if return_plot is True:
@@ -447,9 +463,9 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
             return
 
     def plot_model(self,plot_data=True,plot_components=False,plot_bkg=False,
-                   params=None,units="data",residuals=None,return_plot=False,
-                   data_kwargs=None,model_kwargs=None,component_kwargs=None,
-                   resid_kwargs=None):
+                   params=None,units="data",residuals=None,panels=None,
+                   return_plot=False,data_kwargs=None,model_kwargs=None,
+                   component_kwargs=None,resid_kwargs=None):
         """
         This method plots the model defined by the user as a function of 
         energy, as well as (optionally) its components, and the data plus model
@@ -506,6 +522,14 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
             plot shows the contribution of each bin to the Cash statistic. If
             residual units are not specified, they are computed from the  
             likelihood set by the user. 
+
+        panels : matplotlib.axes or numpy.ndarray(matplotlib.axes), default=None
+            An existing panel to draw into, e.g as returned by calling plot_data 
+            from a second fitter. If None, a new figure is created.
+            
+        return_plot: bool, default=False
+            A boolean to decide whether to return the figure objected containing 
+            the plot or not.
             
         data_kwargs, model_kwargs, component_kwargs, resid_kwargs: dict, default=None 
             Keyword arguments for each element of the plot.
@@ -568,6 +592,8 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
         
         bkg = None
         if plot_bkg is True:
+            if self.noise is None:
+                raise AttributeError("No background loaded")
             bkg = self._to_plot_units(self._noise_unmasked,units)
         
         components = None
@@ -580,41 +606,51 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
                 components[key] = self._apply_gain(components[key],params)
                 components[key] = self._to_plot_units(components[key],units)
 
-        data = Plotting.make_panel_data(x_points=self._ebounds_unmasked,
-                                        y_points=data,
-                                        x_bars=0.5*self._ewidths_unmasked,
-                                        y_bars=data_err,
-                                        bkg_vals = bkg,
-                                        model_edges=model_edges,
-                                        model_vals=model_vals,                                        
-                                        component_vals=components,
-                                        resid=resid,
-                                        reserr=reserr,
-                                        x_label="Energy (keV)",
-                                        y_label=y_label,
-                                        res_label=res_label)
+        panel_data = Plotting.make_panel_data(x_points=self._ebounds_unmasked,
+                                              y_points=data,
+                                              x_bars=0.5*self._ewidths_unmasked,
+                                              y_bars=data_err,
+                                              bkg_vals = bkg,
+                                              model_edges=model_edges,
+                                              model_vals=model_vals,                                        
+                                              component_vals=components,
+                                              resid=resid,
+                                              reserr=reserr,
+                                              x_label="Energy (keV)",
+                                              y_label=y_label,
+                                              res_label=res_label)
 
-        if plot_data is False:
-            plot_layout = Plotting.make_layout(figsize=(6.5,4.5))
-            fig, panels = Plotting.make_panels(plot_layout)
-            Plotting.draw_main_panel(panels,data,draw_data=False,
-                                     draw_components = (plot_components is not False),
-                                     model_kwargs=model_kwargs,
-                                     component_kwargs=component_kwargs) 
-        else:                 
-            plot_layout = Plotting.make_layout(nrows=2,height_ratios=[2,1],
-                                               sharex=True,figsize=(6.5,6.),
-                                               panels={"data":(0,0),
-                                                       "residuals":(1,0)})
+        layout_kwargs = dict(figsize=(6.5,4.5))
+        if plot_data is True:
+            #include residual panel if plotting data
+            layout_kwargs = dict(nrows=2,height_ratios=[2,1],sharex=True,
+                                 figsize=(6.5,6.))
+        
+        if panels is None:
+            plot_layout = Plotting.make_layout(**layout_kwargs)
             fig, panels = Plotting.make_panels(plot_layout,squeeze=False)
-            Plotting.draw_main_panel(panels[0],data,
-                                     draw_components = (plot_components is not False),
-                                     data_kwargs=data_kwargs,
-                                     model_kwargs=model_kwargs,
-                                     component_kwargs=component_kwargs)
-            panels[0].set_xlabel("")
-            Plotting.draw_residual_panel(panels[1],data,residuals,
-                                        resid_kwargs=resid_kwargs)
+        else:
+            #This fitter only ever draws one column, but more complex polarimety 
+            #or spectral timing stuff draws more and the functions need generic 
+            #formatting to work in JointFit
+            panels = np.reshape(np.asarray(panels,dtype=object),
+                                (layout_kwargs.get("nrows",1),1))
+            fig = panels[0,0].get_figure()
+
+        Plotting.draw_main_panel(panels[0,0],panel_data,draw_data=plot_data,
+                                 draw_components = (plot_components is not False),
+                                 data_kwargs=data_kwargs,
+                                 model_kwargs=model_kwargs,
+                                 component_kwargs=component_kwargs) 
+        
+        if plot_data is True:
+            panels[0,0].set_xlabel("")
+            Plotting.draw_residual_panel(panels[1,0],panel_data,residuals,
+                                         resid_kwargs=resid_kwargs)
+        
+        panels = panels[:,0]
+        if plot_data is False:
+            panels = panels[0]
         
         if return_plot is True:
             return fig, panels

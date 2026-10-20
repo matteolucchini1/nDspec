@@ -259,6 +259,13 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
         y_points = np.where(self.freqs_mask,self._data_unmasked,np.nan)*scale
         y_bars = np.where(self.freqs_mask,self._data_err_unmasked,np.nan)*scale
         
+        panel_data = Plotting.make_panel_data(x_points=freqs,
+                                              x_bars=x_bars,
+                                              y_points=y_points,
+                                              y_bars=y_bars,
+                                              x_label="Frequency (Hz)",
+                                              y_label=y_label)
+
         if panels is None:
             plot_layout = Plotting.make_layout(figsize=(6.5,4.5))
             fig, panel = Plotting.make_panels(plot_layout)
@@ -266,16 +273,9 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
             #this fitter only ever works on a single panel, other fitters will
             #have more complex layouts 
             panel = panels
-            fig = panel.get_figure()         
+            fig = panel.get_figure()   
         
-        data = Plotting.make_panel_data(x_points=freqs,
-                                        x_bars=x_bars,
-                                        y_points=y_points,
-                                        y_bars=y_bars,
-                                        x_label="Frequency (Hz)",
-                                        y_label=y_label)
-        
-        Plotting.draw_main_panel(panel,data,draw_data=True,draw_model=False,
+        Plotting.draw_main_panel(panel,panel_data,draw_data=True,draw_model=False,
                                  data_kwargs=data_kwargs)
         
         if return_plot is True:
