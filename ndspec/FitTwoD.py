@@ -566,7 +566,7 @@ class FitTwoD(SimpleFit):
             logarithmic scale.
             
         return_plot: bool, default=False
-            A boolean to decide whether to return the figure objected containing 
+            A boolean to decide whether to return the figure object containing 
             the plot or not.
             
         mesh_kwargs: dict, default=None 
@@ -653,7 +653,7 @@ class FitTwoD(SimpleFit):
             The units to use to label the Y axis.
         
         return_plot: bool, default=False
-            A boolean to decide whether to return the figure objected containing 
+            A boolean to decide whether to return the figure object containing 
             the plot or not.
             
         Returns: 

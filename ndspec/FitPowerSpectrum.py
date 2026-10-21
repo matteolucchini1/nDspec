@@ -229,7 +229,7 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
             from a second fitter. If None, a new figure is created.
             
         return_plot: bool, default=False
-            A boolean to decide whether to return the figure objected containing 
+            A boolean to decide whether to return the figure object containing 
             the plot or not.
 
         data_kwargs: dict, default=None 
@@ -329,7 +329,7 @@ class FitPowerSpectrum(SimpleFit,FrequencyDependentFit):
             from a second fitter. If None, a new figure is created.
             
         return_plot: bool, default=False
-            A boolean to decide whether to return the figure objected containing 
+            A boolean to decide whether to return the figure object containing 
             the plot or not.
             
         data_kwargs, model_kwargs, component_kwargs, resid_kwargs: dict, default=None 

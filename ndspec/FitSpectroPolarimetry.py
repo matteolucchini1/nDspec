@@ -709,9 +709,9 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
             stokes_I = self.response.convolve_response(stokes_I)
             stokes_Q = self.response_pol.convolve_response(stokes_Q)
             stokes_U = self.response_pol.convolve_response(stokes_U)
-            stokes_I = self._apply_gain(stokes_I,params,self.response)
-            stokes_Q = self._apply_gain(stokes_Q,params,self.response_pol)
-            stokes_U = self._apply_gain(stokes_U,params,self.response_pol)
+            stokes_I = self._apply_calibration(stokes_I,params,self.response)
+            stokes_Q = self._apply_calibration(stokes_Q,params,self.response_pol)
+            stokes_U = self._apply_calibration(stokes_U,params,self.response_pol)
         elif mask is True:
             raise ValueError(("mask=True requires fold=True: the ignore/"
                               "notice mask is defined in channel space, and "
@@ -769,9 +769,9 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
         stokes_I = self.response_polgrid.convolve_response(stokes_I)
         stokes_Q = self.response_pol.convolve_response(stokes_Q)
         stokes_U = self.response_pol.convolve_response(stokes_U)
-        stokes_I = self._apply_gain(stokes_I,params,self.response_polgrid)
-        stokes_Q = self._apply_gain(stokes_Q,params,self.response_pol)
-        stokes_U = self._apply_gain(stokes_U,params,self.response_pol)
+        stokes_I = self._apply_calibration(stokes_I,params,self.response_polgrid)
+        stokes_Q = self._apply_calibration(stokes_Q,params,self.response_pol)
+        stokes_U = self._apply_calibration(stokes_U,params,self.response_pol)
  
         model_product = PolarimetryProduct(self._pol_ebounds_unmasked,
                                            input_type='stokes')
@@ -1039,7 +1039,7 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
             from a second fitter. If None, a new figure is created.
             
         return_plot: bool, default=False
-            A boolean to decide whether to return the figure objected containing 
+            A boolean to decide whether to return the figure object containing 
             the plot or not.
             
         data_kwargs, bkg_kwargs: dict, default=None 
@@ -1089,7 +1089,7 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
             raise ValueError("Plot units not supported")
         n_quant = len(data)
 
-        layout_kwargs = dict(ncols=n_quant,figsize=(4.9*n_quant,4.0))
+        layout_kwargs = dict(ncols=n_quant,figsize=(6.5*n_quant,4.5))
         if panels is None:
             plot_layout = Plotting.make_layout(**layout_kwargs)
             fig, panels = Plotting.make_panels(plot_layout,squeeze=False)
@@ -1168,7 +1168,7 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
             from a second fitter. If None, a new figure is created.
             
         return_plot: bool, default=False
-            A boolean to decide whether to return the figure objected containing 
+            A boolean to decide whether to return the figure object containing 
             the plot or not.
             
         data_kwargs, model_kwargs, bkg_kwargs, component_kwargs, resid_kwargs: dict, default=None 
@@ -1244,11 +1244,11 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
                 folded = {}
                 for key in comps.keys():
                     comp = comps[key]*self.energ_bounds
-                    comp_I = self._apply_gain(self.response.convolve_response(comp[0]),
+                    comp_I = self._apply_calibration(self.response.convolve_response(comp[0]),
                                               params,self.response)
-                    comp_Q = self._apply_gain(self.response_pol.convolve_response(comp[1]),
+                    comp_Q = self._apply_calibration(self.response_pol.convolve_response(comp[1]),
                                               params,self.response_pol)
-                    comp_U = self._apply_gain(self.response_pol.convolve_response(comp[2]),
+                    comp_U = self._apply_calibration(self.response_pol.convolve_response(comp[2]),
                                               params,self.response_pol)
                     folded[key] = self._plot_format(np.concatenate((comp_I,comp_Q,comp_U)))
                 components = [{key: folded[key][k] for key in folded.keys()} for k in range(3)]
@@ -1286,7 +1286,7 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
         layout_kwargs = dict(figsize=(6.5*n_quant,4.5),ncols=n_quant)
         if plot_data is True:
             layout_kwargs = dict(nrows=2,ncols=n_quant,height_ratios=[2,1],
-                                 sharex=True,figsize=(4.9*n_quant,4.))  
+                                 sharex=True,figsize=(6.5*n_quant,6.))  
         if panels is None:
             plot_layout = Plotting.make_layout(**layout_kwargs)
             fig, panels = Plotting.make_panels(plot_layout,squeeze=False)

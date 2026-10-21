@@ -273,7 +273,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
 
         if fold is True:
             model = self.response.convolve_response(model) 
-            model = self._apply_gain(model,params)
+            model = self._apply_calibration(model,params)
         elif mask is True:
             raise ValueError(("mask=True requires fold=True: the ignore/"
                               "notice mask is defined in channel space, and "
@@ -402,7 +402,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
             from a second fitter. If None, a new figure is created.
             
         return_plot: bool, default=False
-            A boolean to decide whether to return the figure objected containing 
+            A boolean to decide whether to return the figure object containing 
             the plot or not.
             
         data_kwargs: dict, default=None 
@@ -528,7 +528,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
             from a second fitter. If None, a new figure is created.
             
         return_plot: bool, default=False
-            A boolean to decide whether to return the figure objected containing 
+            A boolean to decide whether to return the figure object containing 
             the plot or not.
             
         data_kwargs, model_kwargs, component_kwargs, resid_kwargs: dict, default=None 
@@ -603,7 +603,7 @@ class FitTimeAvgSpectrum(SimpleFit,EnergyDependentFit):
                                       energ=self.energs,ear=self.ear)
             for key in components.keys():
                 components[key] = self.response.convolve_response(components[key]*self.energ_bounds)
-                components[key] = self._apply_gain(components[key],params)
+                components[key] = self._apply_calibration(components[key],params)
                 components[key] = self._to_plot_units(components[key],units)
 
         panel_data = Plotting.make_panel_data(x_points=self._ebounds_unmasked,

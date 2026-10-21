@@ -583,6 +583,13 @@ class SimpleFit():
                           UserWarning)
             self.gain_params = None
             self._gain_keys = None
+        if isinstance(self,EnergyDependentFit) and self.renorm_params is not None:
+            warnings.warn(("WARNING: changing the model has reset the cross "
+                           "calibration correction, call set_renorm again to "
+                           "re-apply it"),
+                          UserWarning)
+            self.renorm_params = None
+            self._renorm_key = None
         
         return 
 
@@ -654,13 +661,22 @@ class EnergyDependentFit():
         
     gain_params: lmfit.Parameters, default None 
         A lmfit Parameters object, which contains the parameters for the gain  
-        correction model components if it is enabled. Defaults to None.
+        correction model components if it is enabled. 
         
     _gain_keys: list, default None 
         A list of keys we use to keep track of the names of the gain parameters. 
         Necessary during joint fits with multiple instruments/detectors, if more 
         than one detector requires gain fitting (e.g., fitting 3 IXPE DUs, each 
         with its set of gain parameters).      
+        
+    renorm_params: lmfit.Parameters, default None 
+        A lmfit Parameters object, which contains the parameters for the  
+        renormalisation model component (e.g for instrument cross calibration) 
+        if it is enabled.  
+
+    _renorm_key: str, default None 
+        The keys to use to keep track of the name of the renormalisation 
+        parameter.        
     """
     def __init__(self):   
         self.energs = 0.5*(self.response.energ_hi+self.response.energ_lo)
@@ -673,6 +689,8 @@ class EnergyDependentFit():
         self.ebounds_mask = np.full((self.response.n_chans), True)
         self.gain_params = None
         self._gain_keys = None
+        self.renorm_params = None
+        self._renorm_key = None
         pass
        
     def ignore_energies(self,bound_lo,bound_hi):
@@ -898,12 +916,44 @@ class EnergyDependentFit():
         self._check_gain_grid(self.ebounds_mask,self._emin_unmasked,
                               self._emax_unmasked,slope_bounds,offset_bounds)
         return
-    
-    def _apply_gain(self,model,params,response=None):
+
+    def set_renorm(self,value=1.0,vary=True,bounds=(0.5,1.5),label=None):
         """
-        This method applies the gain correction set by the user to a model which
-        has already been folded through the instrument response, and returns it
-        unchanged if no gain correction was set. The model must be defined over 
+        This method adds a multiplicative renormalisation constant component to  
+        the stored model, e.g. to account for cross-calibration between 
+        instruments in a joint fit.
+        
+        Parameters:
+        -----------
+        value: float, default 1
+            The starting value of the renormalisation constant 
+            
+        vary: bool, default True
+            Whether the cross calibration is allowed to vary during the fit 
+            
+        bounds: (float, float), default (0.5,1.5)
+            The bounds over which the renormalisation is allowed to vary 
+            
+        label: str 
+            A string to add to the name of the renormalisation constant. By 
+            default, the parameter is called simply "renorm".
+        """
+        self._renorm_key = "renorm"
+        if label is not None:
+          self._renorm_key = "renorm_"+str(label)
+        self.renorm_params = LM_Parameters()
+        self.renorm_params.add(self._renorm_key,value=value,vary=vary,
+                             min=bounds[0],max=bounds[1])
+        self.model_params.update(self.renorm_params)
+        return
+    
+    def _apply_calibration(self,model,params,response=None):
+        """
+        This method applies the gain correction and cross-calibration constant 
+        set by the user to a model which has already been folded through the 
+        instrument response, and returns it unchanged if neither was set. 
+        
+        In order to compute the gain correctly, the model must be defined over 
         every channel in the response, rather than over just the noticed ones, 
         because the channels which are ignored during the fit might supply some 
         counts after shifting.
@@ -928,6 +978,8 @@ class EnergyDependentFit():
             The folded model, shifted by the gain correction.
         """
 
+        if self.renorm_params is not None:
+            model = model*params[self._renorm_key].value        
         if self.gain_params is None:
             return model
         if response is None:
