@@ -1098,12 +1098,12 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
             panels = np.reshape(np.asarray(panels,dtype=object),(1,n_quant))
             fig = panels[0,0].get_figure()        
      
-        for k, panel in enumerate(panels):
+        for k in range(n_quant):
             x_axis, x_bars, _ = grids[k]
             #only Stokes I is positive definite
             log_yaxis = (units == "stokes" and k == 0)
             if units == "stokes" and k > 0:
-                panel.axhline(0,color='black',ls=':',zorder=3)
+                panels[0,k].axhline(0,color='black',ls=':',zorder=3)
             panel_data = Plotting.make_panel_data(x_points=x_axis,
                                                   y_points=data[k],
                                                   x_bars=x_bars,
@@ -1111,20 +1111,21 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
                                                   bkg_vals=None if bkg is None else bkg[k],
                                                   x_label="Energy (keV)",
                                                   y_label=y_labels[k])
-            Plotting.draw_main_panel(panel,panel_data,draw_model=False,
+            Plotting.draw_main_panel(panels[0,k],panel_data,draw_model=False,
                                      draw_bkg=plot_bkg,log_yaxis=log_yaxis,
                                      data_kwargs=data_kwargs,
                                      bkg_kwargs=bkg_kwargs)
  
+        panels = panels[0]
         if return_plot is True:
             return fig, panels
         else:
             return
 
     def plot_model(self,plot_data=True,plot_components=False,plot_bkg=False,
-                   params=None,units="stokes",residuals=None,return_plot=False,
-                   data_kwargs=None,model_kwargs=None,bkg_kwargs=None,
-                   component_kwargs=None,resid_kwargs=None):
+                   params=None,units="stokes",residuals=None,panels=None,
+                   return_plot=False,data_kwargs=None,model_kwargs=None,
+                   bkg_kwargs=None,component_kwargs=None,resid_kwargs=None):
         """
         This method plots the model as a function of energy, optionally with 
         its additive components, the data, and the residuals, either as the 
@@ -1162,8 +1163,13 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
             The residual units: "chisq" for (data-model)/error, "ratio" for 
             data/model, or "custom". If None, the fit likelihood is used.
  
+        panels : matplotlib.axes or numpy.ndarray(matplotlib.axes), default=None
+            Existing panels to draw into, e.g as returned by calling plot_model 
+            from a second fitter. If None, a new figure is created.
+            
         return_plot: bool, default=False
-            A boolean to decide whether to return the figure and panels.
+            A boolean to decide whether to return the figure objected containing 
+            the plot or not.
             
         data_kwargs, model_kwargs, bkg_kwargs, component_kwargs, resid_kwargs: dict, default=None 
             Keyword arguments for each element of the plot.
@@ -1277,14 +1283,19 @@ class FitSpectroPolarimetry(SimpleFit,EnergyDependentFit,
             raise ValueError("Plot units not supported")
         n_quant = len(model_vals)
         
+        layout_kwargs = dict(figsize=(6.5*n_quant,4.5),ncols=n_quant)
         if plot_data is True:
-            plot_layout = Plotting.make_layout(nrows=2,ncols=n_quant,
-                                               height_ratios=[2,1],sharex=True,
-                                               figsize=(6.5*n_quant,6.))
+            layout_kwargs = dict(nrows=2,ncols=n_quant,height_ratios=[2,1],
+                                 sharex=True,figsize=(4.9*n_quant,4.))  
+        if panels is None:
+            plot_layout = Plotting.make_layout(**layout_kwargs)
+            fig, panels = Plotting.make_panels(plot_layout,squeeze=False)
         else:
-            plot_layout = Plotting.make_layout(ncols=n_quant,
-                                               figsize=(6.5*n_quant,4.5))
-        fig, panels = Plotting.make_panels(plot_layout,squeeze=False)
+            #To lay out the panels correctly we need to reshape to a nrowsxncols
+            #grid layout
+            panels = np.reshape(np.asarray(panels,dtype=object),
+                                (layout_kwargs.get("nrows",1),n_quant))
+            fig = panels[0,0].get_figure()
  
         for k in range(n_quant):
             x_axis, x_error, x_edges = grids[k]

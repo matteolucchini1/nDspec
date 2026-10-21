@@ -1385,6 +1385,7 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                                           diverging=(self.units != "polar" or col == 1),
                                           log_xaxis=True,log_yaxis=True,ylim=ylim,
                                           mesh_kwargs=mesh_kwargs)
+        panels = panels[0]
         if self.units == "lags":
             panels = panels[0]
         
@@ -1556,7 +1557,11 @@ class FitCrossSpectrum(SimpleFit,EnergyDependentFit,FrequencyDependentFit):
                                                  resid_kwargs=resid_kwargs)
                           
         panels[0,-1].legend(loc="best",ncol=2,fontsize=12)
-        
+
+        if self.units == "lags":
+            panels = panels[:,0]
+        if plot_data is False:
+            panels = panels[0]        
         if return_plot is True:
             return fig, panels
         else:
