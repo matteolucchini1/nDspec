@@ -698,6 +698,7 @@ class JointFit():
                 fitter_kwargs = dict(kwargs)
                 fitter_kwargs.update(plot_kwargs.get(group[0],{}))
                 fig, panels = plotter(return_plot=True,**model_args,**fitter_kwargs)
+                panels[0].set_title(name)
             #fitters in the same group are drawn on top of each other
             else:
                 panels = None
@@ -719,7 +720,6 @@ class JointFit():
                     fig, panels = plotter(panels=panels,return_plot=True,
                                           **model_args,**styles,**fitter_kwargs)
                 np.ravel(panels)[0].legend(loc="best")
-            fig.suptitle(", ".join(group))
             figures.append((fig,panels))
         
         #return a list of figures/plots 
